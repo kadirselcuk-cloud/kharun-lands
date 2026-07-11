@@ -404,19 +404,22 @@ DATA.JEWELRY_BASES = {
 };
 
 // Affix pool: id, label(v), weight, roll(ilvl) -> value
+// Magnitude stats (HP, mana, damage, armor, regen) grow exponentially
+// with item level (+25%/level) to match monster scaling; percentage
+// and capped stats stay on gentle linear growth.
 DATA.AFFIXES = [
   { id: 'str', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Strength` },
   { id: 'dex', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Dexterity` },
   { id: 'int', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Intelligence` },
-  { id: 'hp', w: 10, roll: i => 10 + i * 3 + rint(0, i * 2), fmt: v => `+${v} Max HP` },
-  { id: 'mana', w: 8, roll: i => 6 + i * 2 + rint(0, i), fmt: v => `+${v} Max Mana` },
+  { id: 'hp', w: 10, roll: i => Math.round((12 + rint(0, 10)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max HP` },
+  { id: 'mana', w: 8, roll: i => Math.round((8 + rint(0, 6)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max Mana` },
   { id: 'speed', w: 8, roll: i => 2 + Math.floor(i / 5) + rint(0, 3), fmt: v => `+${v} Speed` },
-  { id: 'hpRegen', w: 6, roll: i => 1 + Math.floor(i / 10), fmt: v => `+${v} HP Regen` },
-  { id: 'manaRegen', w: 6, roll: i => 1 + Math.floor(i / 10), fmt: v => `+${v} Mana Regen` },
+  { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} HP Regen` },
+  { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Mana Regen` },
   { id: 'evasion', w: 6, roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
-  { id: 'dmgFlat', w: 10, roll: i => 2 + Math.floor(i * 0.8) + rint(0, Math.ceil(i / 2)), fmt: v => `+${v} Weapon Damage` },
+  { id: 'dmgFlat', w: 10, roll: i => Math.round((2 + rint(0, 3)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
   { id: 'dmgPct', w: 8, roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
-  { id: 'armor', w: 9, roll: i => 3 + Math.floor(i * 0.6) + rint(0, Math.ceil(i / 3)), fmt: v => `+${v} Armor` },
+  { id: 'armor', w: 9, roll: i => Math.round((3 + rint(0, 3)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Armor` },
   { id: 'dr', w: 4, roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
   { id: 'resPhys', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Physical Resistance` },
   { id: 'resMagic', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Magic Resistance` },
@@ -453,7 +456,50 @@ DATA.NAME_PARTS = {
 DATA.FALLBACK_PRE = ['Curious', 'Weathered', 'Polished', 'Odd'];
 DATA.FALLBACK_SUF = ['of the Wanderer', 'of the Road', 'of Fortune', 'of the Unknown'];
 
+// ------------------------------------------------------------
+// Unique weapon names (rare / epic / legendary weapons)
+// ------------------------------------------------------------
+// Evocative nouns per weapon type — the second word of a unique name.
+DATA.WEAPON_NOUNS = {
+  greatsword: ['Cleaver', 'Reaver', 'Edge', 'Sorrow', 'Doom'],
+  battleaxe: ['Hewer', 'Splitter', 'Maw', 'Bite', 'Grudge'],
+  warhammer: ['Crusher', 'Knell', 'Fist', 'Toll', 'Verdict'],
+  longsword: ['Fang', 'Oath', 'Song', 'Promise', 'Edge'],
+  dagger: ['Sting', 'Kiss', 'Whisper', 'Thorn', 'Secret'],
+  twinblade: ['Dance', 'Talon', 'Storm', 'Scissor', 'Waltz'],
+  shortsword: ['Bite', 'Shard', 'Point', 'Snarl', 'Quill'],
+  staff: ['Walker', 'Pillar', 'Word', 'Root', 'Question'],
+  wand: ['Spark', 'Whim', 'Point', 'Wink', 'Murmur'],
+  scepter: ['Crown', 'Scion', 'Star', 'Decree', 'Rod'],
+};
+
+// Short adjectives per affix — the first word of a rare/epic weapon name.
+DATA.AFFIX_ADJ = {
+  str: ['Brutal', 'Mighty', 'Heavy'], dex: ['Swift', 'Keen', 'Nimble'], int: ['Arcane', 'Wise', 'Lucid'],
+  hp: ['Stout', 'Lifebound', 'Vital'], mana: ['Soulful', 'Azure', 'Deep'], speed: ['Fleet', 'Quick', 'Restless'],
+  hpRegen: ['Mending', 'Living', 'Warm'], manaRegen: ['Flowing', 'Welling', 'Humming'],
+  evasion: ['Ghostly', 'Fleeting', 'Pale'], dmgFlat: ['Cruel', 'Sharp', 'Hungry'], dmgPct: ['Savage', 'Raging', 'Wild'],
+  armor: ['Warded', 'Iron', 'Shielding'], dr: ['Adamant', 'Stone', 'Grim'],
+  resPhys: ['Sturdy', 'Oaken', 'Blunting'], resMagic: ['Runed', 'Gleaming', 'Null'], resPoison: ['Vile', 'Venom', 'Sour'],
+  enemyResDown: ['Sundering', 'Piercing', 'Rending'], skill: ['Practiced', 'Honed', 'Studied'],
+  allSkills: ['Peerless', 'Perfect', 'Exalted'],
+};
+
+// Heroic epithets per affix — the first word of a legendary weapon name.
+DATA.AFFIX_HEROIC = {
+  str: ["Titan's", "Warlord's"], dex: ["Windrunner's", "Shadowdancer's"], int: ["Archmage's", "Oracle's"],
+  hp: ["Lifewarden's", 'Everliving'], mana: ["Soulkeeper's", "Voidheart's"], speed: ["Stormchaser's", "Galewind's"],
+  hpRegen: ["Phoenix's", 'Undying'], manaRegen: ["Wellspring's", "Tidecaller's"],
+  evasion: ["Phantom's", 'Untouchable'], dmgFlat: ["Executioner's", 'Doomforged'], dmgPct: ["Warbringer's", "Slaughterer's"],
+  armor: ["Bulwark's", 'Aegisborn'], dr: ['Unbreakable', "Mountain's"],
+  resPhys: ["Juggernaut's", "Ironsoul's"], resMagic: ["Spellbreaker's", "Nullwarden's"], resPoison: ["Plaguebane's", "Serpentlord's"],
+  enemyResDown: ["Worldsplitter's", "Siegemaster's"], skill: ["Virtuoso's", "Master's"],
+  allSkills: ["Master's", "Grandmaster's"],
+};
+
 // helper available to data + game
 function rint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function chance(p) { return Math.random() < p; }
+// +25% compounding growth per level, used by both monsters and items
+function bigScale(i) { return Math.pow(1.25, Math.max(0, i - 1)); }

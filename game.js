@@ -252,7 +252,12 @@ function clampVitals() {
 // ------------------------------------------------------------
 // Items
 // ------------------------------------------------------------
-function itemScale(ilvl) { return 1 + 0.16 * ilvl + 0.011 * ilvl * ilvl; }
+// Items grow +25% per level, matching monster scaling (see bigScale).
+function itemScale(ilvl) { return bigScale(ilvl); }
+
+// All skill mana costs are tripled — mana is a scarce resource.
+const MANA_COST_MULT = 3;
+function skillCost(s) { return (s.cost ? s.cost() : 0) * MANA_COST_MULT; }
 
 function rollAffixes(count, ilvl, clsId) {
   const out = [];
@@ -338,9 +343,23 @@ function makeItem(ilvl, rarity, clsHint) {
 
 // Names are generated from the item's own affixes: one random affix
 // supplies the prefix word, another supplies the suffix phrase.
+// Rare/epic/legendary WEAPONS instead get unique names:
+//   rare      — two words tied to a bonus property ("Vile Sting")
+//   epic      — one-word forged name or two-word property name
+//   legendary — heroic epithet + weapon noun ("Master's Walker"),
+//               or a one-word forged name
 function buildItemName(it) {
   if (it.rarity === 'normal') return it.baseName;
   const affs = it.affixes && it.affixes.length ? it.affixes : null;
+  if (it.slot === 'weapon' && affs && it.rarity !== 'magical') {
+    const noun = pick(DATA.WEAPON_NOUNS[it.base] || ['Relic']);
+    const adj = () => pick(DATA.AFFIX_ADJ[pick(affs).id] || DATA.FALLBACK_PRE);
+    const heroic = () => pick(DATA.AFFIX_HEROIC[pick(affs).id] || DATA.FALLBACK_PRE);
+    const forged = () => pick(DATA.NAME_SYL_A) + pick(DATA.NAME_SYL_B);
+    if (it.rarity === 'rare') return `${adj()} ${noun}`;
+    if (it.rarity === 'epic') return chance(0.5) ? forged() : `${adj()} ${noun}`;
+    return chance(0.35) ? forged() : `${heroic()} ${noun}`;   // legendary
+  }
   const pre = affs ? pick(DATA.NAME_PARTS[pick(affs).id].pre) : pick(DATA.FALLBACK_PRE);
   const suf = affs ? pick(DATA.NAME_PARTS[pick(affs).id].suf) : pick(DATA.FALLBACK_SUF);
   return `${pre} ${it.baseName} ${suf}`;
@@ -460,12 +479,12 @@ function genShopStock() {
       it = makeItem(shopIlvl(), shopRollRarity(), G.char.cls);
       if (canUseItem(it).ok) break;
     }
-    it.price = it.value * 3;
+    it.price = it.value * 6;
     stock.push(it);
   }
   if (chance(0.3)) {
     const rune = makeRune(shopIlvl(), pick(['rare', 'rare', 'epic']));
-    rune.price = rune.value * 3;
+    rune.price = rune.value * 6;
     stock.push(rune);
   }
   G.shop = { stock };
@@ -484,7 +503,7 @@ function buyShopItem(uid) {
   UI.toast(`Bought ${it.name}`);
 }
 
-function restockCost() { return 20 + G.unlocked * 10; }
+function restockCost() { return 200 + G.unlocked * 100; }
 
 function restockShop() {
   const cost = restockCost();
@@ -525,7 +544,8 @@ function bossName(t) {
   return `${name} — ${pick(t.bossTitles)}`;
 }
 
-function enemyScale(level) { return 1 + 0.30 * (level - 1) + 0.02 * (level - 1) * (level - 1); }
+// Each area level is 25% more difficult than the previous (compounding).
+function enemyScale(level) { return bigScale(level); }
 
 const TIER_CONF = {
   normal:    { hp: 1.0, dmg: 1.0, spd: 1.0, xp: 1, gold: 1 },
@@ -671,7 +691,7 @@ function pickSkill(fight) {
   const alive = fight.enemies.filter(e => e.hp > 0);
   const hpPct = G.char.hp / ADV.d.maxHp;
   const cd = fight.cds;
-  const usable = s => (cd[s.id] || 0) <= 0 && G.char.mana >= s.cost();
+  const usable = s => (cd[s.id] || 0) <= 0 && G.char.mana >= skillCost(s);
 
   const byCat = cat => list.find(s => s.cat === cat && usable(s));
   if (hpPct < 0.5) { const heal = byCat('heal'); if (heal) return heal; }
@@ -729,7 +749,7 @@ function playerAct(fight) {
     if (!alive.length) return;
     const skill = pickSkill(fight);
     const r = effectiveRank(skill.id) || 1;
-    const cost = skill.cost ? skill.cost() : 0;
+    const cost = skillCost(skill);
     if (cost) c.mana -= cost;
     if (skill.cd) fight.cds[skill.id] = skill.cd + 1;
 

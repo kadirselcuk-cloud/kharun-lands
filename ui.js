@@ -232,7 +232,7 @@ UI.renderSkills = function (el) {
               </div>
               <div class="skill-desc">${s.desc(Math.max(1, eff))}</div>
               <div class="skill-meta">
-                ${s.cost && s.cost() ? `Cost: ${s.cost()} mana · ` : s.passive ? 'Passive · ' : 'Free · '}
+                ${skillCost(s) ? `Cost: ${skillCost(s)} mana · ` : s.passive ? 'Passive · ' : 'Free · '}
                 ${s.cd ? `Cooldown: ${s.cd} rounds · ` : ''}
                 Req: level ${s.minLvl}${s.req ? ` + ${DATA.SKILLS[c.cls][s.req].name}` : ''}
               </div>
@@ -272,7 +272,7 @@ UI.renderInventory = function (el) {
           return `<div class="inv-item rar-${it.rarity} ${it.type === 'item' && !usable.ok ? 'unusable' : ''}" onclick="UI.showItem(${it.uid},'inv')">
             <div class="inv-icon">${it.icon}</div>
             <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
-            <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ilvl ${it.ilvl}`}</div>
+            <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${it.type === 'item' ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
           </div>`;
         }).join('')}
@@ -327,7 +327,7 @@ UI.showItem = function (uid, context, slot) {
 
   UI.modal(`
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
-    <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ilvl ${it.ilvl}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
+    <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${compare ? `<div class="compare"><h4>Currently equipped: <span style="color:${DATA.RARITIES[compare.rarity].color}">${esc(compare.name)}</span></h4>
       ${compare.dmgMin ? `<div class="istat">Damage: ${compare.dmgMin}–${compare.dmgMax}</div>` : ''}
@@ -349,7 +349,7 @@ UI.renderShop = function (el) {
           <button class="btn btn-tiny" onclick="restockShop()" ${G.gold < restockCost() ? 'disabled' : ''}>♻ New stock (🪙 ${restockCost()})</button>
         </span>
       </h3>
-      <p class="hint">Wares are generated for area level ${shopIlvl()} and priced at 3× their sell value. Free new stock arrives whenever you return from an adventure.</p>
+      <p class="hint">Wares are generated for area level ${shopIlvl()} and priced at 6× their sell value. Free new stock arrives whenever you return from an adventure.</p>
       ${stock.length === 0 ? '<p class="hint">Sold out! Come back after your next adventure.</p>' : ''}
       <div class="inv-grid">
         ${stock.map(it => {
@@ -358,7 +358,7 @@ UI.renderShop = function (el) {
           return `<div class="inv-item rar-${it.rarity} ${usable && !usable.ok ? 'unusable' : ''}" onclick="UI.showShopItem(${it.uid})">
             <div class="inv-icon">${it.icon}</div>
             <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
-            <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ilvl ${it.ilvl}`}</div>
+            <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${usable ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
             <div class="shop-price ${afford ? '' : 'poor'}">🪙 ${it.price.toLocaleString()}</div>
           </div>`;
@@ -385,7 +385,7 @@ UI.showShopItem = function (uid) {
        ${it.sockets ? `<div class="sockets">Sockets: ${'<span class="socket">○</span>'.repeat(it.sockets)}</div>` : ''}`;
   UI.modal(`
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
-    <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ilvl ${it.ilvl}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
+    <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${compare ? `<div class="compare"><h4>Currently equipped: <span style="color:${DATA.RARITIES[compare.rarity].color}">${esc(compare.name)}</span></h4>
       ${compare.dmgMin ? `<div class="istat">Damage: ${compare.dmgMin}–${compare.dmgMax}</div>` : ''}
@@ -572,7 +572,7 @@ UI.showResults = function (run, level) {
       <div class="loot-list">
         ${run.items.map(it => `<div class="loot-row" onclick="UI.showItem(${it.uid},'inv')">
           ${it.icon} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
-          <small>${it.type === 'rune' ? `rune · ${it.bonuses.length} bonus` : `${DATA.RARITIES[it.rarity].name} · ilvl ${it.ilvl}`}</small>
+          <small>${it.type === 'rune' ? `rune · ${it.bonuses.length} bonus` : `${DATA.RARITIES[it.rarity].name} · ${esc(it.baseName)}`}</small>
         </div>`).join('')}
       </div>` : '<p class="hint">No items this time — the wilds are stingy.</p>'}
     <div class="modal-actions">
