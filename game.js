@@ -831,6 +831,13 @@ function retreat(reason) {
     reason === 'stalemate' ? '🏳️ The battle drags on forever — you disengage and slip away.' :
     reason === 'done' ? '🏁 Nothing left to fight here.' :
     '🏳️ You retreat in good order.');
+  // Falling in battle resets the level: all kill progress there is lost.
+  // (Loot, gold and XP are kept — retreat manually to keep progress!)
+  if (reason === 'defeated') {
+    run.progressLost = G.progress[ADV.level] || 0;
+    G.progress[ADV.level] = 0;
+    if (run.progressLost) log('sys', `☠️ Defeat wipes your progress here — ${run.progressLost} kills lost. Level ${ADV.level} restarts from the beginning.`);
+  }
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rest at home
   genShopStock(); // the merchant rotates wares while you were away

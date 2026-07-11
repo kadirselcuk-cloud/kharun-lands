@@ -456,10 +456,10 @@ UI.renderAdventure = function (el) {
                 <button class="btn btn-tiny ${ADV.speedMs === 10 ? 'active' : ''}" onclick="setAdvSpeed(10)">MAX</button>
               </span>
             </div>
-            <p class="hint">No stamina — your hero fights until the boss falls or their HP hits 0.</p>
+            <p class="hint">Your hero fights until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this level's progress — retreat while you still can to keep it!</p>
           </div>` : `
           <button class="btn btn-primary btn-big" onclick="startAdventure()">⚔️ ADVENTURE!</button>
-          <p class="hint">Your hero fights round by round until the level boss falls or they drop to 0 HP. Potions found are drunk on the spot; gold and items are tallied when you return.</p>`}
+          <p class="hint">Your hero fights round by round until the level boss falls or they drop to 0 HP. ⚠️ Falling in battle resets this level's progress (loot, gold and XP are kept) — retreating manually keeps your progress. Potions found are drunk on the spot.</p>`}
       </div>
       <div class="panel">
         <h3>⚔️ Current Fight</h3>
@@ -532,9 +532,9 @@ UI.showResults = function (run, level) {
   const totalKills = k.normal + k.rare + k.epic + k.legendary;
   const outcomeTxt = {
     boss: '🏆 VICTORY! The Legendary Boss has fallen!',
-    defeated: '💀 You fell in battle — but heroes always crawl home.',
+    defeated: `💀 You fell in battle — the level resets!${run.progressLost ? ` ${run.progressLost} kills of progress lost.` : ''} Loot and XP are yours to keep.`,
     stalemate: '🏳️ The battle dragged on forever; you slipped away.',
-    manual: '🏳️ You chose to retreat.',
+    manual: '🏳️ You chose to retreat — progress is kept.',
     done: '🏁 Nothing left to fight here.',
   }[run.outcome] || 'The adventure ends.';
   // loot breakdown by type
