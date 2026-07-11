@@ -206,7 +206,7 @@ function derive() {
 // ------------------------------------------------------------
 // XP / leveling
 // ------------------------------------------------------------
-function xpForLevel(lvl) { return Math.round(80 * Math.pow(lvl, 1.55)); }
+function xpForLevel(lvl) { return Math.round(160 * Math.pow(lvl, 1.55)); }
 
 function gainXp(amount, run) {
   const c = G.char;
@@ -349,27 +349,34 @@ function makeItem(ilvl, rarity, clsHint) {
   return it;
 }
 
-// Names are generated from the item's own affixes: one random affix
-// supplies the prefix word, another supplies the suffix phrase.
-// Rare/epic/legendary WEAPONS instead get unique names:
-//   rare      — two words tied to a bonus property ("Vile Sting")
-//   epic      — one-word forged name or two-word property name
-//   legendary — heroic epithet + weapon noun ("Master's Walker"),
-//               or a one-word forged name
+// Names are generated from the item's own affixes.
+//   magical    — affix-driven prefix/suffix; a single-property item
+//                gets only ONE of the two ("Mighty Ring" or "Ring of the Ox")
+//   rare       — weapons get two-word unique names ("Vile Sting");
+//                other rares keep prefix + base + suffix
+//   epic       — ALL items: one-word forged name or two-word property name
+//   legendary  — ALL items: heroic epithet + item noun ("Master's Walker")
+//                or a one-word forged name
+function nounFor(it) {
+  if (it.slot === 'weapon') return pick(DATA.WEAPON_NOUNS[it.base] || ['Relic']);
+  return pick(DATA.ITEM_NOUNS[it.base] || DATA.ITEM_NOUNS[it.slot] || ['Relic']);
+}
+
 function buildItemName(it) {
   if (it.rarity === 'normal') return it.baseName;
   const affs = it.affixes && it.affixes.length ? it.affixes : null;
-  if (it.slot === 'weapon' && affs && it.rarity !== 'magical') {
-    const noun = pick(DATA.WEAPON_NOUNS[it.base] || ['Relic']);
-    const adj = () => pick(DATA.AFFIX_ADJ[pick(affs).id] || DATA.FALLBACK_PRE);
-    const heroic = () => pick(DATA.AFFIX_HEROIC[pick(affs).id] || DATA.FALLBACK_PRE);
-    const forged = () => pick(DATA.NAME_SYL_A) + pick(DATA.NAME_SYL_B);
-    if (it.rarity === 'rare') return `${adj()} ${noun}`;
-    if (it.rarity === 'epic') return chance(0.5) ? forged() : `${adj()} ${noun}`;
-    return chance(0.35) ? forged() : `${heroic()} ${noun}`;   // legendary
+  if (!affs) return `${pick(DATA.FALLBACK_PRE)} ${it.baseName}`;
+  const adj = () => pick(DATA.AFFIX_ADJ[pick(affs).id] || DATA.FALLBACK_PRE);
+  const heroic = () => pick(DATA.AFFIX_HEROIC[pick(affs).id] || DATA.FALLBACK_PRE);
+  const forged = () => pick(DATA.NAME_SYL_A) + pick(DATA.NAME_SYL_B);
+  if (it.rarity === 'epic') return chance(0.5) ? forged() : `${adj()} ${nounFor(it)}`;
+  if (it.rarity === 'legendary') return chance(0.35) ? forged() : `${heroic()} ${nounFor(it)}`;
+  if (it.rarity === 'rare' && it.slot === 'weapon') return `${adj()} ${nounFor(it)}`;
+  const pre = pick(DATA.NAME_PARTS[pick(affs).id].pre);
+  const suf = pick(DATA.NAME_PARTS[pick(affs).id].suf);
+  if (it.rarity === 'magical' && affs.length === 1) {
+    return chance(0.5) ? `${pre} ${it.baseName}` : `${it.baseName} ${suf}`;
   }
-  const pre = affs ? pick(DATA.NAME_PARTS[pick(affs).id].pre) : pick(DATA.FALLBACK_PRE);
-  const suf = affs ? pick(DATA.NAME_PARTS[pick(affs).id].suf) : pick(DATA.FALLBACK_SUF);
   return `${pre} ${it.baseName} ${suf}`;
 }
 
@@ -567,6 +574,18 @@ function normalsUntilSpecial(kills) {
   return n;
 }
 
+// Each of a biome type's 10 levels gets a UNIQUE roster of 3 of its 5
+// creatures — C(5,3) = 10 combinations, one per level, no repeats.
+const CREATURE_COMBOS = [
+  [0, 1, 2], [0, 3, 4], [1, 2, 3], [0, 1, 4], [2, 3, 4],
+  [0, 1, 3], [1, 2, 4], [0, 2, 3], [1, 3, 4], [0, 2, 4],
+];
+function creaturesForLevel(level) {
+  const info = areaInfo(level);
+  const combo = CREATURE_COMBOS[(level - 1) % 10];
+  return combo.map(i => info.type.creatures[i]);
+}
+
 function rareName(t) { return `${pick(t.rareA)} ${pick(t.rareB)}`; }
 function bossName(t) {
   const name = pick(DATA.NAME_SYL_A) + pick(DATA.NAME_SYL_B) + pick(DATA.NAME_SYL_C);
@@ -585,7 +604,7 @@ const TIER_CONF = {
 
 function makeCreature(level, tier) {
   const info = areaInfo(level);
-  const base = pick(info.type.creatures);
+  const base = pick(creaturesForLevel(level));
   const conf = TIER_CONF[tier];
   const s = enemyScale(level);
   const c = {
@@ -595,7 +614,7 @@ function makeCreature(level, tier) {
     maxHp: Math.max(5, Math.round(39 * base.hp * s * conf.hp * (0.9 + Math.random() * 0.2))),
     dmg: Math.max(1, Math.round(11.7 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
-    xp: Math.round((4 + level * 2.2) * conf.xp),
+    xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp / 10)),
     gauge: 0, stunned: 0, dead: false,
   };
   c.hp = c.maxHp;
@@ -686,11 +705,11 @@ function dropItem(lvl, rarity, run) {
 function usePotion(kind, run) {
   const d = ADV.d;
   if (kind === 'hp') {
-    // 1% Full Health, 25% Greater (40%), otherwise regular (20%)
+    // 0.5% Full Health, 25% Greater (40%), otherwise regular (20%)
     const roll = Math.random();
     let heal, label;
-    if (roll < 0.01) { heal = d.maxHp; label = '🌟 FULL HEALTH potion! Fully restored'; }
-    else if (roll < 0.26) { heal = Math.round(d.maxHp * 0.40); label = '✨ GREATER health potion!'; }
+    if (roll < 0.005) { heal = d.maxHp; label = '🌟 FULL HEALTH potion! Fully restored'; }
+    else if (roll < 0.255) { heal = Math.round(d.maxHp * 0.40); label = '✨ GREATER health potion!'; }
     else { heal = Math.round(d.maxHp * 0.20); label = 'Health potion!'; }
     const before = G.char.hp;
     G.char.hp = Math.min(d.maxHp, G.char.hp + heal);
@@ -875,9 +894,26 @@ function setAdvSpeed(ms) {
   if (!ADV) return;
   ADV.speedMs = ms;
   G.settings.advSpeed = ms;   // remembered for repeat runs of this level
-  clearInterval(advTimer);
-  advTimer = setInterval(adventureTick, ms);
+  clearInterval(advTimer); advTimer = null;
+  if (!ADV.paused) advTimer = setInterval(adventureTick, ms);
   saveGame();
+  UI.refresh();
+}
+
+function pauseAdventure() {
+  if (!ADV || ADV.paused) return;
+  ADV.paused = true;
+  clearInterval(advTimer); advTimer = null;
+  log('sys', '⏸ Adventure paused.');
+  saveGame();
+  UI.refresh();
+}
+
+function resumeAdventure() {
+  if (!ADV || !ADV.paused) return;
+  ADV.paused = false;
+  advTimer = setInterval(adventureTick, ADV.speedMs);
+  log('sys', '▶ Adventure resumed.');
   UI.refresh();
 }
 

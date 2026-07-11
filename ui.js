@@ -5,7 +5,9 @@
 
 const UI = {};
 let activeTab = 'adventure';
-let invFilter = 'all';
+let invFilter = 'all';     // all | usable
+let invType = 'all';       // all | rune | <slot>
+let invSort = 'rarity';    // rarity | type | value | name
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -270,17 +272,41 @@ UI.renderSkills = function (el) {
 // ------------------------------------------------------------
 // Inventory tab
 // ------------------------------------------------------------
+const INV_TYPES = [
+  ['all', 'All types'], ['weapon', 'Weapon'], ['offhand', 'Off Hand / Shield'],
+  ['helmet', 'Helmet'], ['armor', 'Armor'], ['gloves', 'Gloves'], ['pants', 'Pants'], ['boots', 'Footwear'],
+  ['amulet', 'Amulet'], ['ring', 'Ring'], ['cloak', 'Cloak'], ['rune', 'Rune'],
+];
+const INV_SORTS = [['rarity', 'Rarity'], ['type', 'Type'], ['value', 'Value'], ['name', 'Name']];
+
+function invTypeOf(i) { return i.type === 'rune' ? 'rune' : i.slot; }
+function slotOrderOf(i) {
+  if (i.type === 'rune') return 99;
+  const idx = DATA.SLOTS.indexOf(i.slot === 'ring' ? 'ring1' : i.slot);
+  return idx < 0 ? 98 : idx;
+}
+
 UI.renderInventory = function (el) {
-  const items = G.inventory.filter(i =>
-    invFilter === 'all' ? true :
-    invFilter === 'runes' ? i.type === 'rune' :
-    invFilter === 'usable' ? (i.type === 'item' && canUseItem(i).ok) : true);
-  items.sort((a, b) => Object.keys(DATA.RARITIES).indexOf(b.rarity) - Object.keys(DATA.RARITIES).indexOf(a.rarity) || b.ilvl - a.ilvl);
+  const rarOrder = Object.keys(DATA.RARITIES);
+  const items = G.inventory.filter(i => {
+    if (invFilter === 'usable' && !(i.type === 'item' && canUseItem(i).ok)) return false;
+    if (invType !== 'all' && invTypeOf(i) !== invType) return false;
+    return true;
+  });
+  const byRarity = (a, b) => rarOrder.indexOf(b.rarity) - rarOrder.indexOf(a.rarity) || b.ilvl - a.ilvl;
+  items.sort({
+    rarity: byRarity,
+    type: (a, b) => slotOrderOf(a) - slotOrderOf(b) || byRarity(a, b),
+    value: (a, b) => b.value - a.value,
+    name: (a, b) => a.name.localeCompare(b.name),
+  }[invSort] || byRarity);
   el.innerHTML = `
     <div class="panel">
       <h3>Inventory (${G.inventory.length})
         <span class="filters">
-          ${['all', 'usable', 'runes'].map(f => `<button class="btn btn-tiny ${invFilter === f ? 'active' : ''}" data-f="${f}">${cap(f)}</button>`).join('')}
+          ${['all', 'usable'].map(f => `<button class="btn btn-tiny ${invFilter === f ? 'active' : ''}" data-f="${f}">${cap(f)}</button>`).join('')}
+          <label class="inv-select">Type <select id="inv-type">${INV_TYPES.map(([v, l]) => `<option value="${v}" ${invType === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="inv-select">Sort <select id="inv-sort">${INV_SORTS.map(([v, l]) => `<option value="${v}" ${invSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </span>
       </h3>
       <div class="sell-row">Sell all:
@@ -304,6 +330,8 @@ UI.renderInventory = function (el) {
       </div>
     </div>`;
   el.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { invFilter = b.dataset.f; UI.refresh(); });
+  const typeSel = $('#inv-type'); if (typeSel) typeSel.onchange = () => { invType = typeSel.value; UI.refresh(); };
+  const sortSel = $('#inv-sort'); if (sortSel) sortSel.onchange = () => { invSort = sortSel.value; UI.refresh(); };
   el.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => {
     const kind = b.dataset.sell;
     const matches = sellMatches(kind);
@@ -508,13 +536,14 @@ UI.renderAdventure = function (el) {
           ${[1, 2, 3, 4, 5].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" onclick="setPackSize(${n})">${n}</button>`).join('')}
           <small class="hint-inline">more enemies = faster progress, more danger</small>
         </div>
-        <h3>Local wildlife</h3>
+        <h3>Local wildlife <small>(unique roster for this level)</small></h3>
         <div class="wildlife">
-          ${info.type.creatures.map(cr => `<div class="creature-chip" title="${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%">${esc(cr.name)}</div>`).join('')}
+          ${creaturesForLevel(G.area).map(cr => `<div class="creature-chip" title="${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%">${esc(cr.name)}</div>`).join('')}
         </div>
         ${ADV ? `
           <div class="adv-status">
             <div class="adv-buttons">
+              <button class="btn" onclick="${ADV.paused ? 'resumeAdventure()' : 'pauseAdventure()'}">${ADV.paused ? '▶ Resume' : '⏸ Pause'}</button>
               <button class="btn danger" onclick="stopAdventure()">🏳️ Retreat now</button>
               <span class="speed-ctl">Speed:
                 <button class="btn btn-tiny ${ADV.speedMs === 300 ? 'active' : ''}" onclick="setAdvSpeed(300)">1×</button>

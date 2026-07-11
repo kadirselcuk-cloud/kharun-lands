@@ -473,6 +473,24 @@ DATA.WEAPON_NOUNS = {
   scepter: ['Crown', 'Scion', 'Star', 'Decree', 'Rod'],
 };
 
+// Evocative nouns for non-weapon items (epic/legendary unique names).
+// Keyed by base id (offhands) or slot (armor pieces, jewelry).
+DATA.ITEM_NOUNS = {
+  buckler: ['Ward', 'Rebuff', 'Answer', 'Guard'],
+  kiteshield: ['Wall', 'Bastion', 'Refuge', 'Aegis'],
+  towershield: ['Mountain', 'Gate', 'Rampart', 'Bulwark'],
+  orb: ['Eye', 'Sphere', 'Mind', 'Focus'],
+  tome: ['Codex', 'Verse', 'Word', 'Grimoire'],
+  helmet: ['Crown', 'Visage', 'Gaze', 'Brow'],
+  armor: ['Aegis', 'Shell', 'Heart', 'Embrace'],
+  gloves: ['Grip', 'Touch', 'Fists', 'Hold'],
+  pants: ['Stride', 'March', 'Stance', 'Path'],
+  boots: ['Walkers', 'Treads', 'Steps', 'Journey'],
+  amulet: ['Tear', 'Heart', 'Promise', 'Memory'],
+  ring: ['Band', 'Coil', 'Oath', 'Circle'],
+  cloak: ['Shadow', 'Wings', 'Veil', 'Shroud'],
+};
+
 // Short adjectives per affix — the first word of a rare/epic weapon name.
 DATA.AFFIX_ADJ = {
   str: ['Brutal', 'Mighty', 'Heavy'], dex: ['Swift', 'Keen', 'Nimble'], int: ['Arcane', 'Wise', 'Lucid'],
