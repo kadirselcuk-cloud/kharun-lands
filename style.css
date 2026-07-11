@@ -284,6 +284,15 @@ small { color: var(--dim); }
 
 .battle-log { height: 330px; }
 
+/* shop */
+.shop-price { margin-top: 5px; font-weight: 700; color: #ffd84d; font-size: .86rem; }
+.shop-price.poor { color: #7a5050; }
+
+/* results breakdown */
+.results-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.drop-chips { margin: 4px 0 8px; font-size: .82rem; }
+.drop-chip { font-weight: 600; }
+
 ::-webkit-scrollbar { width: 9px; }
 ::-webkit-scrollbar-track { background: #0a0b10; }
 ::-webkit-scrollbar-thumb { background: #2c3044; border-radius: 5px; }

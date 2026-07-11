@@ -96,6 +96,7 @@ UI.showGame = function () {
       <button data-tab="character">🧍 Character</button>
       <button data-tab="skills">📜 Skills</button>
       <button data-tab="inventory">🎒 Inventory</button>
+      <button data-tab="shop">🛒 Shop</button>
     </div>
     <div id="tab-content"></div>
     <div id="modal-root"></div>
@@ -115,6 +116,7 @@ UI.refresh = function () {
   if (activeTab === 'character') UI.renderCharacter(el);
   else if (activeTab === 'skills') UI.renderSkills(el);
   else if (activeTab === 'inventory') UI.renderInventory(el);
+  else if (activeTab === 'shop') UI.renderShop(el);
   else UI.renderAdventure(el);
 };
 
@@ -334,6 +336,67 @@ UI.showItem = function (uid, context, slot) {
     <div class="modal-actions">${actions.join('')}<button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
+// ------------------------------------------------------------
+// Shop tab
+// ------------------------------------------------------------
+UI.renderShop = function (el) {
+  if (!G.shop || !G.shop.stock) genShopStock();
+  const stock = G.shop.stock;
+  el.innerHTML = `
+    <div class="panel">
+      <h3>🛒 Traveling Merchant
+        <span class="filters">
+          <button class="btn btn-tiny" onclick="restockShop()" ${G.gold < restockCost() ? 'disabled' : ''}>♻ New stock (🪙 ${restockCost()})</button>
+        </span>
+      </h3>
+      <p class="hint">Wares are generated for area level ${shopIlvl()} and priced at 3× their sell value. Free new stock arrives whenever you return from an adventure.</p>
+      ${stock.length === 0 ? '<p class="hint">Sold out! Come back after your next adventure.</p>' : ''}
+      <div class="inv-grid">
+        ${stock.map(it => {
+          const usable = it.type === 'item' ? canUseItem(it) : null;
+          const afford = G.gold >= it.price;
+          return `<div class="inv-item rar-${it.rarity} ${usable && !usable.ok ? 'unusable' : ''}" onclick="UI.showShopItem(${it.uid})">
+            <div class="inv-icon">${it.icon}</div>
+            <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
+            <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ilvl ${it.ilvl}`}</div>
+            ${usable ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
+            <div class="shop-price ${afford ? '' : 'poor'}">🪙 ${it.price.toLocaleString()}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+};
+
+UI.showShopItem = function (uid) {
+  const it = G.shop && G.shop.stock.find(i => i.uid === uid);
+  if (!it) return;
+  const rar = DATA.RARITIES[it.rarity];
+  const usable = it.type === 'item' ? canUseItem(it) : null;
+  const afford = G.gold >= it.price;
+  const compare = it.type === 'item' ? G.char.equip[it.slot === 'ring' ? 'ring1' : it.slot] : null;
+  const statsHtml = it.type === 'rune'
+    ? it.bonuses.map(b => `<div class="affix">◆ ${affixText(b)}</div>`).join('')
+    : `${it.dmgMin ? `<div class="istat">Damage: <b>${it.dmgMin}–${it.dmgMax}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
+       ${it.armor ? `<div class="istat">Armor: <b>${it.armor}</b></div>` : ''}
+       ${it.spd ? `<div class="istat">Speed: <b>+${it.spd}</b></div>` : ''}
+       ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
+       ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
+       ${(it.affixes || []).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}
+       ${it.sockets ? `<div class="sockets">Sockets: ${'<span class="socket">○</span>'.repeat(it.sockets)}</div>` : ''}`;
+  UI.modal(`
+    <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
+    <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ilvl ${it.ilvl}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
+    ${statsHtml}
+    ${compare ? `<div class="compare"><h4>Currently equipped: <span style="color:${DATA.RARITIES[compare.rarity].color}">${esc(compare.name)}</span></h4>
+      ${compare.dmgMin ? `<div class="istat">Damage: ${compare.dmgMin}–${compare.dmgMax}</div>` : ''}
+      ${compare.armor ? `<div class="istat">Armor: ${compare.armor}</div>` : ''}
+      ${allAffixesOf(compare).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}</div>` : ''}
+    <div class="modal-actions">
+      <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${it.price.toLocaleString()})</button>
+      <button class="btn" onclick="UI.closeModal()">Close</button>
+    </div>`);
+};
+
 UI.pickSocketTarget = function (runeUid) {
   const targets = socketableItems();
   if (!targets.length) { UI.modal(`<h3>🪨 No socketable items</h3><p class="hint">Weapons, armors, helmets and shields can roll rune slots. Find one with an empty socket!</p><div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`); return; }
@@ -474,19 +537,37 @@ UI.showResults = function (run, level) {
     manual: '🏳️ You chose to retreat.',
     done: '🏁 Nothing left to fight here.',
   }[run.outcome] || 'The adventure ends.';
+  // loot breakdown by type
+  const drops = { normal: 0, magical: 0, rare: 0, epic: 0, legendary: 0, rune: 0 };
+  for (const it of run.items) { if (it.type === 'rune') drops.rune++; else drops[it.rarity]++; }
+  const dropChips = [
+    ...Object.keys(DATA.RARITIES).filter(r => drops[r]).map(r =>
+      `<span class="drop-chip" style="color:${DATA.RARITIES[r].color}">${drops[r]} ${DATA.RARITIES[r].name}</span>`),
+    ...(drops.rune ? [`<span class="drop-chip" style="color:#d9a94c">${drops.rune} Rune${drops.rune > 1 ? 's' : ''}</span>`] : []),
+  ];
   UI.modal(`
     <h3>${outcomeTxt}</h3>
     <div class="item-sub">${info.type.icon} ${esc(info.biome)} — Level ${level}</div>
+    <h4>Battle report</h4>
     <div class="results-grid">
-      <div class="res-box"><b>${totalKills}</b><span>kills</span></div>
-      <div class="res-box"><b style="color:#6c9bff">${k.rare}</b><span>rares</span></div>
-      <div class="res-box"><b style="color:#c77dff">${k.epic}</b><span>epics</span></div>
-      <div class="res-box"><b style="color:#ff8b3d">${k.legendary}</b><span>bosses</span></div>
-      <div class="res-box"><b class="gold">🪙 ${run.gold.toLocaleString()}</b><span>gold</span></div>
+      <div class="res-box"><b>⚔️ ${Math.round(run.dmgDealt).toLocaleString()}</b><span>damage dealt</span></div>
+      <div class="res-box"><b>🩸 ${Math.round(run.dmgTaken).toLocaleString()}</b><span>damage taken</span></div>
       <div class="res-box"><b>${run.xp.toLocaleString()}</b><span>XP${run.levelUps ? ` (+${run.levelUps} level${run.levelUps > 1 ? 's' : ''}!)` : ''}</span></div>
       <div class="res-box"><b>🧪 ${run.potions.hp + run.potions.mana + run.potions.buff}</b><span>potions drunk</span></div>
-      <div class="res-box"><b>📦 ${run.items.length}</b><span>items found</span></div>
     </div>
+    <h4>Creatures slain — ${totalKills}</h4>
+    <div class="results-grid">
+      <div class="res-box"><b>${k.normal}</b><span>normal</span></div>
+      <div class="res-box"><b style="color:#6c9bff">${k.rare}</b><span>rare</span></div>
+      <div class="res-box"><b style="color:#c77dff">${k.epic}</b><span>epic</span></div>
+      <div class="res-box"><b style="color:#ff8b3d">${k.legendary}</b><span>legendary</span></div>
+    </div>
+    <h4>Spoils</h4>
+    <div class="results-grid results-grid-2">
+      <div class="res-box"><b class="gold">🪙 ${run.gold.toLocaleString()}</b><span>gold</span></div>
+      <div class="res-box"><b>📦 ${run.items.length}</b><span>items dropped</span></div>
+    </div>
+    ${dropChips.length ? `<div class="drop-chips">${dropChips.join(' · ')}</div>` : ''}
     ${run.items.length ? `<h4>Loot acquired</h4>
       <div class="loot-list">
         ${run.items.map(it => `<div class="loot-row" onclick="UI.showItem(${it.uid},'inv')">

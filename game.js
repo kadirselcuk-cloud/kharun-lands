@@ -44,10 +44,12 @@ function newGame(clsId, name) {
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
     totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, legendary: 0 } },
-    settings: { packSize: 2 },
+    settings: { packSize: 1 },
+    shop: null,
     itemSeq: 1,
   };
   giveStarterGear(clsId);
+  genShopStock();
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana;
   saveGame();
@@ -85,7 +87,8 @@ function loadGame() {
   const g = peekSave();
   if (!g) return false;
   G = g;
-  if (!G.settings) G.settings = { packSize: 2 };
+  if (!G.settings) G.settings = { packSize: 1 };
+  if (!G.shop || !G.shop.stock) genShopStock();
   return true;
 }
 function resetGame() { localStorage.removeItem(SAVE_KEY); location.reload(); }
@@ -434,6 +437,64 @@ function socketableItems() {
 }
 
 // ------------------------------------------------------------
+// Shop — randomly generated stock, priced at 3× sell value.
+// Restocks for free every time the hero returns from an adventure.
+// ------------------------------------------------------------
+function shopIlvl() { return Math.max(1, G.unlocked); }
+
+function shopRollRarity() {
+  const r = Math.random() * 100;
+  if (r < 35) return 'normal';
+  if (r < 75) return 'magical';
+  if (r < 93) return 'rare';
+  if (r < 99) return 'epic';
+  return 'legendary';
+}
+
+function genShopStock() {
+  const stock = [];
+  for (let i = 0; i < 6; i++) {
+    let it = null;
+    // bias the merchant toward things this hero can actually wear
+    for (let t = 0; t < 5; t++) {
+      it = makeItem(shopIlvl(), shopRollRarity(), G.char.cls);
+      if (canUseItem(it).ok) break;
+    }
+    it.price = it.value * 3;
+    stock.push(it);
+  }
+  if (chance(0.3)) {
+    const rune = makeRune(shopIlvl(), pick(['rare', 'rare', 'epic']));
+    rune.price = rune.value * 3;
+    stock.push(rune);
+  }
+  G.shop = { stock };
+}
+
+function buyShopItem(uid) {
+  if (!G.shop) return;
+  const idx = G.shop.stock.findIndex(i => i.uid === uid);
+  if (idx < 0) return;
+  const it = G.shop.stock[idx];
+  if (G.gold < it.price) { UI.toast('Not enough gold!'); return; }
+  G.gold -= it.price;
+  G.shop.stock.splice(idx, 1);
+  G.inventory.push(it);
+  saveGame(); UI.refresh();
+  UI.toast(`Bought ${it.name}`);
+}
+
+function restockCost() { return 20 + G.unlocked * 10; }
+
+function restockShop() {
+  const cost = restockCost();
+  if (G.gold < cost) { UI.toast('Not enough gold!'); return; }
+  G.gold -= cost;
+  genShopStock();
+  saveGame(); UI.refresh();
+}
+
+// ------------------------------------------------------------
 // Areas / creatures
 // ------------------------------------------------------------
 function areaInfo(level) {
@@ -483,8 +544,8 @@ function makeCreature(level, tier) {
     species: base.name, attack: base.attack, atkType: base.atkType,
     res: { ...base.res },
     maxHp: Math.max(5, Math.round(26 * base.hp * s * conf.hp * (0.9 + Math.random() * 0.2))),
-    dmg: Math.max(1, Math.round(5.5 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
-    spd: Math.round((10 * base.spd + level * 0.3) * conf.spd),
+    dmg: Math.max(1, Math.round(9 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
+    spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
     xp: Math.round((4 + level * 2.2) * conf.xp),
     gauge: 0, stunned: 0, dead: false,
   };
@@ -576,7 +637,7 @@ function dropItem(lvl, rarity, run) {
 function usePotion(kind, run) {
   const d = ADV.d;
   if (kind === 'hp') {
-    const heal = Math.round(d.maxHp * 0.35);
+    const heal = Math.round(d.maxHp * 0.15);
     G.char.hp = Math.min(d.maxHp, G.char.hp + heal);
     run.potions.hp++;
     log('loot', `🧪 Health potion! +${heal} HP.`);
@@ -630,6 +691,7 @@ function playerHit(fight, enemy, skill, r) {
   res = Math.max(-50, Math.min(75, res));
   const dmg = Math.max(1, Math.round(raw * dmgBoost * (1 - res / 100)));
   enemy.hp -= dmg;
+  ADV.run.dmgDealt += dmg;
   return dmg;
 }
 
@@ -647,6 +709,7 @@ function enemyHit(fight, enemy) {
   dmg *= (1 - d.dr);
   dmg = Math.max(1, Math.round(dmg));
   G.char.hp -= dmg;
+  ADV.run.dmgTaken += dmg;
   return { dodged: false, dmg };
 }
 
@@ -735,6 +798,7 @@ function startAdventure() {
     run: {
       kills: { normal: 0, rare: 0, epic: 0, legendary: 0 },
       gold: 0, xp: 0, items: [], potions: { hp: 0, mana: 0, buff: 0 },
+      dmgDealt: 0, dmgTaken: 0,
       levelUps: 0, bossDefeated: false, outcome: null,
     },
   };
@@ -769,6 +833,7 @@ function retreat(reason) {
     '🏳️ You retreat in good order.');
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rest at home
+  genShopStock(); // the merchant rotates wares while you were away
   saveGame();
   UI.showResults(run, ADV.level);
   ADV = null;
@@ -785,9 +850,12 @@ function adventureTick() {
   const d = ADV.d;
 
   // ---------- between fights: travel & recover ----------
+  // Recovery on the road is modest: wounds accumulate, and eventually
+  // the hero falls and retreats home with the loot. HP Regen investment
+  // directly extends how deep a run goes.
   if (!ADV.fight) {
-    G.char.hp = Math.min(d.maxHp, G.char.hp + d.hpRegen * 6);
-    G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 6);
+    G.char.hp = Math.min(d.maxHp, G.char.hp + d.hpRegen * 1.0);
+    G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 4);
     const kills = G.progress[level] || 0;
     const tier = nextCreatureTier(kills);
     if (tier === null) { retreat('done'); return; }
@@ -840,9 +908,8 @@ function adventureTick() {
     else enemyAct(f, a.who);
   }
 
-  // light in-combat regeneration
-  G.char.hp = Math.min(d.maxHp, G.char.hp + d.hpRegen * 0.4);
-  G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 0.4);
+  // mana trickles back in combat; HP does not — wounds are wounds
+  G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 0.3);
 
   // resolve deaths
   for (const e of f.enemies) if (e.hp <= 0 && !e.dead) handleKill(e, run);
