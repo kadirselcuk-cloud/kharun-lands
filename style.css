@@ -296,6 +296,11 @@ small { color: var(--dim); }
 }
 .enemy-card.tierb-miniboss .enemy-name { font-size: 1.1rem; }
 .enemy-card.tierb-miniboss .enemy-hp { height: 18px; }
+.enemy-card.tierb-elf {
+  border-color: #5a9a3d; box-shadow: 0 0 12px rgba(143,217,108,.3);
+  grid-column: span 2;
+  background: radial-gradient(300px 150px at 50% 0%, #1c2a14, var(--panel2));
+}
 .enemy-card.tierb-legendary {
   border-color: #a8623d; border-width: 2px; box-shadow: 0 0 24px rgba(255,139,61,.45);
   grid-column: 1 / -1; grid-row: span 2; min-height: 296px; padding: 22px 26px;
@@ -349,6 +354,27 @@ small { color: var(--dim); }
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
   font-size: .82rem; color: var(--dim); margin-bottom: 10px;
 }
+
+/* version */
+.version-tag { color: var(--dim); font-size: .72rem; opacity: .8; }
+.version-footer { text-align: center; color: #3a3e52; font-size: .7rem; margin-top: 18px; }
+
+/* tavern */
+.quest-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.quest-card {
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+}
+.quest-card.active-quest { border-color: var(--accent); box-shadow: 0 0 10px rgba(224,169,76,.2); margin-bottom: 10px; }
+.quest-head { font-size: .95rem; display: flex; align-items: center; gap: 6px; }
+.quest-tag { background: #3d2f14; color: var(--accent); border-radius: 8px; padding: 1px 8px; font-size: .68rem; margin-left: auto; }
+.quest-desc { font-size: .82rem; color: #b9bdcc; line-height: 1.4; flex: 1; }
+.quest-reward { font-size: .8rem; color: #ffd84d; }
+.quest-bar { height: 18px; } .quest-bar > div { background: linear-gradient(180deg, #d9a94c, #8a611b); }
+.quest-card .btn { align-self: flex-start; }
+
+/* log elf color */
+.log-encounter.tier-elf, .log-kill.tier-elf { color: #8fd96c; font-weight: 700; }
 
 /* inventory type/sort selects */
 .inv-select { font-size: .74rem; color: var(--dim); display: flex; align-items: center; gap: 4px; }

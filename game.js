@@ -46,10 +46,12 @@ function newGame(clsId, name) {
     totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 } },
     settings: { packSize: 1, advSpeed: 300, lastAdvLevel: null },
     shop: null,
+    tavern: null,
     itemSeq: 1,
   };
   giveStarterGear(clsId);
   genShopStock();
+  genTavernBoard();
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana;
   saveGame();
@@ -91,6 +93,7 @@ function loadGame() {
   if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 300; G.settings.lastAdvLevel = null; }
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.shop || !G.shop.stock) genShopStock();
+  if (!G.tavern) genTavernBoard();
   return true;
 }
 function resetGame() { localStorage.removeItem(SAVE_KEY); location.reload(); }
@@ -546,6 +549,80 @@ function buyShopItem(uid) {
 
 function restockCost() { return 200 + G.unlocked * 100; }
 
+// ------------------------------------------------------------
+// Tavern — 3 random quests on the board, one active at a time.
+// The board refreshes with new rumors every time you return home.
+// ------------------------------------------------------------
+function genQuest() {
+  const u = Math.max(1, G.unlocked);
+  const goldR = n => Math.round(n * (10 + u * 12) * (0.8 + Math.random() * 0.4));
+  const makers = [
+    () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, reward: { gold: goldR(3) } }; },
+    () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, reward: { gold: goldR(4), item: 'rare' } }; },
+    () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, reward: { gold: goldR(5), item: 'rare' } }; },
+    () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, reward: { gold: goldR(6) } }; },
+    () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, reward: { gold: goldR(3), item: 'magical' } }; },
+    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, reward: { item: 'epic' } }; },
+    () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, reward: { gold: goldR(10), item: 'epic' } }; },
+    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling deeper biome levels (5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare' } }; },
+  ];
+  return Object.assign(pick(makers)(), { progress: 0 });
+}
+
+function genTavernBoard() {
+  const board = [];
+  const seen = new Set();
+  let guard = 0;
+  while (board.length < 3 && guard++ < 40) {
+    const q = genQuest();
+    if (seen.has(q.type)) continue;
+    seen.add(q.type);
+    board.push(q);
+  }
+  if (!G.tavern) G.tavern = { board, active: null };
+  else G.tavern.board = board;
+}
+
+function acceptQuest(idx) {
+  if (!G.tavern || G.tavern.active) return;
+  const q = G.tavern.board[idx];
+  if (!q) return;
+  G.tavern.active = q;
+  G.tavern.board.splice(idx, 1);
+  saveGame(); UI.refresh();
+  UI.toast(`Quest accepted: ${q.name}`);
+}
+
+function abandonQuest() {
+  if (!G.tavern || !G.tavern.active) return;
+  G.tavern.active = null;
+  genTavernBoard();
+  saveGame(); UI.refresh();
+}
+
+function questEvent(kind, amt) {
+  const q = G.tavern && G.tavern.active;
+  if (!q || q.type !== kind) return;
+  q.progress = (q.progress || 0) + (amt || 1);
+  if (q.progress >= q.target) completeQuest();
+}
+
+function completeQuest() {
+  const q = G.tavern.active;
+  const parts = [];
+  if (q.reward.gold) { G.gold += q.reward.gold; parts.push(`🪙 ${q.reward.gold.toLocaleString()}`); }
+  if (q.reward.item) {
+    const it = makeItem(Math.max(1, G.unlocked), q.reward.item, G.char.cls);
+    G.inventory.push(it);
+    parts.push(`${it.icon} ${it.name} (${q.reward.item})`);
+  }
+  log('sys', `🍺 QUEST COMPLETE: "${q.name}"! Reward: ${parts.join(' + ')}`);
+  G.tavern.active = null;
+  genTavernBoard();
+  saveGame();
+  UI.toast(`🍺 Quest complete: ${q.name}!`);
+}
+
 function restockShop() {
   const cost = restockCost();
   if (G.gold < cost) { UI.toast('Not enough gold!'); return; }
@@ -612,6 +689,26 @@ const TIER_CONF = {
 // very small chance to be replaced by a wandering mini boss.
 const MINIBOSS_CHANCE = 0.015;
 function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
+
+// The bag-carrying elf (a nod to Golden Axe): a rare bonus encounter.
+// He never attacks; the hero gets at most 5 hits before he escapes.
+// Every 25% of his HP lost shakes an item out of the bag (magical+,
+// small chance of epic); killing him outright spills a rare-or-better
+// with a very low chance of legendary. He doesn't count toward the
+// level's 1111 creatures.
+const ELF_CHANCE = 0.01;
+function makeElf(level) {
+  const hp = Math.round(39 * 5 * enemyScale(level));   // 5x a normal monster
+  return {
+    tier: 'elf', level, species: 'Bag Carrier', name: 'Sneaky Elf',
+    attack: 'Frantic Dodging', atkType: 'phys', res: { phys: 0, magic: 0, poison: 0 },
+    maxHp: hp, hp, dmg: 0, spd: 0,
+    xp: Math.max(2, Math.round((4 + level * 2.2) / 2)),
+    gauge: 0, stunned: 0, dead: false,
+  };
+}
+function elfChunkRarity() { const r = Math.random() * 100; return r < 80 ? 'magical' : r < 97 ? 'rare' : 'epic'; }
+function elfKillRarity() { const r = Math.random() * 100; return r < 75 ? 'rare' : r < 97 ? 'epic' : 'legendary'; }
 
 function makeCreature(level, tier) {
   const info = areaInfo(level);
@@ -715,6 +812,7 @@ function dropItem(lvl, rarity, run) {
   run.items.push(it); G.inventory.push(it);
   if (rarity !== 'normal') {
     log('loot', `${it.icon} ${DATA.RARITIES[rarity].name} drop: ${it.name}`, { rarity });
+    questEvent('item_magic');
   }
 }
 
@@ -741,6 +839,7 @@ function usePotion(kind, run) {
     run.potions.buff++;
     log('loot', `🧪 Buff potion! +12% damage for the rest of this adventure.`);
   }
+  questEvent('potion');
 }
 
 // ------------------------------------------------------------
@@ -762,7 +861,7 @@ function pickSkill(fight) {
   const boss = alive.some(e => e.tier === 'epic' || e.tier === 'miniboss' || e.tier === 'legendary');
   if (boss) { const u = byCat('ult2') || byCat('ult'); if (u) return u; }
   if (!fight.buffs.length) { const b = byCat('buff'); if (b) return b; }
-  if (alive.some(e => e.tier !== 'normal') && !fight.debuffApplied) { const db = byCat('debuff'); if (db) return db; }
+  if (alive.some(e => e.tier !== 'normal' && e.tier !== 'elf') && !fight.debuffApplied) { const db = byCat('debuff'); if (db) return db; }
   if (alive.length >= 2) { const a = byCat('aoe2') || byCat('aoe'); if (a) return a; }
   const atk = byCat('attack2') || byCat('attack');
   if (atk) return atk;
@@ -782,6 +881,7 @@ function playerHit(fight, enemy, skill, r) {
   const dmg = Math.max(1, Math.round(raw * dmgBoost * (1 - res / 100)));
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
+  if (enemy.tier === 'elf') fight.elfHits = (fight.elfHits || 0) + 1;
   return dmg;
 }
 
@@ -868,6 +968,7 @@ function handleKill(e, run) {
   run.xp += e.xp;
   log('kill', `☠️ ${e.name} is slain! (+${e.xp} XP)`, { tier: e.tier });
   rollLoot(e, run);
+  questEvent('kill_' + e.tier);
   if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
 }
 
@@ -956,9 +1057,11 @@ function retreat(reason) {
     G.progress[ADV.level] = 0;
     if (run.progressLost) log('sys', `☠️ Defeat wipes your progress here — ${run.progressLost} kills lost. Level ${ADV.level} restarts from the beginning.`);
   }
+  questEvent('gold', run.gold);   // gold-earning quests tally on return
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rest at home
   genShopStock(); // the merchant rotates wares while you were away
+  genTavernBoard(); // fresh rumors at the tavern (active quest is kept)
   saveGame();
   UI.showResults(run, ADV.level);
   ADV = null;
@@ -984,6 +1087,20 @@ function adventureTick() {
     const kills = G.progress[level] || 0;
     const tier = nextCreatureTier(kills);
     if (tier === null) { retreat('done'); return; }
+
+    // bonus encounter: the bag-carrying elf (doesn't consume the pattern)
+    if (chance(ELF_CHANCE)) {
+      const elf = makeElf(level);
+      ADV.fight = {
+        enemies: [elf], cds: {}, buffs: [], enemyDmgDown: 0, enemyResDown: 0,
+        debuffRounds: 0, debuffApplied: false, round: 0, playerGauge: 0,
+        elf: true, elfHits: 0, elfChunks: 0,
+      };
+      log('encounter', `🧝 A SNEAKY ELF with a bulging bag darts across your path! (5 hits before he escapes!)`, { tier: 'elf' });
+      saveGame();
+      UI.refreshAdventure();
+      return;
+    }
 
     let enemies;
     if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
@@ -1038,6 +1155,30 @@ function adventureTick() {
 
   // mana trickles back in combat; HP does not — wounds are wounds
   G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 0.3);
+
+  // --- elf encounter: bag drops per 25% HP lost, escape after 5 hits ---
+  if (f.elf) {
+    const e = f.enemies[0];
+    const lost = (e.maxHp - Math.max(0, e.hp)) / e.maxHp;
+    while (f.elfChunks < 3 && lost >= 0.25 * (f.elfChunks + 1)) {
+      f.elfChunks++;
+      dropItem(ADV.level, elfChunkRarity(), run);
+      log('loot', `🧝 Something shakes loose from the elf's bag! (${f.elfChunks * 25}% battered)`);
+    }
+    if (e.hp <= 0) {
+      dropItem(ADV.level, elfKillRarity(), run);
+      const ups = gainXp(e.xp, run); run.xp += e.xp;
+      log('kill', `🧝 The elf collapses — his whole bag spills open!`, { tier: 'elf' });
+      if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
+      ADV.fight = null;
+    } else if (f.elfHits >= 5) {
+      log('sys', `🧝 After 5 hits the elf scurries off laughing, bag ${Math.round(lost * 100)}% lighter.`);
+      ADV.fight = null;
+    }
+    saveGame();
+    UI.refreshAdventure();
+    return;
+  }
 
   // resolve deaths
   for (const e of f.enemies) if (e.hp <= 0 && !e.dead) handleKill(e, run);

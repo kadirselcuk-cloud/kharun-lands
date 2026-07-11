@@ -28,7 +28,7 @@ UI.showTitle = function (save) {
   $('#app').innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser.</p>
+      <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser. <span class="version-tag">v${DATA.VERSION}</span></p>
       <div class="title-box">
         <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
           <small>Level ${c.level} ${cls.name} · Area ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
@@ -51,7 +51,7 @@ UI.showClassSelect = function () {
   app.innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">100 levels. 111,100 monsters. One hero. Choose your class:</p>
+      <p class="subtitle">100 levels. 111,100 monsters. One hero. Choose your class: <span class="version-tag">v${DATA.VERSION}</span></p>
       <div class="class-cards">
         ${Object.values(DATA.CLASSES).map(c => `
           <div class="class-card" data-cls="${c.id}">
@@ -100,10 +100,12 @@ UI.showGame = function () {
       <button data-tab="skills">📜 Skills</button>
       <button data-tab="inventory">🎒 Inventory</button>
       <button data-tab="shop">🛒 Shop</button>
+      <button data-tab="tavern">🍺 Tavern</button>
     </div>
     <div id="tab-content"></div>
     <div id="modal-root"></div>
-    <div id="toast"></div>`;
+    <div id="toast"></div>
+    <div class="version-footer">Kharun Lands v${DATA.VERSION}</div>`;
   document.querySelectorAll('#tabs button').forEach(b => {
     b.onclick = () => { activeTab = b.dataset.tab; UI.refresh(); };
   });
@@ -114,18 +116,18 @@ UI.refresh = function () {
   if (!G) return;
   UI.renderTopbar();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-  // level-up badge on the Character tab
+  // level-up badges: stat points on Character, skill points on Skills
   const charTab = document.querySelector('#tabs button[data-tab="character"]');
-  if (charTab) {
-    const pts = (G.char.statPoints || 0) + (G.char.skillPoints || 0);
-    charTab.innerHTML = `🧍 Character${pts ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
-  }
+  if (charTab) charTab.innerHTML = `🧍 Character${G.char.statPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
+  const skillTab = document.querySelector('#tabs button[data-tab="skills"]');
+  if (skillTab) skillTab.innerHTML = `📜 Skills${G.char.skillPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
   const el = $('#tab-content');
   if (!el) return;
   if (activeTab === 'character') UI.renderCharacter(el);
   else if (activeTab === 'skills') UI.renderSkills(el);
   else if (activeTab === 'inventory') UI.renderInventory(el);
   else if (activeTab === 'shop') UI.renderShop(el);
+  else if (activeTab === 'tavern') UI.renderTavern(el);
   else UI.renderAdventure(el);
 };
 
@@ -177,13 +179,8 @@ UI.renderCharacter = function (el) {
     </div>`;
   const xpNeed = xpForLevel(c.level);
   el.innerHTML = `
-    ${c.statPoints || c.skillPoints ? `
-      <div class="lvlup-banner">⬆ LEVEL UP! You have
-        ${c.statPoints ? `<b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b>` : ''}
-        ${c.statPoints && c.skillPoints ? ' and ' : ''}
-        ${c.skillPoints ? `<b>${c.skillPoints} skill point${c.skillPoints > 1 ? 's' : ''}</b>` : ''}
-        to spend${c.skillPoints ? ' — skills are on the 📜 Skills tab' : ''}.
-      </div>` : ''}
+    ${c.statPoints ? `
+      <div class="lvlup-banner">⬆ LEVEL UP! You have <b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b> to spend below.</div>` : ''}
     <div class="panel level-panel">
       <h3>📈 Level ${c.level} ${cls.name}</h3>
       <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()} — next level grants +3 stat points, +1 skill point</span></div>
@@ -235,6 +232,7 @@ UI.renderSkills = function (el) {
   const skills = Object.values(DATA.SKILLS[c.cls]);
   const ordered = DATA.SKILL_ORDER.map(cat => skills.find(s => s.cat === cat)).filter(Boolean);
   el.innerHTML = `
+    ${c.skillPoints ? `<div class="lvlup-banner">⬆ You have <b>${c.skillPoints} unused skill point${c.skillPoints > 1 ? 's' : ''}</b> — learn or rank up a skill below!</div>` : ''}
     <div class="panel">
       <h3>Skills — ${c.skillPoints} point${c.skillPoints === 1 ? '' : 's'} available</h3>
       <div class="skill-list">
@@ -492,6 +490,34 @@ UI.showShopItem = function (uid) {
     </div>`);
 };
 
+// ------------------------------------------------------------
+// Tavern tab
+// ------------------------------------------------------------
+UI.renderTavern = function (el) {
+  if (!G.tavern) genTavernBoard();
+  const t = G.tavern;
+  const questCard = (q, idx) => `
+    <div class="quest-card ${idx === -1 ? 'active-quest' : ''}">
+      <div class="quest-head">${q.icon} <b>${esc(q.name)}</b>
+        ${idx === -1 ? `<span class="quest-tag">ACTIVE</span>` : ''}
+      </div>
+      <div class="quest-desc">${esc(q.desc)}</div>
+      <div class="quest-reward">Reward: ${q.reward.gold ? `🪙 ${q.reward.gold.toLocaleString()}` : ''}${q.reward.gold && q.reward.item ? ' + ' : ''}${q.reward.item ? `<span style="color:${DATA.RARITIES[q.reward.item].color}">${cap(q.reward.item)} item</span>` : ''}</div>
+      ${idx === -1 ? `
+        <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${(q.progress || 0).toLocaleString()} / ${q.target.toLocaleString()}</span></div>
+        <button class="btn btn-tiny danger" onclick="if(confirm('Abandon this quest? Progress is lost.'))abandonQuest()">✖ Abandon</button>`
+      : `<button class="btn btn-primary btn-small" ${t.active ? 'disabled' : ''} onclick="acceptQuest(${idx})">${t.active ? 'Finish your quest first' : 'Accept'}</button>`}
+    </div>`;
+  el.innerHTML = `
+    <div class="panel">
+      <h3>🍺 The Weary Wyvern Tavern</h3>
+      <p class="hint">The tavern hums with rumors. Take a quest — only one at a time — and its progress counts automatically while you adventure. New rumors arrive whenever you return home.</p>
+      ${t.active ? `<h4>Your current quest</h4>${questCard(t.active, -1)}` : ''}
+      <h4>Quest board</h4>
+      ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => questCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}
+    </div>`;
+};
+
 UI.pickSocketTarget = function (runeUid) {
   const targets = socketableItems();
   if (!targets.length) { UI.modal(`<h3>🪨 No socketable items</h3><p class="hint">Weapons, armors, helmets and shields can roll rune slots. Find one with an empty socket!</p><div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`); return; }
@@ -573,7 +599,7 @@ UI.enemyPanelHtml = function () {
     return `<p class="hint">${ADV ? '🥾 Traveling to the next encounter…' : 'No fight in progress.'}</p>`;
   }
   const f = ADV.fight;
-  const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d' };
+  const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d', elf: '#8fd96c' };
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
     ${f.enemies.map(e => `
@@ -582,9 +608,10 @@ UI.enemyPanelHtml = function () {
         <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}</div>
         <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${Math.max(0, Math.round(e.hp))}/${e.maxHp}</span></div>
         <div class="enemy-stats">
-          <span title="damage">🗡️ ${e.dmg}</span>
+          ${e.tier === 'elf' ? `<span>🎒 Hits: ${f.elfHits || 0}/5 — he never fights back!</span>` : `
+          <span title="damage">🗡️ ${e.dmg.toLocaleString()}</span>
           <span title="speed — gauge gained per round">⚡ ${e.spd}</span>
-          <span title="attack">${esc(e.attack)} (${e.atkType})</span>
+          <span title="attack">${esc(e.attack)} (${e.atkType})</span>`}
           ${e.stunned > 0 ? '<span>💫 stunned</span>' : ''}
         </div>
         <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
