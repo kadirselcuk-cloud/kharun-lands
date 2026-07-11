@@ -187,16 +187,19 @@ function derive() {
   d.speed = Math.round(10 + d.dex * 2 + d.speed + d.weaponSpd);
   d.maxMana = Math.round((20 + d.int * 7 + c.level * 3 + d.manaFlat) * (1 + d.manaPct));
   // sub stats
-  d.hpRegen = +(1 + d.str * 0.2 + d.hpRegen).toFixed(1);
-  d.evasion = Math.min(60, +(d.dex * 0.6 + d.evasion).toFixed(1));
-  d.manaRegen = +(1 + d.int * 0.4 + d.manaRegen).toFixed(1);
+  d.hpRegen = +((1 + d.str * 0.2 + d.hpRegen) * 0.2).toFixed(1);
+  d.evasion = Math.min(60, +(d.dex * 0.1 + d.evasion).toFixed(1));
+  d.manaRegen = +((1 + d.int * 0.4 + d.manaRegen) * 0.5).toFixed(1);
   // caps
   d.res.phys = Math.min(75, d.res.phys); d.res.magic = Math.min(75, d.res.magic); d.res.poison = Math.min(75, d.res.poison);
   d.dr = Math.min(0.6, d.dr);
-  // base damage: weapon + main stat scaling
+  // base damage: weapon + main stat scaling; the class's main stat
+  // additionally grants +1% damage per point
   const main = { warrior: d.str, rogue: d.dex, mage: d.int }[c.cls];
-  d.baseDmgMin = Math.round((d.weaponMin + main * 0.9) * (1 + d.dmgPct));
-  d.baseDmgMax = Math.round((d.weaponMax + main * 1.1) * (1 + d.dmgPct));
+  const mainMult = 1 + main * 0.01;
+  d.mainStatDmgPct = main;
+  d.baseDmgMin = Math.round((d.weaponMin + main * 0.9) * (1 + d.dmgPct) * mainMult);
+  d.baseDmgMax = Math.round((d.weaponMax + main * 1.1) * (1 + d.dmgPct) * mainMult);
   return d;
 }
 
@@ -257,8 +260,12 @@ function clampVitals() {
 function itemScale(ilvl) { return bigScale(ilvl); }
 
 // All skill mana costs are tripled — mana is a scarce resource.
+// Mage spells get a 30% discount on that.
 const MANA_COST_MULT = 3;
-function skillCost(s) { return (s.cost ? s.cost() : 0) * MANA_COST_MULT; }
+function skillCost(s) {
+  const mult = s.id && s.id.startsWith('m_') ? MANA_COST_MULT * 0.7 : MANA_COST_MULT;
+  return Math.round((s.cost ? s.cost() : 0) * mult);
+}
 
 function rollAffixes(count, ilvl, clsId) {
   const out = [];
@@ -585,8 +592,8 @@ function makeCreature(level, tier) {
     tier, level,
     species: base.name, attack: base.attack, atkType: base.atkType,
     res: { ...base.res },
-    maxHp: Math.max(5, Math.round(26 * base.hp * s * conf.hp * (0.9 + Math.random() * 0.2))),
-    dmg: Math.max(1, Math.round(9 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
+    maxHp: Math.max(5, Math.round(39 * base.hp * s * conf.hp * (0.9 + Math.random() * 0.2))),
+    dmg: Math.max(1, Math.round(11.7 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
     xp: Math.round((4 + level * 2.2) * conf.xp),
     gauge: 0, stunned: 0, dead: false,
@@ -655,9 +662,9 @@ function rollLoot(creature, run) {
 
   const r = Math.random() * 100;
   const T = {
-    normal: { gold: 42, item: 12, hpPot: 6, manaPot: 5, buffPot: 0.5 },
-    rare:   { gold: 55, item: 25, hpPot: 5, manaPot: 4, buffPot: 2 },
-    epic:   { gold: 55, item: 32, hpPot: 3, manaPot: 3, buffPot: 3 },
+    normal: { gold: 42, item: 12, hpPot: 3, manaPot: 2.5, buffPot: 0.25 },
+    rare:   { gold: 55, item: 25, hpPot: 2.5, manaPot: 2, buffPot: 1 },
+    epic:   { gold: 55, item: 32, hpPot: 1.5, manaPot: 1.5, buffPot: 1.5 },
   }[tier];
   let acc = 0;
   if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; return; }

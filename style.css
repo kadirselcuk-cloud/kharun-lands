@@ -67,6 +67,9 @@ small { color: var(--dim); }
 .class-playstyle { color: #b9bdcc; font-size: .78rem; line-height: 1.45; text-align: left; margin-bottom: 6px; }
 .class-stats { display: flex; justify-content: center; gap: 18px; margin: 12px 0 6px; font-size: 1.05rem; }
 .class-armor { color: var(--dim); font-size: .8rem; margin-bottom: 8px; }
+.class-mainstat { font-size: .82rem; margin: 4px 0 8px; color: #b9bdcc; }
+.main-stat-chip { position: relative; }
+.main-stat-chip::after { content: '⭐'; position: absolute; top: -12px; right: -4px; font-size: .65rem; }
 .class-skills-preview { font-size: 1.2rem; margin-bottom: 14px; letter-spacing: 4px; }
 .name-row { text-align: center; margin-top: 22px; color: var(--dim); }
 .name-row input {
@@ -263,16 +266,34 @@ small { color: var(--dim); }
 .pack-row { display: flex; align-items: center; gap: 6px; margin: 10px 0; font-size: .86rem; flex-wrap: wrap; }
 .hint-inline { color: var(--dim); font-size: .72rem; }
 
-/* enemy panel */
+/* enemy panel — 3-column grid; epics fill a row (3 cells),
+   legendaries fill two rows (6 cells) */
 .round-ind { font-size: .76rem; color: var(--dim); margin-bottom: 6px; }
-.enemy-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.enemy-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
 .enemy-card {
   background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
 }
 .enemy-card.dead { opacity: .38; }
 .enemy-card.tierb-rare { border-color: #3d5aa8; }
-.enemy-card.tierb-epic { border-color: #7d3da8; box-shadow: 0 0 6px rgba(199,125,255,.2); }
-.enemy-card.tierb-legendary { border-color: #a8623d; box-shadow: 0 0 10px rgba(255,139,61,.3); }
+.enemy-card.tierb-epic {
+  border-color: #7d3da8; box-shadow: 0 0 14px rgba(199,125,255,.35);
+  grid-column: 1 / -1; min-height: 150px; padding: 14px 18px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.enemy-card.tierb-epic .enemy-name { font-size: 1.25rem; }
+.enemy-card.tierb-epic .enemy-hp { height: 22px; }
+.enemy-card.tierb-epic .enemy-stats { font-size: .85rem; }
+.enemy-card.tierb-legendary {
+  border-color: #a8623d; border-width: 2px; box-shadow: 0 0 24px rgba(255,139,61,.45);
+  grid-column: 1 / -1; min-height: 300px; padding: 22px 26px;
+  display: flex; flex-direction: column; justify-content: center; gap: 6px;
+  background: radial-gradient(400px 200px at 50% 0%, #2a1c12, var(--panel2));
+}
+.enemy-card.tierb-legendary .enemy-name { font-size: 1.7rem; }
+.enemy-card.tierb-legendary .enemy-sub { font-size: .9rem; }
+.enemy-card.tierb-legendary .enemy-hp { height: 30px; }
+.enemy-card.tierb-legendary .enemy-hp > span { font-size: .9rem; }
+.enemy-card.tierb-legendary .enemy-stats { font-size: .95rem; }
 .enemy-name { font-weight: 700; font-size: .88rem; line-height: 1.25; }
 .enemy-sub { font-size: .7rem; color: var(--dim); margin: 1px 0 4px; }
 .enemy-hp { height: 15px; margin-bottom: 4px; }

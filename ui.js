@@ -59,10 +59,11 @@ UI.showClassSelect = function () {
             <p class="class-story">${c.story}</p>
             <p class="class-playstyle">💡 ${c.playstyle}</p>
             <div class="class-stats">
-              <div><span class="stat-str">STR</span> ${c.baseStats.str}</div>
-              <div><span class="stat-dex">DEX</span> ${c.baseStats.dex}</div>
-              <div><span class="stat-int">INT</span> ${c.baseStats.int}</div>
+              <div class="${c.mainStat === 'str' ? 'main-stat-chip' : ''}"><span class="stat-str">STR</span> ${c.baseStats.str}</div>
+              <div class="${c.mainStat === 'dex' ? 'main-stat-chip' : ''}"><span class="stat-dex">DEX</span> ${c.baseStats.dex}</div>
+              <div class="${c.mainStat === 'int' ? 'main-stat-chip' : ''}"><span class="stat-int">INT</span> ${c.baseStats.int}</div>
             </div>
+            <div class="class-mainstat">⭐ Main stat: <span class="stat-${c.mainStat}">${{ str: 'Strength', dex: 'Dexterity', int: 'Intelligence' }[c.mainStat]}</span> — each point grants +1% damage</div>
             <div class="class-armor">Armor: ${c.armorWeights.map(cap).join(', ')}</div>
             <div class="class-skills-preview">
               ${Object.values(DATA.SKILLS[c.id]).slice(0, 6).map(s => `<span title="${esc(s.name)}">${s.icon}</span>`).join('')}…
@@ -188,9 +189,9 @@ UI.renderCharacter = function (el) {
     <div class="two-col">
       <div class="panel">
         <h3>Main Stats ${c.statPoints ? `<span class="pts">(${c.statPoints} points to spend)</span>` : ''}</h3>
-        ${statRow('str', 'Strength', 'stat-str', 'drives HP & HP Regen')}
-        ${statRow('dex', 'Dexterity', 'stat-dex', 'drives Speed, Evasion & attack rate')}
-        ${statRow('int', 'Intelligence', 'stat-int', 'drives Mana & Mana Regen')}
+        ${statRow('str', cls.mainStat === 'str' ? '⭐ Strength' : 'Strength', 'stat-str', `drives HP & HP Regen${cls.mainStat === 'str' ? ' · MAIN: +1% dmg/point' : ''}`)}
+        ${statRow('dex', cls.mainStat === 'dex' ? '⭐ Dexterity' : 'Dexterity', 'stat-dex', `drives Speed, Evasion & attack rate${cls.mainStat === 'dex' ? ' · MAIN: +1% dmg/point' : ''}`)}
+        ${statRow('int', cls.mainStat === 'int' ? '⭐ Intelligence' : 'Intelligence', 'stat-int', `drives Mana & Mana Regen${cls.mainStat === 'int' ? ' · MAIN: +1% dmg/point' : ''}`)}
         <h3>Important Stats</h3>
         <div class="stat-row"><span>❤️ Max HP</span><b>${d.maxHp}</b></div>
         <div class="stat-row"><span>⚡ Speed</span><b>${d.speed}</b><small class="effect">gauge/round — act at 100</small></div>
