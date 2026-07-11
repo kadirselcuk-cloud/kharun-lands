@@ -43,7 +43,7 @@ function newGame(clsId, name) {
     unlocked: 1,         // highest unlocked area
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
-    totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, legendary: 0 } },
+    totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 } },
     settings: { packSize: 1, advSpeed: 300, lastAdvLevel: null },
     shop: null,
     itemSeq: 1,
@@ -89,6 +89,7 @@ function loadGame() {
   G = g;
   if (!G.settings) G.settings = { packSize: 1 };
   if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 300; G.settings.lastAdvLevel = null; }
+  if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.shop || !G.shop.stock) genShopStock();
   return true;
 }
@@ -206,7 +207,11 @@ function derive() {
 // ------------------------------------------------------------
 // XP / leveling
 // ------------------------------------------------------------
-function xpForLevel(lvl) { return Math.round(160 * Math.pow(lvl, 1.55)); }
+// Levels 1 and 2 are eased in (4x and 2x cheaper); level 3+ full price.
+function xpForLevel(lvl) {
+  const base = Math.round(160 * Math.pow(lvl, 1.55));
+  return lvl === 1 ? Math.round(base / 4) : lvl === 2 ? Math.round(base / 2) : base;
+}
 
 function gainXp(amount, run) {
   const c = G.char;
@@ -599,8 +604,14 @@ const TIER_CONF = {
   normal:    { hp: 1.0, dmg: 1.0, spd: 1.0, xp: 1, gold: 1 },
   rare:      { hp: 3.2, dmg: 1.5, spd: 1.1, xp: 6, gold: 5 },
   epic:      { hp: 9, dmg: 2.4, spd: 1.2, xp: 25, gold: 20 },
+  miniboss:  { hp: 15, dmg: 3.0, spd: 1.25, xp: 55, gold: 45 },
   legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 100 },
 };
+
+// From the 5th level of each biome onward, a normal encounter has a
+// very small chance to be replaced by a wandering mini boss.
+const MINIBOSS_CHANCE = 0.015;
+function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
 
 function makeCreature(level, tier) {
   const info = areaInfo(level);
@@ -622,7 +633,7 @@ function makeCreature(level, tier) {
   else if (tier === 'rare') { c.name = rareName(info.type); }
   else { c.name = bossName(info.type); }
   if (tier !== 'normal') {
-    for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, legendary: 15 }[tier]);
+    for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
   return c;
 }
@@ -637,6 +648,11 @@ function rollItemRarity(tier) {
       if (r < 25) return 'legendary';
       if (r < 50) return 'epic';
       if (r < 75) return 'rare';
+      return 'magical';
+    case 'miniboss':   // half the boss's legendary chance; rest shifts down
+      if (r < 12.5) return 'legendary';
+      if (r < 42) return 'epic';
+      if (r < 72) return 'rare';
       return 'magical';
     case 'epic':
       if (r < 5) return 'legendary';
@@ -657,7 +673,7 @@ function rollItemRarity(tier) {
   }
 }
 
-const RUNE_CHANCE = { normal: 0.001, rare: 0.01, epic: 0.02, legendary: 0.10 };
+const RUNE_CHANCE = { normal: 0.001, rare: 0.01, epic: 0.02, miniboss: 0.05, legendary: 0.10 };
 
 function rollLoot(creature, run) {
   const tier = creature.tier;
@@ -671,10 +687,10 @@ function rollLoot(creature, run) {
     log('loot', `🪨 A ${rune.name} drops! (${rune.bonuses.length} bonus${rune.bonuses.length > 1 ? 'es' : ''})`);
   }
 
-  if (tier === 'legendary') {
+  if (tier === 'legendary' || tier === 'miniboss') {
     run.gold += goldBase; G.gold += goldBase;
     const r = Math.random() * 100;
-    if (r < 80) dropItem(lvl, rollItemRarity('legendary'), run);
+    if (r < 80) dropItem(lvl, rollItemRarity(tier), run);
     else usePotion(pick(['hp', 'mana', 'buff']), run);
     return;
   }
@@ -743,7 +759,7 @@ function pickSkill(fight) {
 
   const byCat = cat => list.find(s => s.cat === cat && usable(s));
   if (hpPct < 0.5) { const heal = byCat('heal'); if (heal) return heal; }
-  const boss = alive.some(e => e.tier === 'epic' || e.tier === 'legendary');
+  const boss = alive.some(e => e.tier === 'epic' || e.tier === 'miniboss' || e.tier === 'legendary');
   if (boss) { const u = byCat('ult2') || byCat('ult'); if (u) return u; }
   if (!fight.buffs.length) { const b = byCat('buff'); if (b) return b; }
   if (alive.some(e => e.tier !== 'normal') && !fight.debuffApplied) { const db = byCat('debuff'); if (db) return db; }
@@ -868,6 +884,8 @@ function startAdventure() {
     G.settings.advSpeed = 300;
     G.settings.lastAdvLevel = level;
   }
+  // areas cleared before re-runnability landed sit at 1111 — reset them
+  if ((G.progress[level] || 0) >= CREATURES_PER_LEVEL) G.progress[level] = 0;
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rested before departure
   LOG = [];
@@ -877,7 +895,7 @@ function startAdventure() {
     speedMs: G.settings.advSpeed || 300,
     fight: null,
     run: {
-      kills: { normal: 0, rare: 0, epic: 0, legendary: 0 },
+      kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
       gold: 0, xp: 0, items: [], potions: { hp: 0, mana: 0, buff: 0 },
       dmgDealt: 0, dmgTaken: 0,
       levelUps: 0, bossDefeated: false, outcome: null,
@@ -968,7 +986,10 @@ function adventureTick() {
     if (tier === null) { retreat('done'); return; }
 
     let enemies;
-    if (tier === 'normal') {
+    if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
+      enemies = [makeCreature(level, 'miniboss')];
+      log('encounter', `👑 MINI BOSS: ${enemies[0].name} (${enemies[0].species}, Lv ${level}) prowls out of the wilds!`, { tier: 'miniboss' });
+    } else if (tier === 'normal') {
       const packMax = Math.max(1, Math.min(G.settings.packSize, normalsUntilSpecial(kills)));
       enemies = Array.from({ length: packMax }, () => makeCreature(level, 'normal'));
       log('encounter', `⚔️ ${enemies.length > 1 ? enemies.length + ' creatures block your path' : 'A creature blocks your path'}: ${enemies.map(e => e.name).join(', ')}`);
@@ -1033,6 +1054,8 @@ function adventureTick() {
         log('sys', `🗺️ Area Level ${level + 1} unlocked: ${areaInfo(level + 1).biome}!`);
       }
       run.bossDefeated = true;
+      G.progress[level] = 0;   // cleared areas can be run again from the start
+      log('sys', `♻️ ${areaInfo(level).biome} can be adventured again from the beginning.`);
       retreat('boss');
       return;
     }

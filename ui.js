@@ -573,7 +573,7 @@ UI.enemyPanelHtml = function () {
     return `<p class="hint">${ADV ? '🥾 Traveling to the next encounter…' : 'No fight in progress.'}</p>`;
   }
   const f = ADV.fight;
-  const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', legendary: '#ff8b3d' };
+  const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d' };
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
     ${f.enemies.map(e => `
@@ -625,7 +625,7 @@ UI.scrollLog = function () {
 UI.showResults = function (run, level) {
   const info = areaInfo(level);
   const k = run.kills;
-  const totalKills = k.normal + k.rare + k.epic + k.legendary;
+  const totalKills = k.normal + k.rare + k.epic + (k.miniboss || 0) + k.legendary;
   const outcomeTxt = {
     boss: '🏆 VICTORY! The Legendary Boss has fallen!',
     defeated: `💀 You fell in battle — the level resets!${run.progressLost ? ` ${run.progressLost} kills of progress lost.` : ''} Loot and XP are yours to keep.`,
@@ -657,6 +657,7 @@ UI.showResults = function (run, level) {
       <div class="res-box"><b style="color:#6c9bff">${k.rare}</b><span>rare</span></div>
       <div class="res-box"><b style="color:#c77dff">${k.epic}</b><span>epic</span></div>
       <div class="res-box"><b style="color:#ff8b3d">${k.legendary}</b><span>legendary</span></div>
+      ${k.miniboss ? `<div class="res-box"><b style="color:#4ecdc4">👑 ${k.miniboss}</b><span>mini boss${k.miniboss > 1 ? 'es' : ''}</span></div>` : ''}
     </div>
     <h4>Spoils</h4>
     <div class="results-grid results-grid-2">
