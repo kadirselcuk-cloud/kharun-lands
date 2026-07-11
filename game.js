@@ -38,6 +38,7 @@ function newGame(clsId, name) {
       kills: 0,
     },
     gold: 25,
+    potions: { hp: 3, mana: 1 },   // drinkable stock — used manually in combat
     inventory: [],       // items + runes
     area: 1,             // selected area level
     unlocked: 1,         // highest unlocked area
@@ -66,9 +67,9 @@ function giveStarterGear(clsId) {
     uid: G.itemSeq++, type: 'item', ilvl: 1, rarity: 'normal', runes: [], sockets: 0,
     slot: 'weapon', base: wBase.id, icon: wBase.icon, baseName: `Worn ${wBase.name}`,
     name: `Worn ${wBase.name}`, hands: wBase.hands, classes: wBase.classes, magic: !!wBase.magic,
+    atkSpd: wBase.atkSpd || 1,
     dmgMin: wBase.dmg[0], dmgMax: wBase.dmg[1], affixes: [], value: 1,
   };
-  if (wBase.spd) weapon.spd = wBase.spd;
   const aBase = DATA.ARMOR_BASES.armor[armorWeight];
   const armor = {
     uid: G.itemSeq++, type: 'item', ilvl: 1, rarity: 'normal', runes: [], sockets: 0,
@@ -92,6 +93,7 @@ function loadGame() {
   if (!G.settings) G.settings = { packSize: 1 };
   if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 300; G.settings.lastAdvLevel = null; }
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
+  if (!G.potions) G.potions = { hp: 0, mana: 0 };
   if (!G.shop || !G.shop.stock) genShopStock();
   if (!G.tavern) genTavernBoard();
   return true;
@@ -167,6 +169,11 @@ function derive() {
   if (oh && oh.dmgMin) { wMin += Math.round(oh.dmgMin * 0.6); wMax += Math.round(oh.dmgMax * 0.6); }
   if (wMin > 0) { d.weaponMin = wMin; d.weaponMax = wMax; }
   d.weaponMin += d.dmgFlat; d.weaponMax += d.dmgFlat;
+  // weapon speed: the hero acts every atkInterval gauge (dagger 50, greatsword 150)
+  let atkFactor = w ? (w.atkSpd || 1) : 1;
+  if (oh && oh.dmgMin && oh.atkSpd) atkFactor = (atkFactor + oh.atkSpd) / 2;   // dual wield averages
+  d.atkFactor = atkFactor;
+  d.atkInterval = Math.max(30, Math.round(100 * atkFactor));
 
   // passives
   for (const s of Object.values(DATA.SKILLS[c.cls])) {
@@ -316,13 +323,13 @@ function makeItem(ilvl, rarity, clsHint) {
   const it = { uid: G ? G.itemSeq++ : rint(1, 1e9), ilvl, rarity, runes: [], sockets: 0, type: 'item' };
   const roll = Math.random();
 
-  if (roll < 0.30) { // weapon
+  if (roll < 0.30) { // weapon — damage rides the steeper dmgScale curve
     const base = pick(DATA.WEAPON_BASES);
     it.slot = 'weapon'; it.base = base.id; it.icon = base.icon;
     it.baseName = base.name; it.hands = base.hands; it.classes = base.classes; it.magic = !!base.magic;
-    if (base.spd) it.spd = base.spd;
-    it.dmgMin = Math.max(1, Math.round(base.dmg[0] * scale * rar.mult));
-    it.dmgMax = Math.max(2, Math.round(base.dmg[1] * scale * rar.mult));
+    it.atkSpd = base.atkSpd || 1;
+    it.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(ilvl) * rar.mult));
+    it.dmgMax = Math.max(2, Math.round(base.dmg[1] * dmgScale(ilvl) * rar.mult));
     it.sockets = rollSockets();
   } else if (roll < 0.42) { // offhand
     const base = pick(DATA.OFFHAND_BASES);
@@ -330,8 +337,8 @@ function makeItem(ilvl, rarity, clsHint) {
     it.baseName = base.name; it.classes = base.classes; it.weight = base.weight || null; it.magic = !!base.magic;
     if (base.armor) it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
     if (base.dmg) {
-      it.dmgMin = Math.max(1, Math.round(base.dmg[0] * scale * rar.mult));
-      it.dmgMax = Math.max(1, Math.round(base.dmg[1] * scale * rar.mult));
+      it.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(ilvl) * rar.mult));
+      it.dmgMax = Math.max(1, Math.round(base.dmg[1] * dmgScale(ilvl) * rar.mult));
     }
     it.sockets = rollSockets();
   } else if (roll < 0.80) { // armor piece
@@ -505,18 +512,19 @@ function socketableItems() {
 // ------------------------------------------------------------
 function shopIlvl() { return Math.max(1, G.unlocked); }
 
+// 2% legendary, 13% epic, 20% rare, 30% magical, 35% normal
 function shopRollRarity() {
   const r = Math.random() * 100;
-  if (r < 35) return 'normal';
-  if (r < 75) return 'magical';
-  if (r < 93) return 'rare';
-  if (r < 99) return 'epic';
-  return 'legendary';
+  if (r < 2) return 'legendary';
+  if (r < 15) return 'epic';
+  if (r < 35) return 'rare';
+  if (r < 65) return 'magical';
+  return 'normal';
 }
 
 function genShopStock() {
   const stock = [];
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 20; i++) {
     let it = null;
     // bias the merchant toward things this hero can actually wear
     for (let t = 0; t < 5; t++) {
@@ -674,8 +682,9 @@ function bossName(t) {
   return `${name} — ${pick(t.bossTitles)}`;
 }
 
-// Each area level is 25% more difficult than the previous (compounding).
-function enemyScale(level) { return bigScale(level); }
+// Monsters gain +50% HP and +20% damage for every level, compounding.
+function enemyHpScale(level) { return Math.pow(1.5, Math.max(0, level - 1)); }
+function enemyDmgScale(level) { return Math.pow(1.2, Math.max(0, level - 1)); }
 
 const TIER_CONF = {
   normal:    { hp: 1.0, dmg: 1.0, spd: 1.0, xp: 1, gold: 1 },
@@ -698,7 +707,7 @@ function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
 // level's 1111 creatures.
 const ELF_CHANCE = 0.01;
 function makeElf(level) {
-  const hp = Math.round(39 * 5 * enemyScale(level));   // 5x a normal monster
+  const hp = Math.round(39 * 5 * enemyHpScale(level));   // 5x a normal monster
   return {
     tier: 'elf', level, species: 'Bag Carrier', name: 'Sneaky Elf',
     attack: 'Frantic Dodging', atkType: 'phys', res: { phys: 0, magic: 0, poison: 0 },
@@ -714,13 +723,12 @@ function makeCreature(level, tier) {
   const info = areaInfo(level);
   const base = pick(creaturesForLevel(level));
   const conf = TIER_CONF[tier];
-  const s = enemyScale(level);
   const c = {
     tier, level,
     species: base.name, attack: base.attack, atkType: base.atkType,
     res: { ...base.res },
-    maxHp: Math.max(5, Math.round(39 * base.hp * s * conf.hp * (0.9 + Math.random() * 0.2))),
-    dmg: Math.max(1, Math.round(11.7 * base.dmg * s * conf.dmg * (0.9 + Math.random() * 0.2))),
+    maxHp: Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp * (0.9 + Math.random() * 0.2))),
+    dmg: Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
     xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp / 10)),
     gauge: 0, stunned: 0, dead: false,
@@ -788,7 +796,7 @@ function rollLoot(creature, run) {
     run.gold += goldBase; G.gold += goldBase;
     const r = Math.random() * 100;
     if (r < 80) dropItem(lvl, rollItemRarity(tier), run);
-    else usePotion(pick(['hp', 'mana', 'buff']), run);
+    else gainPotion(pick(['hp', 'mana', 'scroll']), run);
     return;
   }
 
@@ -801,9 +809,9 @@ function rollLoot(creature, run) {
   let acc = 0;
   if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; return; }
   if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier), run); return; }
-  if (r < (acc += T.hpPot)) { usePotion('hp', run); return; }
-  if (r < (acc += T.manaPot)) { usePotion('mana', run); return; }
-  if (r < (acc += T.buffPot)) { usePotion('buff', run); return; }
+  if (r < (acc += T.hpPot)) { gainPotion('hp', run); return; }
+  if (r < (acc += T.manaPot)) { gainPotion('mana', run); return; }
+  if (r < (acc += T.buffPot)) { gainPotion('scroll', run); return; }
   // else: nothing
 }
 
@@ -816,30 +824,56 @@ function dropItem(lvl, rarity, run) {
   }
 }
 
-function usePotion(kind, run) {
+// Found potions are STORED (drunk manually); power-up scrolls auto-use.
+const SCROLL_ROUNDS = 100;
+function gainPotion(kind, run) {
+  if (kind === 'scroll') {
+    ADV.scroll = (ADV.scroll || 0) + SCROLL_ROUNDS;
+    run.potions.scroll++;
+    log('loot', `📜 A power-up scroll unfurls on its own! +12% damage for ${SCROLL_ROUNDS} rounds.`);
+  } else {
+    G.potions[kind] = (G.potions[kind] || 0) + 1;
+    run.potions[kind]++;
+    log('loot', `🧪 Found a ${kind === 'hp' ? 'health' : 'mana'} potion (stored — click to drink).`);
+  }
+  questEvent('potion');
+}
+
+// Manual drinking, on a shared-per-type cooldown of combat ticks.
+const POTION_CD = 12;
+function drinkPotion(kind) {
+  if (!ADV) { UI.toast('Potions are drunk during adventures'); return; }
+  if ((G.potions[kind] || 0) <= 0) { UI.toast('None left!'); return; }
+  if ((ADV.potCd[kind] || 0) > 0) return;
   const d = ADV.d;
+  G.potions[kind]--;
+  ADV.potCd[kind] = POTION_CD;
   if (kind === 'hp') {
     // 0.5% Full Health, 25% Greater (40%), otherwise regular (20%)
     const roll = Math.random();
     let heal, label;
     if (roll < 0.005) { heal = d.maxHp; label = '🌟 FULL HEALTH potion! Fully restored'; }
     else if (roll < 0.255) { heal = Math.round(d.maxHp * 0.40); label = '✨ GREATER health potion!'; }
-    else { heal = Math.round(d.maxHp * 0.20); label = 'Health potion!'; }
+    else { heal = Math.round(d.maxHp * 0.20); label = 'Health potion.'; }
     const before = G.char.hp;
     G.char.hp = Math.min(d.maxHp, G.char.hp + heal);
-    run.potions.hp++;
     log('loot', `🧪 ${label} +${Math.round(G.char.hp - before)} HP.`);
-  } else if (kind === 'mana') {
+  } else {
     const m = Math.round(d.maxMana * 0.4);
     G.char.mana = Math.min(d.maxMana, G.char.mana + m);
-    run.potions.mana++;
     log('loot', `🧪 Mana potion! +${m} mana.`);
-  } else {
-    ADV.buffPotion += 0.12;
-    run.potions.buff++;
-    log('loot', `🧪 Buff potion! +12% damage for the rest of this adventure.`);
   }
-  questEvent('potion');
+  saveGame();
+  UI.refreshAdventure();
+}
+
+// Click a skill to queue it for the hero's next action; click again to cancel.
+function queueSkill(id) {
+  if (!ADV) return;
+  const s = DATA.SKILLS[G.char.cls][id];
+  if (!s || s.passive || !(G.char.skills[id] > 0)) return;
+  ADV.queued = ADV.queued === id ? null : id;
+  UI.refreshAdventure();
 }
 
 // ------------------------------------------------------------
@@ -847,31 +881,27 @@ function usePotion(kind, run) {
 // Every combat round each fighter gains gauge equal to their Speed;
 // on reaching 100 they act. High Dexterity = more attacks.
 // ------------------------------------------------------------
+// Combat is player-driven now: the hero auto-swings his free basic
+// attack, and casts a skill only when the player has queued one.
 function pickSkill(fight) {
-  const c = G.char, cls = c.cls;
-  const skills = DATA.SKILLS[cls];
-  const list = Object.values(skills).filter(s => (c.skills[s.id] || 0) > 0 && !s.passive);
-  const alive = fight.enemies.filter(e => e.hp > 0);
-  const hpPct = G.char.hp / ADV.d.maxHp;
-  const cd = fight.cds;
-  const usable = s => (cd[s.id] || 0) <= 0 && G.char.mana >= skillCost(s);
-
-  const byCat = cat => list.find(s => s.cat === cat && usable(s));
-  if (hpPct < 0.5) { const heal = byCat('heal'); if (heal) return heal; }
-  const boss = alive.some(e => e.tier === 'epic' || e.tier === 'miniboss' || e.tier === 'legendary');
-  if (boss) { const u = byCat('ult2') || byCat('ult'); if (u) return u; }
-  if (!fight.buffs.length) { const b = byCat('buff'); if (b) return b; }
-  if (alive.some(e => e.tier !== 'normal' && e.tier !== 'elf') && !fight.debuffApplied) { const db = byCat('debuff'); if (db) return db; }
-  if (alive.length >= 2) { const a = byCat('aoe2') || byCat('aoe'); if (a) return a; }
-  const atk = byCat('attack2') || byCat('attack');
-  if (atk) return atk;
-  return skills[Object.values(skills).find(s => s.cat === 'basic').id];
+  const skills = DATA.SKILLS[G.char.cls];
+  const basic = Object.values(skills).find(s => s.cat === 'basic');
+  const qid = ADV.queued;
+  if (qid) {
+    const s = skills[qid];
+    if (s && !s.passive && (G.char.skills[qid] || 0) > 0 &&
+        (fight.cds[qid] || 0) <= 0 && G.char.mana >= skillCost(s)) {
+      ADV.queued = null;   // consumed
+      return s;
+    }
+  }
+  return basic;
 }
 
 function playerHit(fight, enemy, skill, r) {
   const d = ADV.d;
   const raw = rint(d.baseDmgMin, d.baseDmgMax) * (skill.mult ? skill.mult(r) : 1);
-  let dmgBoost = 1 + ADV.buffPotion;
+  let dmgBoost = 1 + (ADV.scroll > 0 ? 0.12 : 0);   // power-up scroll
   for (const b of fight.buffs) if (b.dmgPct) dmgBoost += b.dmgPct;
   const isMagic = skill.magic || (d.weaponMagic && skill.cat === 'basic');
   const resKey = isMagic ? 'magic' : 'phys';
@@ -922,15 +952,18 @@ function playerAct(fight) {
       if (c.cls === 'mage') heal += Math.round(d.int * 1.5);
       c.hp = Math.min(d.maxHp, c.hp + heal);
       log('act', `${skill.icon} ${skill.name} heals you for ${heal} HP`);
+      ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} +${heal} HP` };
     } else if (skill.buff && !skill.mult) {
       fight.buffs.push({ ...skill.buff(r) });
       log('act', `${skill.icon} You roar with ${skill.name}!`);
+      ADV.lastAction = { side: 'player', icon: skill.icon, txt: skill.name };
     } else if (skill.debuff && !skill.mult) {
       const db = skill.debuff(r);
       fight.enemyDmgDown = Math.max(fight.enemyDmgDown, db.dmgDown || 0);
       fight.enemyResDown = Math.max(fight.enemyResDown, db.resDown || 0);
       fight.debuffRounds = db.rounds; fight.debuffApplied = true;
       log('act', `${skill.icon} ${skill.name} weakens your enemies!`);
+      ADV.lastAction = { side: 'player', icon: skill.icon, txt: skill.name };
     } else {
       if (skill.buff) fight.buffs.push({ ...skill.buff(r) });
       if (skill.debuff) {
@@ -940,22 +973,36 @@ function playerAct(fight) {
       }
       const tgts = skill.aoe ? alive : [alive[0]];
       const parts = [];
+      let total = 0;
       for (const t of tgts) {
         const dmg = playerHit(fight, t, skill, r);
-        parts.push(`${t.name.split(' — ')[0]} for ${dmg}`);
+        total += dmg;
+        parts.push(`${t.name.split(' — ')[0]} for ${dmg.toLocaleString()}`);
         if (skill.stun && t.hp > 0) t.stunned = (t.stunned || 0) + skill.stun;
       }
       log('act', `${skill.icon} ${skill.name} hits ${parts.join(', ')}`);
+      ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${total.toLocaleString()} dmg` };
     }
   }
 }
 
 function enemyAct(fight, e) {
   if (e.hp <= 0) return;
-  if (e.stunned > 0) { e.stunned--; log('enemy', `💫 ${e.name} is stunned and misses its turn!`); return; }
+  const shortName = e.name.split(' — ')[0];
+  if (e.stunned > 0) {
+    e.stunned--;
+    log('enemy', `💫 ${e.name} is stunned and misses its turn!`);
+    ADV.lastAction = { side: 'enemy', icon: '💫', txt: `${shortName} is stunned!` };
+    return;
+  }
   const hit = enemyHit(fight, e);
-  if (hit.dodged) log('enemy', `💨 You dodge ${e.name}'s ${e.attack}!`);
-  else log('enemy', `🩸 ${e.name}'s ${e.attack} (${e.atkType}) deals ${hit.dmg} damage`);
+  if (hit.dodged) {
+    log('enemy', `💨 You dodge ${e.name}'s ${e.attack}!`);
+    ADV.lastAction = { side: 'enemy', icon: '💨', txt: `Dodged ${shortName}'s ${e.attack}!` };
+  } else {
+    log('enemy', `🩸 ${e.name}'s ${e.attack} (${e.atkType}) deals ${hit.dmg.toLocaleString()} damage`);
+    ADV.lastAction = { side: 'enemy', icon: '🩸', txt: `${shortName}: ${e.attack} — ${hit.dmg.toLocaleString()} dmg` };
+  }
 }
 
 function handleKill(e, run) {
@@ -992,12 +1039,15 @@ function startAdventure() {
   LOG = [];
   ADV = {
     level, d,
-    buffPotion: 0,
+    scroll: 0,                       // power-up scroll rounds remaining
+    potCd: { hp: 0, mana: 0 },       // manual potion cooldowns (ticks)
+    queued: null,                    // manually queued skill id
+    lastAction: null,                // shown in the arena's action box
     speedMs: G.settings.advSpeed || 300,
     fight: null,
     run: {
       kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
-      gold: 0, xp: 0, items: [], potions: { hp: 0, mana: 0, buff: 0 },
+      gold: 0, xp: 0, items: [], potions: { hp: 0, mana: 0, scroll: 0 },
       dmgDealt: 0, dmgTaken: 0,
       levelUps: 0, bossDefeated: false, outcome: null,
     },
@@ -1077,6 +1127,10 @@ function adventureTick() {
   ADV.d = derive(); // refresh (level-ups / gear changes apply live)
   const d = ADV.d;
 
+  // manual potion cooldowns tick down every game tick
+  ADV.potCd.hp = Math.max(0, (ADV.potCd.hp || 0) - 1);
+  ADV.potCd.mana = Math.max(0, (ADV.potCd.mana || 0) - 1);
+
   // ---------- between fights: travel & recover ----------
   // Recovery on the road is modest: wounds accumulate, and eventually
   // the hero falls and retreats home with the loot. HP Regen investment
@@ -1134,13 +1188,16 @@ function adventureTick() {
   if (f.debuffRounds > 0 && --f.debuffRounds === 0) {
     f.enemyDmgDown = 0; f.enemyResDown = 0; f.debuffApplied = false;
   }
+  if (ADV.scroll > 0) ADV.scroll--;   // power-up scroll burns during combat
 
-  // ATB gauges: Speed (from Dexterity) determines how often you act
+  // ATB gauges: Speed (from Dexterity) fills the gauge; the weapon's
+  // attack interval decides how much gauge one swing costs
   f.playerGauge += d.speed;
   for (const e of f.enemies) if (e.hp > 0) e.gauge += e.spd;
 
   const queue = [];
-  while (f.playerGauge >= 100) { f.playerGauge -= 100; queue.push({ who: 'player', g: f.playerGauge + 100 }); }
+  const intv = d.atkInterval || 100;
+  while (f.playerGauge >= intv) { f.playerGauge -= intv; queue.push({ who: 'player', g: (f.playerGauge + intv) / intv * 100 }); }
   for (const e of f.enemies) {
     if (e.hp <= 0) continue;
     while (e.gauge >= 100) { e.gauge -= 100; queue.push({ who: e, g: e.gauge + 100 }); }

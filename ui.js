@@ -200,7 +200,8 @@ UI.renderCharacter = function (el) {
         <div class="stat-row"><span>💨 Evasion</span><b>${d.evasion}%</b></div>
         <div class="stat-row"><span>💧 Mana Regen</span><b>${d.manaRegen}</b></div>
         <h3>Combat</h3>
-        <div class="stat-row"><span>🗡️ Damage</span><b>${d.baseDmgMin}–${d.baseDmgMax}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
+        <div class="stat-row"><span>🗡️ Damage</span><b>${d.baseDmgMin.toLocaleString()}–${d.baseDmgMax.toLocaleString()}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
+        <div class="stat-row"><span>⏱️ Attack Interval</span><b>${d.atkInterval}</b><small class="effect">weapon ×${d.atkFactor} — lower = faster swings</small></div>
         <div class="stat-row"><span>🛡️ Armor</span><b>${d.armor}</b></div>
         <div class="stat-row"><span>🌫️ Damage Reduction</span><b>${Math.round(d.dr * 100)}%</b></div>
         <div class="stat-row"><span>Resistances</span><b>⚔️${d.res.phys}% ✨${d.res.magic}% ☠️${d.res.poison}%</b></div>
@@ -370,6 +371,7 @@ UI.itemStatsHtml = function (it, baseline) {
   return `${it.dmgMin ? `<div class="istat ${cls('dmg')}">Damage: <b>${it.dmgMin.toLocaleString()}–${it.dmgMax.toLocaleString()}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
     ${it.armor ? `<div class="istat ${cls('armor')}">Armor: <b>${it.armor.toLocaleString()}</b></div>` : ''}
     ${it.spd ? `<div class="istat ${cls('spd')}">Speed: <b>+${it.spd}</b></div>` : ''}
+    ${it.atkSpd ? `<div class="istat">Attack Speed: <b>${it.atkSpd < 0.8 ? 'Very Fast' : it.atkSpd < 1 ? 'Fast' : it.atkSpd === 1 ? 'Normal' : it.atkSpd <= 1.2 ? 'Slow' : 'Very Slow'}</b> (×${it.atkSpd})</div>` : ''}
     ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
     ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
     ${(it.affixes || []).map(a => `<div class="affix ${cls('a_' + a.id)}">◆ ${affixText(a)}</div>`).join('')}
@@ -584,13 +586,73 @@ UI.renderAdventure = function (el) {
           <p class="hint">Your hero fights round by round until the level boss falls or they drop to 0 HP. ⚠️ Falling in battle resets this level's progress (loot, gold and XP are kept) — retreating manually keeps your progress. Potions found are drunk on the spot.</p>`}
       </div>
       <div class="panel">
-        <h3>⚔️ Current Fight</h3>
-        <div id="enemy-panel">${UI.enemyPanelHtml()}</div>
+        <h3>⚔️ Battle Arena</h3>
+        <div class="battle-arena">
+          <div id="player-card">${UI.playerCardHtml()}</div>
+          <div id="action-box">${UI.actionBoxHtml()}</div>
+          <div id="enemy-panel" class="arena-enemies">${UI.enemyPanelHtml()}</div>
+        </div>
+        <div id="player-controls">${UI.controlsHtml()}</div>
         <h3>📖 Battle Log</h3>
         <div id="battle-log" class="battle-log">${UI.logHtml()}</div>
       </div>
     </div>`;
   UI.scrollLog();
+};
+
+// Left side of the arena: the hero.
+UI.playerCardHtml = function () {
+  const c = G.char, cls = DATA.CLASSES[c.cls];
+  const d = ADV ? ADV.d : derive();
+  const gaugePct = ADV && ADV.fight ? Math.min(100, ADV.fight.playerGauge / (d.atkInterval || 100) * 100) : 0;
+  return `
+    <div class="hero-card">
+      <div class="hero-icon">${cls.icon}</div>
+      <div class="hero-name">${esc(c.name)}</div>
+      <div class="hero-sub">Lv ${c.level} ${cls.name}</div>
+      <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
+      <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${Math.round(c.mana).toLocaleString()}/${d.maxMana.toLocaleString()}</span></div>
+      <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
+      ${ADV && ADV.scroll > 0 ? `<div class="scroll-ind">📜 +12% dmg (${ADV.scroll} rounds)</div>` : ''}
+      ${ADV && ADV.queued ? `<div class="queued-ind">⏳ ${DATA.SKILLS[c.cls][ADV.queued].icon} ${esc(DATA.SKILLS[c.cls][ADV.queued].name)} queued</div>` : ''}
+    </div>`;
+};
+
+// Middle of the arena: whatever just happened.
+UI.actionBoxHtml = function () {
+  const a = ADV && ADV.lastAction;
+  if (!a) return `<div class="action-inner idle"><div class="action-icon">⚔️</div><div class="action-txt">…</div></div>`;
+  return `<div class="action-inner ${a.side}">
+    <div class="action-arrow">${a.side === 'player' ? '➡️' : '⬅️'}</div>
+    <div class="action-icon">${a.icon}</div>
+    <div class="action-txt">${esc(a.txt)}</div>
+  </div>`;
+};
+
+// Under the arena: manual potions and activatable skills.
+UI.controlsHtml = function () {
+  if (!ADV) return `<p class="hint">🧪 Potions stored: ❤️ ${G.potions.hp} · 🔵 ${G.potions.mana} — usable during adventures.</p>`;
+  const c = G.char;
+  const potBtn = (kind, icon, label) => {
+    const cd = ADV.potCd[kind] || 0;
+    const n = G.potions[kind] || 0;
+    return `<button class="btn pot-btn ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || n <= 0 || ADV.paused ? 'disabled' : ''} onclick="drinkPotion('${kind}')">
+      ${icon} ${label} ×${n}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ''}</button>`;
+  };
+  const actives = Object.values(DATA.SKILLS[c.cls]).filter(s => !s.passive && s.cat !== 'basic' && (c.skills[s.id] || 0) > 0);
+  const skillBtn = s => {
+    const cd = ADV.fight ? (ADV.fight.cds[s.id] || 0) : 0;
+    const cost = skillCost(s);
+    const noMana = G.char.mana < cost;
+    const queued = ADV.queued === s.id;
+    return `<button class="btn skill-btn ${queued ? 'queued' : ''} ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || noMana || ADV.paused ? 'disabled' : ''}
+      title="${esc(s.desc(Math.max(1, effectiveRank(s.id))))} — ${cost} mana${s.cd ? `, ${s.cd} round cd` : ''}"
+      onclick="queueSkill('${s.id}')">${s.icon} ${esc(s.name)}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ` <small>${cost}</small>`}</button>`;
+  };
+  return `
+    <div class="ctl-row">${potBtn('hp', '❤️', 'Health')} ${potBtn('mana', '🔵', 'Mana')}
+      <small class="hint-inline">potions: ${POTION_CD}-tick cooldown · skills: click to cast on your next swing</small></div>
+    ${actives.length ? `<div class="ctl-row skill-row-ctl">${actives.map(skillBtn).join('')}</div>` : ''}`;
 };
 
 // Detailed cards for every enemy in the current fight.
@@ -638,6 +700,12 @@ UI.refreshAdventure = function () {
   if (activeTab !== 'adventure') return;
   const panel = $('#enemy-panel');
   if (panel) panel.innerHTML = UI.enemyPanelHtml();
+  const pc = $('#player-card');
+  if (pc) pc.innerHTML = UI.playerCardHtml();
+  const ab = $('#action-box');
+  if (ab) ab.innerHTML = UI.actionBoxHtml();
+  const ctl = $('#player-controls');
+  if (ctl) ctl.innerHTML = UI.controlsHtml();
   const logEl = $('#battle-log');
   if (logEl) logEl.innerHTML = UI.logHtml();
   const kills = G.progress[ADV ? ADV.level : G.area] || 0;
@@ -684,7 +752,7 @@ UI.showResults = function (run, level) {
       <div class="res-box"><b>⚔️ ${Math.round(run.dmgDealt).toLocaleString()}</b><span>damage dealt</span></div>
       <div class="res-box"><b>🩸 ${Math.round(run.dmgTaken).toLocaleString()}</b><span>damage taken</span></div>
       <div class="res-box"><b>${run.xp.toLocaleString()}</b><span>XP${run.levelUps ? ` (+${run.levelUps} level${run.levelUps > 1 ? 's' : ''}!)` : ''}</span></div>
-      <div class="res-box"><b>🧪 ${run.potions.hp + run.potions.mana + run.potions.buff}</b><span>potions drunk</span></div>
+      <div class="res-box"><b>🧪 ${run.potions.hp + run.potions.mana}${run.potions.scroll ? ` · 📜 ${run.potions.scroll}` : ''}</b><span>potions / scrolls found</span></div>
     </div>
     <h4>Creatures slain — ${totalKills}</h4>
     <div class="results-grid">

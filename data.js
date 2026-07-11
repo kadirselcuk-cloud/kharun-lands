@@ -5,7 +5,7 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.1.1';
+DATA.VERSION = '1.2.0';
 
 // ------------------------------------------------------------
 // Classes
@@ -366,17 +366,22 @@ DATA.SLOT_LABEL = {
 };
 
 // Weapon bases. hands: 1|2. classes: which classes can use (null = all).
+// atkSpd: attack interval multiplier — 0.5 = twice as fast, 1.5 = 50% slower.
 DATA.WEAPON_BASES = [
-  { id: 'greatsword', name: 'Greatsword', icon: '🗡️', hands: 2, classes: ['warrior'], dmg: [7, 11] },
-  { id: 'battleaxe', name: 'Battle Axe', icon: '🪓', hands: 2, classes: ['warrior'], dmg: [8, 12] },
-  { id: 'warhammer', name: 'War Hammer', icon: '🔨', hands: 1, classes: ['warrior'], dmg: [5, 8] },
-  { id: 'longsword', name: 'Longsword', icon: '⚔️', hands: 1, classes: ['warrior', 'rogue'], dmg: [4, 7] },
-  { id: 'dagger', name: 'Dagger', icon: '🔪', hands: 1, classes: ['rogue'], dmg: [3, 6], spd: 4 },
-  { id: 'twinblade', name: 'Twinblade', icon: '⚔️', hands: 2, classes: ['rogue'], dmg: [6, 10], spd: 6 },
-  { id: 'shortsword', name: 'Shortsword', icon: '🗡️', hands: 1, classes: null, dmg: [3, 6] },
-  { id: 'staff', name: 'Arcane Staff', icon: '🪄', hands: 2, classes: ['mage'], dmg: [6, 11], magic: true },
-  { id: 'wand', name: 'Wand', icon: '🪄', hands: 1, classes: ['mage'], dmg: [3, 6], magic: true },
-  { id: 'scepter', name: 'Scepter', icon: '🔱', hands: 1, classes: ['mage'], dmg: [4, 7], magic: true },
+  { id: 'greatsword', name: 'Greatsword', icon: '🗡️', hands: 2, classes: ['warrior'], dmg: [9, 14], atkSpd: 1.5 },
+  { id: 'battleaxe', name: 'Battle Axe', icon: '🪓', hands: 2, classes: ['warrior'], dmg: [9, 13], atkSpd: 1.4 },
+  { id: 'warhammer', name: 'War Hammer', icon: '🔨', hands: 1, classes: ['warrior'], dmg: [5, 8], atkSpd: 1.1 },
+  { id: 'spear', name: 'Spear', icon: '🔱', hands: 2, classes: ['warrior'], dmg: [7, 11], atkSpd: 1.1 },
+  { id: 'crossbow', name: 'Crossbow', icon: '🏹', hands: 2, classes: ['warrior', 'rogue'], dmg: [8, 13], atkSpd: 1.3 },
+  { id: 'longsword', name: 'Longsword', icon: '⚔️', hands: 1, classes: ['warrior', 'rogue'], dmg: [4, 7], atkSpd: 1.0 },
+  { id: 'dagger', name: 'Dagger', icon: '🔪', hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.5 },
+  { id: 'throwingknives', name: 'Throwing Knives', icon: '🥷', hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.6 },
+  { id: 'bow', name: 'Hunting Bow', icon: '🏹', hands: 2, classes: ['rogue'], dmg: [6, 10], atkSpd: 1.0 },
+  { id: 'twinblade', name: 'Twinblade', icon: '⚔️', hands: 2, classes: ['rogue'], dmg: [6, 10], atkSpd: 1.15 },
+  { id: 'shortsword', name: 'Shortsword', icon: '🗡️', hands: 1, classes: null, dmg: [3, 6], atkSpd: 0.9 },
+  { id: 'staff', name: 'Arcane Staff', icon: '🪄', hands: 2, classes: ['mage'], dmg: [7, 12], magic: true, atkSpd: 1.3 },
+  { id: 'wand', name: 'Wand', icon: '🪄', hands: 1, classes: ['mage'], dmg: [3, 5], magic: true, atkSpd: 0.8 },
+  { id: 'scepter', name: 'Scepter', icon: '🔱', hands: 1, classes: ['mage'], dmg: [4, 7], magic: true, atkSpd: 1.0 },
 ];
 
 // Offhand bases. kind: shield | weapon-like offhand item
@@ -419,7 +424,7 @@ DATA.AFFIXES = [
   { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} HP Regen` },
   { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Mana Regen` },
   { id: 'evasion', w: 6, roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
-  { id: 'dmgFlat', w: 10, roll: i => Math.round((2 + rint(0, 3)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
+  { id: 'dmgFlat', w: 10, roll: i => Math.round((2 + rint(0, 3)) * dmgScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
   { id: 'dmgPct', w: 8, roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
   { id: 'armor', w: 9, roll: i => Math.round((3 + rint(0, 3)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Armor` },
   { id: 'dr', w: 4, roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
@@ -466,6 +471,10 @@ DATA.WEAPON_NOUNS = {
   greatsword: ['Cleaver', 'Reaver', 'Edge', 'Sorrow', 'Doom'],
   battleaxe: ['Hewer', 'Splitter', 'Maw', 'Bite', 'Grudge'],
   warhammer: ['Crusher', 'Knell', 'Fist', 'Toll', 'Verdict'],
+  spear: ['Reach', 'Star', 'Pike', 'Answer', 'Horizon'],
+  crossbow: ['Bolt', 'Judgment', 'Snap', 'Reply', 'Full-Stop'],
+  bow: ['Song', 'Sigh', 'Arc', 'Whisper', 'Rain'],
+  throwingknives: ['Swarm', 'Flight', 'Scatter', 'Chorus', 'Hail'],
   longsword: ['Fang', 'Oath', 'Song', 'Promise', 'Edge'],
   dagger: ['Sting', 'Kiss', 'Whisper', 'Thorn', 'Secret'],
   twinblade: ['Dance', 'Talon', 'Storm', 'Scissor', 'Waltz'],
@@ -521,5 +530,7 @@ DATA.AFFIX_HEROIC = {
 function rint(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
 function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function chance(p) { return Math.random() < p; }
-// +25% compounding growth per level, used by both monsters and items
+// +25% compounding growth per level (armor & magnitude affixes)
 function bigScale(i) { return Math.pow(1.25, Math.max(0, i - 1)); }
+// +50% compounding growth per level — weapon damage tracks monster HP
+function dmgScale(i) { return Math.pow(1.5, Math.max(0, i - 1)); }

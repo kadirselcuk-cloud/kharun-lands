@@ -268,6 +268,43 @@ small { color: var(--dim); }
 .pack-row { display: flex; align-items: center; gap: 6px; margin: 10px 0; font-size: .86rem; flex-wrap: wrap; }
 .hint-inline { color: var(--dim); font-size: .72rem; }
 
+/* battle arena: hero left, action box center, monster grid right */
+.battle-arena {
+  display: grid; grid-template-columns: 190px 110px 1fr;
+  gap: 10px; align-items: stretch; margin-bottom: 10px;
+}
+@media (max-width: 1100px) { .battle-arena { grid-template-columns: 1fr; } }
+.hero-card {
+  background: var(--panel2); border: 1px solid #4a5069; border-radius: 10px;
+  padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+  text-align: center;
+}
+.hero-icon { font-size: 2.4rem; }
+.hero-name { font-weight: 700; }
+.hero-sub { font-size: .74rem; color: var(--dim); }
+.scroll-ind { font-size: .74rem; color: #d9a94c; }
+.queued-ind { font-size: .74rem; color: #6c9bff; }
+#action-box { display: flex; align-items: center; justify-content: center; }
+.action-inner {
+  background: #0a0b10; border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 8px; width: 100%; text-align: center; min-height: 120px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+}
+.action-inner.player { border-color: #4a7a4e; box-shadow: 0 0 10px rgba(108,203,143,.15); }
+.action-inner.enemy { border-color: #7a3b3b; box-shadow: 0 0 10px rgba(217,83,79,.15); }
+.action-arrow { font-size: .9rem; }
+.action-icon { font-size: 1.9rem; }
+.action-txt { font-size: .72rem; color: #b9bdcc; line-height: 1.35; word-break: break-word; }
+
+/* manual controls */
+#player-controls { margin-bottom: 10px; }
+.ctl-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
+.pot-btn { font-size: .8rem; }
+.skill-btn { font-size: .78rem; padding: 5px 10px; }
+.skill-btn.queued { border-color: #6c9bff; color: #6c9bff; box-shadow: 0 0 6px rgba(108,155,255,.3); }
+.btn.on-cd { opacity: .5; }
+.cd-num { background: #0a0b10; border-radius: 8px; padding: 0 6px; color: var(--accent); font-size: .72rem; }
+
 /* enemy panel — fixed 2x3 battle grid: normals/rares one cell each,
    epics fill a row (3 cells), legendaries fill the whole grid (6 cells) */
 .round-ind { font-size: .76rem; color: var(--dim); margin-bottom: 6px; }
