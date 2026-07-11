@@ -186,7 +186,7 @@ function derive() {
   d.speed = Math.round(10 + d.dex * 2 + d.speed + d.weaponSpd);
   d.maxMana = Math.round((20 + d.int * 7 + c.level * 3 + d.manaFlat) * (1 + d.manaPct));
   // sub stats
-  d.hpRegen = +(1 + d.str * 0.3 + d.hpRegen).toFixed(1);
+  d.hpRegen = +(1 + d.str * 0.2 + d.hpRegen).toFixed(1);
   d.evasion = Math.min(60, +(d.dex * 0.6 + d.evasion).toFixed(1));
   d.manaRegen = +(1 + d.int * 0.4 + d.manaRegen).toFixed(1);
   // caps
@@ -613,9 +613,9 @@ function rollLoot(creature, run) {
 
   const r = Math.random() * 100;
   const T = {
-    normal: { gold: 42, item: 12, hpPot: 12, manaPot: 8, buffPot: 0.5 },
-    rare:   { gold: 55, item: 25, hpPot: 10, manaPot: 6, buffPot: 2 },
-    epic:   { gold: 55, item: 32, hpPot: 6, manaPot: 4, buffPot: 3 },
+    normal: { gold: 42, item: 12, hpPot: 6, manaPot: 5, buffPot: 0.5 },
+    rare:   { gold: 55, item: 25, hpPot: 5, manaPot: 4, buffPot: 2 },
+    epic:   { gold: 55, item: 32, hpPot: 3, manaPot: 3, buffPot: 3 },
   }[tier];
   let acc = 0;
   if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; return; }
@@ -637,10 +637,16 @@ function dropItem(lvl, rarity, run) {
 function usePotion(kind, run) {
   const d = ADV.d;
   if (kind === 'hp') {
-    const heal = Math.round(d.maxHp * 0.15);
+    // 1% Full Health, 25% Greater (40%), otherwise regular (20%)
+    const roll = Math.random();
+    let heal, label;
+    if (roll < 0.01) { heal = d.maxHp; label = '🌟 FULL HEALTH potion! Fully restored'; }
+    else if (roll < 0.26) { heal = Math.round(d.maxHp * 0.40); label = '✨ GREATER health potion!'; }
+    else { heal = Math.round(d.maxHp * 0.20); label = 'Health potion!'; }
+    const before = G.char.hp;
     G.char.hp = Math.min(d.maxHp, G.char.hp + heal);
     run.potions.hp++;
-    log('loot', `🧪 Health potion! +${heal} HP.`);
+    log('loot', `🧪 ${label} +${Math.round(G.char.hp - before)} HP.`);
   } else if (kind === 'mana') {
     const m = Math.round(d.maxMana * 0.4);
     G.char.mana = Math.min(d.maxMana, G.char.mana + m);
