@@ -594,11 +594,18 @@ UI.renderAdventure = function (el) {
 };
 
 // Detailed cards for every enemy in the current fight.
+// grid cells each tier occupies in the 3x2 battle grid
+const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 3, legendary: 6 };
+
 UI.enemyPanelHtml = function () {
-  if (!ADV || !ADV.fight) {
-    return `<p class="hint">${ADV ? '🥾 Traveling to the next encounter…' : 'No fight in progress.'}</p>`;
+  if (!ADV) return `<p class="hint">No fight in progress.</p>`;
+  if (!ADV.fight) {
+    return `<p class="hint">🥾 Traveling to the next encounter…</p>
+      <div class="enemy-cards">${'<div class="enemy-placeholder"></div>'.repeat(6)}</div>`;
   }
   const f = ADV.fight;
+  const used = f.enemies.reduce((s, e) => s + (TIER_CELLS[e.tier] || 1), 0);
+  const placeholders = Math.max(0, 6 - used);
   const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d', elf: '#8fd96c' };
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
@@ -617,6 +624,7 @@ UI.enemyPanelHtml = function () {
         <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
         <div class="bar enemy-gauge" title="action gauge"><div style="width:${Math.min(100, e.gauge)}%"></div></div>
       </div>`).join('')}
+    ${'<div class="enemy-placeholder"></div>'.repeat(placeholders)}
     </div>`;
 };
 
