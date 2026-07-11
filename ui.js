@@ -111,6 +111,12 @@ UI.refresh = function () {
   if (!G) return;
   UI.renderTopbar();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
+  // level-up badge on the Character tab
+  const charTab = document.querySelector('#tabs button[data-tab="character"]');
+  if (charTab) {
+    const pts = (G.char.statPoints || 0) + (G.char.skillPoints || 0);
+    charTab.innerHTML = `🧍 Character${pts ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
+  }
   const el = $('#tab-content');
   if (!el) return;
   if (activeTab === 'character') UI.renderCharacter(el);
@@ -166,7 +172,19 @@ UI.renderCharacter = function (el) {
       ${c.statPoints > 0 ? `<button class="btn btn-tiny" onclick="spendStat('${key}')">+</button>` : ''}
       <small class="effect">${effect}</small>
     </div>`;
+  const xpNeed = xpForLevel(c.level);
   el.innerHTML = `
+    ${c.statPoints || c.skillPoints ? `
+      <div class="lvlup-banner">⬆ LEVEL UP! You have
+        ${c.statPoints ? `<b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b>` : ''}
+        ${c.statPoints && c.skillPoints ? ' and ' : ''}
+        ${c.skillPoints ? `<b>${c.skillPoints} skill point${c.skillPoints > 1 ? 's' : ''}</b>` : ''}
+        to spend${c.skillPoints ? ' — skills are on the 📜 Skills tab' : ''}.
+      </div>` : ''}
+    <div class="panel level-panel">
+      <h3>📈 Level ${c.level} ${cls.name}</h3>
+      <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()} — next level grants +3 stat points, +1 skill point</span></div>
+    </div>
     <div class="two-col">
       <div class="panel">
         <h3>Main Stats ${c.statPoints ? `<span class="pts">(${c.statPoints} points to spend)</span>` : ''}</h3>
@@ -262,9 +280,15 @@ UI.renderInventory = function (el) {
       <h3>Inventory (${G.inventory.length})
         <span class="filters">
           ${['all', 'usable', 'runes'].map(f => `<button class="btn btn-tiny ${invFilter === f ? 'active' : ''}" data-f="${f}">${cap(f)}</button>`).join('')}
-          <button class="btn btn-tiny danger" id="sell-normals">Sell all Normal/Magical</button>
         </span>
       </h3>
+      <div class="sell-row">Sell all:
+        <button class="btn btn-tiny danger" data-sell="junk">Normal/Magical</button>
+        <button class="btn btn-tiny danger" data-sell="unusable">Unusable</button>
+        <button class="btn btn-tiny danger" data-sell="rare">Rare</button>
+        <button class="btn btn-tiny danger" data-sell="epic">Epic</button>
+        <button class="btn btn-tiny danger" data-sell="legendary">Legendary</button>
+      </div>
       ${items.length === 0 ? '<p class="hint">Nothing here yet — go on an adventure!</p>' : ''}
       <div class="inv-grid">
         ${items.map(it => {
@@ -279,13 +303,75 @@ UI.renderInventory = function (el) {
       </div>
     </div>`;
   el.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { invFilter = b.dataset.f; UI.refresh(); });
-  const sellBtn = $('#sell-normals');
-  if (sellBtn) sellBtn.onclick = () => {
-    const junk = G.inventory.filter(i => i.type === 'item' && (i.rarity === 'normal' || i.rarity === 'magical'));
-    if (!junk.length || !confirm(`Sell ${junk.length} items?`)) return;
-    for (const j of junk) sellItem(j.uid);
-  };
+  el.querySelectorAll('[data-sell]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.sell;
+    const matches = sellMatches(kind);
+    if (!matches.length) { UI.toast('Nothing to sell'); return; }
+    const gold = matches.reduce((s, i) => s + i.value, 0);
+    if (!confirm(`Sell ${matches.length} item${matches.length > 1 ? 's' : ''} for 🪙 ${gold.toLocaleString()}?`)) return;
+    const r = sellAllOf(kind);
+    UI.toast(`Sold ${r.count} for 🪙 ${r.gold.toLocaleString()}`);
+  });
 };
+
+// ------------------------------------------------------------
+// Stat comparison — candidate item vs currently equipped.
+// Better values render green, equal white, worse red.
+// ------------------------------------------------------------
+function statMapOf(it) {
+  const m = {};
+  if (it.dmgMin) m.dmg = (it.dmgMin + it.dmgMax) / 2;
+  if (it.armor) m.armor = it.armor;
+  if (it.spd) m.spd = it.spd;
+  for (const a of allAffixesOf(it)) m['a_' + a.id] = (m['a_' + a.id] || 0) + a.v;
+  return m;
+}
+function mapScore(m) { return Object.values(m).reduce((s, v) => s + v, 0); }
+function cmpClsFor(candMap, eqMap, key) {
+  const a = candMap[key] || 0, b = (eqMap || {})[key] || 0;
+  return a > b ? 'cmp-better' : a < b ? 'cmp-worse' : 'cmp-same';
+}
+
+// Renders an item's stat lines. baseline: undefined = no comparison
+// coloring; null = empty slot (everything is an upgrade); object =
+// stat map of the equipped item to compare against.
+UI.itemStatsHtml = function (it, baseline) {
+  if (it.type === 'rune') return it.bonuses.map(b => `<div class="affix">◆ ${affixText(b)}</div>`).join('');
+  const cand = statMapOf(it);
+  const cls = key => baseline === undefined ? '' : cmpClsFor(cand, baseline, key);
+  const runes = it.runes || [];
+  return `${it.dmgMin ? `<div class="istat ${cls('dmg')}">Damage: <b>${it.dmgMin.toLocaleString()}–${it.dmgMax.toLocaleString()}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
+    ${it.armor ? `<div class="istat ${cls('armor')}">Armor: <b>${it.armor.toLocaleString()}</b></div>` : ''}
+    ${it.spd ? `<div class="istat ${cls('spd')}">Speed: <b>+${it.spd}</b></div>` : ''}
+    ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
+    ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
+    ${(it.affixes || []).map(a => `<div class="affix ${cls('a_' + a.id)}">◆ ${affixText(a)}</div>`).join('')}
+    ${it.sockets ? `<div class="sockets">Sockets: ${runes.map(r => `<span class="socket filled" title="${esc(r.name)}: ${r.bonuses.map(affixText).join(', ')}">🪨</span>`).join('')}${'<span class="socket">○</span>'.repeat(it.sockets - runes.length)}</div>` : ''}
+    ${runes.flatMap(r => r.bonuses).map(b => `<div class="affix rune-affix ${cls('a_' + b.id)}">🪨 ${affixText(b)}</div>`).join('')}`;
+};
+
+// Which equipped items should a candidate be compared against?
+function compareTargetsFor(it) {
+  if (it.type !== 'item') return [];
+  if (it.slot === 'ring') return [G.char.equip.ring1, G.char.equip.ring2].filter(Boolean);
+  return [G.char.equip[it.slot]].filter(Boolean);
+}
+// Coloring baseline: the weakest of the compare targets (the one you'd replace).
+function baselineFor(targets) {
+  if (!targets.length) return null;
+  return statMapOf(targets.reduce((worst, t) => mapScore(statMapOf(t)) < mapScore(statMapOf(worst)) ? t : worst));
+}
+
+UI.equippedBlockHtml = function (eq, label) {
+  if (!eq) return '';
+  return `<div class="compare"><h4>${label}: <span style="color:${DATA.RARITIES[eq.rarity].color}">${esc(eq.name)}</span></h4>${UI.itemStatsHtml(eq)}</div>`;
+};
+
+UI.cmpLegendHtml = function () {
+  return `<p class="cmp-legend">vs equipped: <span class="cmp-better">better</span> · <span class="cmp-same">equal</span> · <span class="cmp-worse">worse</span></p>`;
+};
+
+UI.ringLabel = function (t) { return t === G.char.equip.ring1 ? 'Equipped Left Ring' : 'Equipped Right Ring'; };
 
 // Item detail modal. context: 'inv' | 'equipped'
 UI.showItem = function (uid, context, slot) {
@@ -294,18 +380,9 @@ UI.showItem = function (uid, context, slot) {
   if (!it) return;
   const rar = DATA.RARITIES[it.rarity];
   const usable = it.type === 'item' ? canUseItem(it) : null;
-  const compare = it.type === 'item' && context === 'inv' ? G.char.equip[it.slot === 'ring' ? 'ring1' : it.slot] : null;
-
-  const statsHtml = it.type === 'rune'
-    ? it.bonuses.map(b => `<div class="affix">◆ ${affixText(b)}</div>`).join('')
-    : `${it.dmgMin ? `<div class="istat">Damage: <b>${it.dmgMin}–${it.dmgMax}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
-       ${it.armor ? `<div class="istat">Armor: <b>${it.armor}</b></div>` : ''}
-       ${it.spd ? `<div class="istat">Speed: <b>+${it.spd}</b></div>` : ''}
-       ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
-       ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
-       ${(it.affixes || []).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}
-       ${it.sockets ? `<div class="sockets">Sockets: ${it.runes.map(r => `<span class="socket filled" title="${esc(r.name)}: ${r.bonuses.map(affixText).join(', ')}">🪨</span>`).join('')}${'<span class="socket">○</span>'.repeat(it.sockets - it.runes.length)}</div>` : ''}
-       ${it.runes.flatMap(r => r.bonuses).map(b => `<div class="affix rune-affix">🪨 ${affixText(b)}</div>`).join('')}`;
+  const targets = context === 'equipped' ? [] : compareTargetsFor(it);
+  const baseline = (context === 'equipped' || it.type !== 'item') ? undefined : baselineFor(targets);
+  const statsHtml = UI.itemStatsHtml(it, baseline);
 
   const actions = [];
   if (it.type === 'rune') {
@@ -329,10 +406,8 @@ UI.showItem = function (uid, context, slot) {
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
-    ${compare ? `<div class="compare"><h4>Currently equipped: <span style="color:${DATA.RARITIES[compare.rarity].color}">${esc(compare.name)}</span></h4>
-      ${compare.dmgMin ? `<div class="istat">Damage: ${compare.dmgMin}–${compare.dmgMax}</div>` : ''}
-      ${compare.armor ? `<div class="istat">Armor: ${compare.armor}</div>` : ''}
-      ${allAffixesOf(compare).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}</div>` : ''}
+    ${targets.length && baseline !== undefined ? UI.cmpLegendHtml() : ''}
+    ${targets.map(t => UI.equippedBlockHtml(t, it.slot === 'ring' ? UI.ringLabel(t) : 'Currently equipped')).join('')}
     <div class="modal-actions">${actions.join('')}<button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
@@ -373,24 +448,15 @@ UI.showShopItem = function (uid) {
   const rar = DATA.RARITIES[it.rarity];
   const usable = it.type === 'item' ? canUseItem(it) : null;
   const afford = G.gold >= it.price;
-  const compare = it.type === 'item' ? G.char.equip[it.slot === 'ring' ? 'ring1' : it.slot] : null;
-  const statsHtml = it.type === 'rune'
-    ? it.bonuses.map(b => `<div class="affix">◆ ${affixText(b)}</div>`).join('')
-    : `${it.dmgMin ? `<div class="istat">Damage: <b>${it.dmgMin}–${it.dmgMax}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
-       ${it.armor ? `<div class="istat">Armor: <b>${it.armor}</b></div>` : ''}
-       ${it.spd ? `<div class="istat">Speed: <b>+${it.spd}</b></div>` : ''}
-       ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
-       ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
-       ${(it.affixes || []).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}
-       ${it.sockets ? `<div class="sockets">Sockets: ${'<span class="socket">○</span>'.repeat(it.sockets)}</div>` : ''}`;
+  const targets = compareTargetsFor(it);
+  const baseline = it.type === 'item' ? baselineFor(targets) : undefined;
+  const statsHtml = UI.itemStatsHtml(it, baseline);
   UI.modal(`
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
-    ${compare ? `<div class="compare"><h4>Currently equipped: <span style="color:${DATA.RARITIES[compare.rarity].color}">${esc(compare.name)}</span></h4>
-      ${compare.dmgMin ? `<div class="istat">Damage: ${compare.dmgMin}–${compare.dmgMax}</div>` : ''}
-      ${compare.armor ? `<div class="istat">Armor: ${compare.armor}</div>` : ''}
-      ${allAffixesOf(compare).map(a => `<div class="affix">◆ ${affixText(a)}</div>`).join('')}</div>` : ''}
+    ${targets.length && baseline !== undefined ? UI.cmpLegendHtml() : ''}
+    ${targets.map(t => UI.equippedBlockHtml(t, it.slot === 'ring' ? UI.ringLabel(t) : 'Currently equipped')).join('')}
     <div class="modal-actions">
       <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${it.price.toLocaleString()})</button>
       <button class="btn" onclick="UI.closeModal()">Close</button>

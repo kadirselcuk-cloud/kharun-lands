@@ -293,6 +293,29 @@ small { color: var(--dim); }
 .drop-chips { margin: 4px 0 8px; font-size: .82rem; }
 .drop-chip { font-weight: 600; }
 
+/* stat comparison colors */
+.cmp-better { color: #6ccb8f !important; }
+.cmp-same { color: #e8eaf0 !important; }
+.cmp-worse { color: #d9776f !important; }
+.cmp-legend { font-size: .72rem; color: var(--dim); margin: 6px 0 2px; }
+
+/* level up */
+.lvlup-banner {
+  background: linear-gradient(180deg, #3d2f14, #2a2010); border: 1px solid var(--accent);
+  color: var(--accent); border-radius: 10px; padding: 10px 16px; margin-bottom: 10px;
+  font-size: .95rem; text-align: center;
+}
+.lvlup-badge { color: var(--accent); font-weight: 800; }
+.level-panel { margin-bottom: 12px; }
+.xp-bar-big { max-width: none; height: 22px; }
+.xp-bar-big > span { font-size: .78rem; }
+
+/* bulk sell row */
+.sell-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: .82rem; color: var(--dim); margin-bottom: 10px;
+}
+
 ::-webkit-scrollbar { width: 9px; }
 ::-webkit-scrollbar-track { background: #0a0b10; }
 ::-webkit-scrollbar-thumb { background: #2c3044; border-radius: 5px; }

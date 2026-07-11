@@ -44,7 +44,7 @@ function newGame(clsId, name) {
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
     totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, legendary: 0 } },
-    settings: { packSize: 1 },
+    settings: { packSize: 1, advSpeed: 300, lastAdvLevel: null },
     shop: null,
     itemSeq: 1,
   };
@@ -88,6 +88,7 @@ function loadGame() {
   if (!g) return false;
   G = g;
   if (!G.settings) G.settings = { packSize: 1 };
+  if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 300; G.settings.lastAdvLevel = null; }
   if (!G.shop || !G.shop.stock) genShopStock();
   return true;
 }
@@ -437,6 +438,27 @@ function sellItem(uid) {
   G.gold += G.inventory[idx].value;
   G.inventory.splice(idx, 1);
   saveGame(); UI.refresh();
+}
+
+// Bulk selling. kind: 'junk' (normal+magical) | 'unusable' | 'rare' | 'epic' | 'legendary'
+function sellMatches(kind) {
+  return G.inventory.filter(i => {
+    if (i.type !== 'item') return false;   // runes are never bulk-sold
+    if (kind === 'junk') return i.rarity === 'normal' || i.rarity === 'magical';
+    if (kind === 'unusable') return !canUseItem(i).ok;
+    return i.rarity === kind;
+  });
+}
+
+function sellAllOf(kind) {
+  const sel = sellMatches(kind);
+  let gold = 0;
+  for (const s of sel) gold += s.value;
+  const uids = new Set(sel.map(s => s.uid));
+  G.inventory = G.inventory.filter(i => !uids.has(i.uid));
+  G.gold += gold;
+  saveGame(); UI.refresh();
+  return { count: sel.length, gold };
 }
 
 function socketRune(runeUid, itemUid) {
@@ -813,13 +835,20 @@ function handleKill(e, run) {
 function startAdventure() {
   if (ADV) return;
   const level = G.area;
+  // Speed and pack-size choices persist for repeat runs of the same
+  // level, but reset to defaults when adventuring in a new level.
+  if (G.settings.lastAdvLevel !== level) {
+    G.settings.packSize = 1;
+    G.settings.advSpeed = 300;
+    G.settings.lastAdvLevel = level;
+  }
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rested before departure
   LOG = [];
   ADV = {
     level, d,
     buffPotion: 0,
-    speedMs: 300,
+    speedMs: G.settings.advSpeed || 300,
     fight: null,
     run: {
       kills: { normal: 0, rare: 0, epic: 0, legendary: 0 },
@@ -838,8 +867,10 @@ function startAdventure() {
 function setAdvSpeed(ms) {
   if (!ADV) return;
   ADV.speedMs = ms;
+  G.settings.advSpeed = ms;   // remembered for repeat runs of this level
   clearInterval(advTimer);
   advTimer = setInterval(adventureTick, ms);
+  saveGame();
   UI.refresh();
 }
 
