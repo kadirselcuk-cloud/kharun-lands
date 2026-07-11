@@ -58,7 +58,13 @@ small { color: var(--dim); }
 .class-card:hover { border-color: var(--accent); transform: translateY(-3px); }
 .class-icon { font-size: 3rem; }
 .class-card h2 { margin: 8px 0; color: var(--accent); }
-.class-desc { color: var(--dim); font-size: .86rem; min-height: 64px; line-height: 1.4; }
+.class-desc { color: var(--dim); font-size: .86rem; line-height: 1.4; }
+.class-story {
+  color: #a9977a; font-size: .8rem; font-style: italic; line-height: 1.5;
+  text-align: left; margin: 10px 0; padding: 8px 10px;
+  background: rgba(224, 169, 76, .05); border-left: 2px solid #5a4a2c; border-radius: 0 6px 6px 0;
+}
+.class-playstyle { color: #b9bdcc; font-size: .78rem; line-height: 1.45; text-align: left; margin-bottom: 6px; }
 .class-stats { display: flex; justify-content: center; gap: 18px; margin: 12px 0 6px; font-size: 1.05rem; }
 .class-armor { color: var(--dim); font-size: .8rem; margin-bottom: 8px; }
 .class-skills-preview { font-size: 1.2rem; margin-bottom: 14px; letter-spacing: 4px; }

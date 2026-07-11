@@ -56,6 +56,8 @@ UI.showClassSelect = function () {
             <div class="class-icon">${c.icon}</div>
             <h2>${c.name}</h2>
             <p class="class-desc">${c.desc}</p>
+            <p class="class-story">${c.story}</p>
+            <p class="class-playstyle">💡 ${c.playstyle}</p>
             <div class="class-stats">
               <div><span class="stat-str">STR</span> ${c.baseStats.str}</div>
               <div><span class="stat-dex">DEX</span> ${c.baseStats.dex}</div>
@@ -69,9 +71,15 @@ UI.showClassSelect = function () {
           </div>`).join('')}
       </div>
       <div class="name-row">
-        <label>Hero name: <input id="hero-name" maxlength="18" placeholder="(optional)"></label>
+        <label>Hero name: <input id="hero-name" maxlength="18" value="${esc(pick(DATA.DEFAULT_NAMES))}"></label>
+        <button class="btn btn-tiny" id="reroll-name" title="Roll another name">🎲</button>
       </div>
     </div>`;
+  $('#reroll-name').onclick = () => {
+    const cur = $('#hero-name').value;
+    const others = DATA.DEFAULT_NAMES.filter(n => n !== cur);
+    $('#hero-name').value = pick(others.length ? others : DATA.DEFAULT_NAMES);
+  };
   app.querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
       newGame(card.dataset.cls, $('#hero-name').value.trim());

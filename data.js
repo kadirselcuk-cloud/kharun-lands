@@ -12,6 +12,8 @@ DATA.CLASSES = {
   warrior: {
     id: 'warrior', name: 'Warrior', icon: '⚔️',
     desc: 'A front-line bruiser. High Strength and Dexterity make him a wall of HP that hits like a falling tower.',
+    story: 'Forged in the border legions that held the Kharun Lands against the first incursions, the Warrior buried a hundred brothers and kept marching. When the legions disbanded, he did not. Somewhere past the Green Plains lies the thing that broke his shield-wall — and he means to return the favor, one biome at a time.',
+    playstyle: 'Play the Warrior if you want to survive mistakes: the deepest HP pool, heavy armor, stuns, and damage reduction. He grinds through packs slowly but almost never dies.',
     baseStats: { str: 11, dex: 9, int: 5 },   // total 25, min 5
     mainStat: 'str',
     armorWeights: ['heavy', 'medium', 'light'],
@@ -19,6 +21,8 @@ DATA.CLASSES = {
   rogue: {
     id: 'rogue', name: 'Rogue', icon: '🗡️',
     desc: 'A blur of blades. Highest Dexterity, solid Strength — strikes fast, dodges often, and bleeds enemies dry.',
+    story: 'Raised in the thieves\' warrens beneath the old capital, the Rogue stole her first blade at nine and her first bounty at thirteen. The guilds cast her out for taking a contract on one of their own — the one who sold her family to the swamps. The trail leads through every dark corner of the Kharun Lands, and she was never one to leave a job unfinished.',
+    playstyle: 'Play the Rogue if you want tempo: the highest Speed means extra actions every round, high Evasion turns hits into misses, and resistance-piercing strikes shred tough enemies. Fast, slippery, and lethal — but thinner armor punishes bad odds.',
     baseStats: { str: 8, dex: 12, int: 5 },
     mainStat: 'dex',
     armorWeights: ['medium', 'light'],
@@ -26,11 +30,16 @@ DATA.CLASSES = {
   mage: {
     id: 'mage', name: 'Mage', icon: '🔮',
     desc: 'A glass cannon of raw Intelligence. Fragile, but commands a deep pool of mana and devastating spells.',
+    story: 'The last student of the Sunken Academy, the Mage watched his masters seal themselves inside its vaults to contain what they had summoned. He carries the only key — his own mind — and a debt that can only be paid in the Heart of the Abyss. Every spell he casts is a page from a book the world was never meant to read.',
+    playstyle: 'Play the Mage if you want raw power: the biggest hits in the game, huge mana reserves, the strongest heal, and area spells that erase whole packs. Magic damage ignores armor entirely — but his low HP means the best defense is a dead enemy.',
     baseStats: { str: 5, dex: 7, int: 13 },
     mainStat: 'int',
     armorWeights: ['light'],
   },
 };
+
+// Random default hero names offered on the class-select screen
+DATA.DEFAULT_NAMES = ['Kage', 'Xazel', 'Junior', 'Pars', 'Kharun', 'Minnie', 'Begum'];
 
 // ------------------------------------------------------------
 // Skills — 12 per class
