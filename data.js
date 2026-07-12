@@ -66,6 +66,52 @@ DATA.CHAPTERS = [
       'The town elder doesn\'t ask why the three of them came, or whether they\'re ready. She just holds out the paperwork the last heroes never got to sign, and gear the last heroes never got to wear.',
       'Kharun, Pars, and Minnie take up the names on the contract. Whatever answers, out past the wheat fields, doesn\'t know yet that it isn\'t three ghosts walking toward it.',
     ],
+    // One {beginning, end} pair per Part (level), in order matching
+    // DATA.BIOME_TYPES[0].biomes: Green Plains, Sunny Meadows, Grain
+    // Fields, Windswept Steppe, Thistle Downs, Wildflower Expanse,
+    // Dry Grasslands, Storm-Brushed Flats, Dark Plains, Ashen Prairie.
+    parts: [
+      { // Green Plains
+        beginning: 'The wheat hasn\'t been harvested this season — not with something dragging livestock into the treeline at night. It\'s the kind of contract nobody in Harvestgate wanted to take alone.',
+        end: 'The beast that has been terrorizing Green Plains falls, and for the first time in weeks the fields go quiet. It\'s a small thing. It\'s also the first time any of the three has done anything that mattered in years.',
+      },
+      { // Sunny Meadows
+        beginning: 'Pars feels it before he sees it — the particular attention of something trained to hunt, not track. The guild knows he\'s still breathing.',
+        end: 'The hunting-beast falls without its handler ever showing a face. Pars doesn\'t feel safer. He feels found.',
+      },
+      { // Grain Fields
+        beginning: 'Harvestgate\'s granaries are emptying while the elder\'s own stores stay full. Kharun recognizes the pattern from another life — this is how you starve people into obedience, not poverty.',
+        end: 'Whatever was gorging itself in the grain stores is dead now, and the town eats again. Nobody asks who was really being starved, or why.',
+      },
+      { // Windswept Steppe
+        beginning: 'Bandit riders control the high steppe, and one of them wears a breastplate too fine for a bandit — old, well-made, and matching a description carved into a monument outside town.',
+        end: 'The bandit chief falls, and the breastplate comes free easier than it should. It isn\'t bent. It isn\'t scarred. Whoever wore it before didn\'t die fighting in it.',
+      },
+      { // Thistle Downs
+        beginning: 'The wildlife here moves wrong — too much unison, too little fear. Minnie recognizes the pressure in the air. She hasn\'t felt it since the night the Academy sealed its doors.',
+        end: 'The corrupted thing stops moving, and the wrongness in the air goes with it — but only from here. Minnie doesn\'t say what she\'s thinking. She doesn\'t have to.',
+      },
+      { // Wildflower Expanse
+        beginning: 'A shrine stands untouched in the middle of a dying field, marked with three symbols that match the monument in town. Someone has been tending it for twenty years.',
+        end: 'The shrine\'s guardian falls, apologizing in a language none of them speak. It was never told the contract changed hands.',
+      },
+      { // Dry Grasslands
+        beginning: 'A warlord is carving out territory in the drought-cracked grasslands, telling anyone who\'ll listen that the old heroes are gone for good and the old order with them.',
+        end: 'The warlord falls like anyone falls to three people with nothing left to prove. It\'s the first fight all trip that had nothing to do with prophecy at all — and somehow the easiest one.',
+      },
+      { // Storm-Brushed Flats
+        beginning: 'A storm rolls in on schedule, like clockwork, like a countdown nobody started on purpose. The locals call it the old warning and won\'t say what it\'s warning about.',
+        end: 'Whatever rode in on the storm\'s leading edge is down, and the sky clears faster than weather should. Somewhere, something that was counting down loses its count.',
+      },
+      { // Dark Plains
+        beginning: 'A body lies in armor that matches the missing rogue\'s description exactly — dead less than a year, though the monument in Harvestgate is twenty years old. The math doesn\'t close.',
+        end: 'The guardian wearing a dead stranger\'s face and a dead hero\'s technique finally stops moving. Nobody in the group says what they\'re all thinking: that this has happened more than once.',
+      },
+      { // Ashen Prairie
+        beginning: 'The trial itself waits at the edge of the ash-gray field — the same trial that ended the road for three better-prepared heroes twenty years ago. Kharun, Pars, and Minnie walk in expecting an ending.',
+        end: 'They get a question instead of an ending. Three miles past the trial, a warhorse stands saddled and groomed, waiting for a rider who left yesterday — or twenty years ago, depending on who\'s counting.',
+      },
+    ],
   },
   { // Chapter 2 — Forest
     headline: 'The road narrows, and the trees remember more than the maps admit.',

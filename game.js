@@ -576,15 +576,16 @@ function restockCost() { return 200 + G.unlocked * 100; }
 function genQuest() {
   const u = Math.max(1, G.unlocked);
   const goldR = n => Math.round(n * (10 + u * 12) * (0.8 + Math.random() * 0.4));
+  const xpR = n => Math.round(n * (8 + u * 6) * (0.85 + Math.random() * 0.3));
   const makers = [
-    () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, reward: { gold: goldR(3) } }; },
-    () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, reward: { gold: goldR(4), item: 'rare' } }; },
-    () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, reward: { gold: goldR(5), item: 'rare' } }; },
-    () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, reward: { gold: goldR(6) } }; },
-    () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, reward: { gold: goldR(3), item: 'magical' } }; },
-    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, reward: { item: 'epic' } }; },
-    () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, reward: { gold: goldR(10), item: 'epic' } }; },
-    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare' } }; },
+    () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, reward: { gold: goldR(3), xp: xpR(3) } }; },
+    () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, reward: { gold: goldR(4), item: 'rare', xp: xpR(4) } }; },
+    () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, reward: { gold: goldR(5), item: 'rare', xp: xpR(5) } }; },
+    () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, reward: { gold: goldR(6), xp: xpR(6) } }; },
+    () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, reward: { gold: goldR(3), item: 'magical', xp: xpR(3) } }; },
+    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, reward: { item: 'epic', xp: xpR(7) } }; },
+    () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, reward: { gold: goldR(10), item: 'epic', xp: xpR(10) } }; },
+    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare', xp: xpR(6) } }; },
   ];
   return Object.assign(pick(makers)(), { progress: 0 });
 }
@@ -631,6 +632,11 @@ function completeQuest() {
   const q = G.tavern.active;
   const parts = [];
   if (q.reward.gold) { G.gold += q.reward.gold; parts.push(`🪙 ${q.reward.gold.toLocaleString()}`); }
+  if (q.reward.xp) {
+    const ups = gainXp(q.reward.xp);
+    parts.push(`✨ ${q.reward.xp.toLocaleString()} XP`);
+    if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
+  }
   if (q.reward.item) {
     const it = makeItem(Math.max(1, G.unlocked), q.reward.item, G.char.cls);
     G.inventory.push(it);
@@ -668,6 +674,36 @@ function chapterData(level) {
   const ch = (DATA.CHAPTERS && DATA.CHAPTERS[n - 1]) || {};
   const title = ch.title || `Chapter ${n}: ${DATA.BIOME_TYPES[n - 1].type}`;
   return { num: n, title, headline: ch.headline || '', story: ch.story || [] };
+}
+
+// A Part is one individual level's own story beat: 'beginning' (shown
+// when a hero first arrives) and 'end' (shown on that level's boss
+// victory). Falls back to generic location-flavored text for levels
+// that don't have authored content yet.
+function partStory(level, kind) {
+  const chapterIdx = Math.floor((level - 1) / 10);
+  const partIdx = (level - 1) % 10;
+  const locName = DATA.BIOME_TYPES[chapterIdx].biomes[partIdx];
+  const ch = DATA.CHAPTERS && DATA.CHAPTERS[chapterIdx];
+  const part = ch && ch.parts && ch.parts[partIdx];
+  if (part && part[kind]) return part[kind];
+  return kind === 'beginning'
+    ? `The road leads on to ${locName}. Whatever's waiting there hasn't been named yet.`
+    : `${locName} falls quiet behind them — one more stretch of road, walked and done.`;
+}
+
+// Guaranteed reward for clearing a level's story (on top of whatever
+// the boss itself randomly dropped): gold plus an item of at least
+// rare quality.
+function grantPartClearReward(level, run) {
+  const gold = Math.round((50 + level * 15) * (0.85 + Math.random() * 0.3));
+  const r = Math.random();
+  const rarity = r < 0.6 ? 'rare' : r < 0.9 ? 'epic' : 'legendary';
+  const item = makeItem(level, rarity, G.char.cls);
+  G.gold += gold;
+  G.inventory.push(item);
+  run.partReward = { gold, item };
+  log('loot', `🎁 Quest reward: 🪙 ${gold.toLocaleString()} + ${item.icon} ${item.name}`);
 }
 
 // tier of the NEXT creature given kills-so-far in this area level
@@ -1290,6 +1326,7 @@ function adventureTick() {
         log('sys', `🗺️ Level ${level + 1} unlocked: ${nextInfo.biome}${enteringNewChapter ? ` — ${chapterData(level + 1).title} begins!` : '!'}`);
       }
       run.bossDefeated = true;
+      grantPartClearReward(level, run);
       G.progress[level] = 0;   // cleared areas can be run again from the start
       log('sys', `♻️ ${areaInfo(level).biome} can be adventured again from the beginning.`);
       retreat('boss');

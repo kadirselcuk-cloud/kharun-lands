@@ -96,6 +96,23 @@ small { color: var(--dim); }
 .chapter-headline {
   color: #a9977a; font-style: italic; font-size: .84rem; margin: -2px 0 12px;
 }
+.part-intro-header {
+  color: var(--accent); font-size: 1.1rem; margin: 18px 0 8px;
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+.part-intro-chapter-tag {
+  color: var(--dim); font-size: .74rem; text-transform: uppercase; letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.part-end-story {
+  color: #c7cad6; font-style: italic; font-size: .9rem; line-height: 1.6; margin: 6px 0 14px;
+}
+.quest-reward-box {
+  background: rgba(224,169,76,.08); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 10px 14px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 10px; font-size: .9rem;
+}
+.quest-reward-box .reward-item { font-weight: 600; }
 
 /* topbar */
 #topbar {

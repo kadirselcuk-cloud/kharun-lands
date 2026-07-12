@@ -66,8 +66,11 @@ UI.showTitle = function (save) {
 // Shown once, full-screen, the first time a hero enters a chapter —
 // currently only used for Chapter 1, right after character creation.
 UI.showChapterIntro = function (chapterNum) {
-  const ch = chapterData((chapterNum - 1) * 10 + 1);
+  const startLevel = (chapterNum - 1) * 10 + 1;
+  const ch = chapterData(startLevel);
   const icon = DATA.BIOME_TYPES[chapterNum - 1].icon;
+  const partName = areaInfo(startLevel).biome;
+  const partBeginning = partStory(startLevel, 'beginning');
   $('#app').innerHTML = `
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
@@ -75,10 +78,44 @@ UI.showChapterIntro = function (chapterNum) {
         <h2 class="prelude-title">${icon} ${esc(ch.title)}</h2>
         ${ch.headline ? `<p class="chapter-headline-big">${esc(ch.headline)}</p>` : ''}
         ${ch.story.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
-        <button class="btn btn-primary btn-big" id="chapter-continue-btn">▶ Continue</button>
+        <h3 class="part-intro-header">${esc(partName)}</h3>
+        <p class="prelude-text">${esc(partBeginning)}</p>
+        <button class="btn btn-primary btn-big" id="chapter-start-btn">▶ Start</button>
       </div>
     </div>`;
-  $('#chapter-continue-btn').onclick = () => UI.showGame();
+  $('#chapter-start-btn').onclick = () => UI.showGame();
+};
+
+// Mid-chapter transition: just the next Part's header + beginning
+// story, shown after a boss-victory Continue click (when the next
+// level doesn't start a new chapter — that case uses the full
+// showChapterIntro instead).
+UI.showPartIntro = function (level) {
+  const locName = areaInfo(level).biome;
+  const beginning = partStory(level, 'beginning');
+  const chapter = chapterData(level);
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <div class="part-intro-chapter-tag">${esc(chapter.title)}</div>
+        <h2 class="prelude-title part-intro-header">${esc(locName)}</h2>
+        <p class="prelude-text">${esc(beginning)}</p>
+        <button class="btn btn-primary btn-big" id="part-start-btn">▶ Start</button>
+      </div>
+    </div>`;
+  $('#part-start-btn').onclick = () => UI.showGame();
+};
+
+// Called after the boss-victory modal's Continue button. Routes to a
+// full chapter intro if the next level starts a new chapter, a plain
+// part intro otherwise, or straight back into the game if there's no
+// next level (level 100 cleared).
+UI.afterBossVictory = function (clearedLevel) {
+  const nextLevel = clearedLevel + 1;
+  if (nextLevel > MAX_LEVEL_AREA) { UI.showGame(); return; }
+  if ((nextLevel - 1) % 10 === 0) UI.showChapterIntro(chapterNumOf(nextLevel));
+  else UI.showPartIntro(nextLevel);
 };
 
 UI.showClassSelect = function () {
@@ -562,7 +599,11 @@ UI.renderTavern = function (el) {
         ${idx === -1 ? `<span class="quest-tag">ACTIVE</span>` : ''}
       </div>
       <div class="quest-desc">${esc(q.desc)}</div>
-      <div class="quest-reward">Reward: ${q.reward.gold ? `🪙 ${q.reward.gold.toLocaleString()}` : ''}${q.reward.gold && q.reward.item ? ' + ' : ''}${q.reward.item ? `<span style="color:${DATA.RARITIES[q.reward.item].color}">${cap(q.reward.item)} item</span>` : ''}</div>
+      <div class="quest-reward">Reward: ${[
+        q.reward.gold ? `🪙 ${q.reward.gold.toLocaleString()}` : '',
+        q.reward.xp ? `✨ ${q.reward.xp.toLocaleString()} XP` : '',
+        q.reward.item ? `<span style="color:${DATA.RARITIES[q.reward.item].color}">${cap(q.reward.item)} item</span>` : '',
+      ].filter(Boolean).join(' + ')}</div>
       ${idx === -1 ? `
         <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${(q.progress || 0).toLocaleString()} / ${q.target.toLocaleString()}</span></div>
         <button class="btn btn-tiny danger" onclick="if(confirm('Abandon this quest? Progress is lost.'))abandonQuest()">✖ Abandon</button>`
@@ -606,23 +647,24 @@ UI.renderJournal = function (el) {
     </details>`;
   };
 
+  // Only chapters reached so far (past or current) are shown at all —
+  // unreached chapters aren't listed, not even locked.
   const chapterEntry = (bt, i) => {
     const chapterNum = i + 1;
     const ch = chapterData(chapterNum * 10 - 9);
-    const state = chapterNum < curChapterNum ? 'past' : chapterNum === curChapterNum ? 'current' : 'future';
-    const parts = state === 'future'
-      ? `<p class="hint">🔒 Not yet reached.</p>`
-      : Array.from({ length: 10 }, (_, p) => partEntry(bt, i, p)).join('');
+    const state = chapterNum < curChapterNum ? 'past' : 'current';
+    const parts = Array.from({ length: 10 }, (_, p) => partEntry(bt, i, p)).join('');
     return `<details class="journal-entry journal-chapter ${state}" ${state === 'current' ? 'open' : ''}>
       <summary>${bt.icon} ${esc(ch.title)}</summary>
       <div class="journal-body">
         ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
-        ${state !== 'future' ? ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('') : ''}
+        ${ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
         <div class="journal-parts">${parts}</div>
       </div>
     </details>`;
   };
 
+  const visibleChapters = DATA.BIOME_TYPES.slice(0, curChapterNum);
   el.innerHTML = `
     <div class="panel">
       <h3>📔 Journal</h3>
@@ -630,7 +672,7 @@ UI.renderJournal = function (el) {
         <summary>📜 Prologue: ${esc(DATA.PRELUDE.title)}</summary>
         <div class="journal-body">${DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}</div>
       </details>
-      ${DATA.BIOME_TYPES.map(chapterEntry).join('')}
+      ${visibleChapters.map(chapterEntry).join('')}
     </div>`;
 };
 
@@ -862,9 +904,17 @@ UI.showResults = function (run, level) {
       `<span class="drop-chip" style="color:${DATA.RARITIES[r].color}">${drops[r]} ${DATA.RARITIES[r].name}</span>`),
     ...(drops.rune ? [`<span class="drop-chip" style="color:#d9a94c">${drops.rune} Rune${drops.rune > 1 ? 's' : ''}</span>`] : []),
   ];
+  const isBoss = run.outcome === 'boss';
   UI.modal(`
     <h3>${outcomeTxt}</h3>
     <div class="item-sub">${info.type.icon} ${esc(chapter.title)} · ${esc(info.biome)} — Level ${level}</div>
+    ${isBoss ? `<p class="part-end-story">${esc(partStory(level, 'end'))}</p>` : ''}
+    ${isBoss && run.partReward ? `
+      <h4>🎁 Quest Reward</h4>
+      <div class="quest-reward-box">
+        <span class="gold">🪙 ${run.partReward.gold.toLocaleString()}</span>
+        <span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${run.partReward.item.icon} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>
+      </div>` : ''}
     <h4>Battle report</h4>
     <div class="results-grid">
       <div class="res-box"><b>⚔️ ${Math.round(run.dmgDealt).toLocaleString()}</b><span>damage dealt</span></div>
@@ -894,8 +944,10 @@ UI.showResults = function (run, level) {
         </div>`).join('')}
       </div>` : '<p class="hint">No items this time — the wilds are stingy.</p>'}
     <div class="modal-actions">
-      <button class="btn btn-primary" onclick="UI.closeModal();startAdventure()">⚔️ Adventure again</button>
-      <button class="btn" onclick="UI.closeModal()">Close</button>
+      ${isBoss
+        ? `<button class="btn btn-primary" onclick="UI.closeModal();UI.afterBossVictory(${level})">▶ Continue</button>`
+        : `<button class="btn btn-primary" onclick="UI.closeModal();startAdventure()">⚔️ Adventure again</button>
+           <button class="btn" onclick="UI.closeModal()">Close</button>`}
     </div>`);
 };
 
