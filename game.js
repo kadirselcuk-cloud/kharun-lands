@@ -134,7 +134,15 @@ function loadGame() {
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
   if (!G.shop || !G.shop.stock) genShopStock();
-  if (!G.tavern) genTavernBoard();
+  // old saves carry quests with a baked-in "reward" object instead of
+  // the current "rewardSpec" — those can't be displayed or claimed
+  // under the new schema, so just reroll the board (and drop whatever
+  // quest was active; nothing was owed on it since rewards weren't
+  // claimable-on-demand before this).
+  if (!G.tavern || (G.tavern.active && !G.tavern.active.rewardSpec) || (G.tavern.board || []).some(q => !q.rewardSpec)) {
+    G.tavern = { board: [], active: null };
+    genTavernBoard();
+  }
   return true;
 }
 function resetGame() { localStorage.removeItem(SAVE_KEY); location.reload(); }
@@ -258,10 +266,15 @@ function derive() {
 // ------------------------------------------------------------
 // XP / leveling
 // ------------------------------------------------------------
-// Levels 1 and 2 are eased in (4x and 2x cheaper); level 3+ full price.
+// Level 1 = 100 XP, Level 2 = 300 XP. Level N (N>=3) = 150% of level
+// (N-1)'s requirement, plus 150*N.
+const XP_LEVEL_CACHE = [undefined, 100, 300];
 function xpForLevel(lvl) {
-  const base = Math.round(1600 * Math.pow(lvl, 1.55));   // x10
-  return lvl === 1 ? Math.round(base / 4) : lvl === 2 ? Math.round(base / 2) : base;
+  if (XP_LEVEL_CACHE[lvl] !== undefined) return XP_LEVEL_CACHE[lvl];
+  for (let l = XP_LEVEL_CACHE.length; l <= lvl; l++) {
+    XP_LEVEL_CACHE[l] = Math.round(XP_LEVEL_CACHE[l - 1] * 1.5 + 150 * l);
+  }
+  return XP_LEVEL_CACHE[lvl];
 }
 
 function gainXp(amount, run) {
@@ -637,21 +650,42 @@ function restockCost() { return 200 + G.unlocked * 100; }
 // Tavern — 3 random quests on the board, one active at a time.
 // The board refreshes with new rumors every time you return home.
 // ------------------------------------------------------------
+// Reward gold/xp scale off the CURRENT chapter & part (area level) —
+// computed fresh whenever a quest becomes ready to claim, not baked in
+// at the moment it was picked up off the board. "mult" is per-quest
+// flavor (how generous that quest type is relative to the others).
+function questRewardAmounts(goldMult, xpMult) {
+  const u = Math.max(1, G.area);
+  return {
+    gold: goldMult ? Math.round(goldMult * (10 + u * 12) * (0.8 + Math.random() * 0.4)) : 0,
+    xp: xpMult ? Math.round(xpMult * (8 + u * 6) * (0.85 + Math.random() * 0.3)) : 0,
+  };
+}
+// Same formula with the random jitter fixed at its midpoint — a stable
+// "roughly this much" preview for quests not yet ready to claim, so
+// the board doesn't visibly flicker on every re-render.
+function questRewardPreview(goldMult, xpMult) {
+  const u = Math.max(1, G.area);
+  return {
+    gold: goldMult ? Math.round(goldMult * (10 + u * 12)) : 0,
+    xp: xpMult ? Math.round(xpMult * (8 + u * 6)) : 0,
+  };
+}
+
 function genQuest() {
-  const u = Math.max(1, G.unlocked);
+  const u = Math.max(1, G.area);
   const goldR = n => Math.round(n * (10 + u * 12) * (0.8 + Math.random() * 0.4));
-  const xpR = n => Math.round(n * (8 + u * 6) * (0.85 + Math.random() * 0.3));
   const makers = [
-    () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, reward: { gold: goldR(3), xp: xpR(3) } }; },
-    () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, reward: { gold: goldR(4), item: 'rare', xp: xpR(4) } }; },
-    () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, reward: { gold: goldR(5), item: 'rare', xp: xpR(5) } }; },
-    () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, reward: { gold: goldR(6), xp: xpR(6) } }; },
-    () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, reward: { gold: goldR(3), item: 'magical', xp: xpR(3) } }; },
-    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, reward: { item: 'epic', xp: xpR(7) } }; },
-    () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, reward: { gold: goldR(10), item: 'epic', xp: xpR(10) } }; },
-    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare', xp: xpR(6) } }; },
+    () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3 } }; },
+    () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'rare' } }; },
+    () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, rewardSpec: { goldMult: 6, xpMult: 6 } }; },
+    () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3, item: 'magical' } }; },
+    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, rewardSpec: { goldMult: 0, xpMult: 7, item: 'epic' } }; },
+    () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, rewardSpec: { goldMult: 10, xpMult: 10, item: 'epic' } }; },
+    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, rewardSpec: { goldMult: 6, xpMult: 6, item: 'rare' } }; },
   ];
-  return Object.assign(pick(makers)(), { progress: 0 });
+  return Object.assign(pick(makers)(), { progress: 0, ready: false });
 }
 
 function genTavernBoard() {
@@ -687,29 +721,45 @@ function abandonQuest() {
 
 function questEvent(kind, amt) {
   const q = G.tavern && G.tavern.active;
-  if (!q || q.type !== kind) return;
+  if (!q || q.type !== kind || q.ready) return;
   q.progress = (q.progress || 0) + (amt || 1);
-  if (q.progress >= q.target) completeQuest();
+  if (q.progress >= q.target) markQuestReady();
 }
 
-function completeQuest() {
+// The task is done, but the reward isn't granted automatically anymore —
+// lock in gold/XP against the CURRENT chapter & part (area level) right
+// now, and let the player claim it manually from the tavern.
+function markQuestReady() {
   const q = G.tavern.active;
+  q.ready = true;
+  q.finalReward = questRewardAmounts(q.rewardSpec.goldMult, q.rewardSpec.xpMult);
+  q.finalReward.item = q.rewardSpec.item || null;
+  q.finalArea = G.area;
+  saveGame();
+  UI.toast(`🍺 Quest ready: "${q.name}" — claim your reward at the tavern!`);
+}
+
+function claimQuestReward() {
+  if (!G.tavern || !G.tavern.active || !G.tavern.active.ready) return;
+  const q = G.tavern.active;
+  const r = q.finalReward;
   const parts = [];
-  if (q.reward.gold) { G.gold += q.reward.gold; parts.push(`🪙 ${q.reward.gold.toLocaleString()}`); }
-  if (q.reward.xp) {
-    const ups = gainXp(q.reward.xp);
-    parts.push(`✨ ${q.reward.xp.toLocaleString()} XP`);
+  if (r.gold) { G.gold += r.gold; parts.push(`🪙 ${r.gold.toLocaleString()}`); }
+  if (r.xp) {
+    const ups = gainXp(r.xp);
+    parts.push(`✨ ${r.xp.toLocaleString()} XP`);
     if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
   }
-  if (q.reward.item) {
-    const it = makeItem(Math.max(1, G.unlocked), q.reward.item, G.char.cls);
+  if (r.item) {
+    const it = makeItem(Math.max(1, q.finalArea || G.area), r.item, G.char.cls);
     G.inventory.push(it);
-    parts.push(`${it.icon} ${it.name} (${q.reward.item})`);
+    parts.push(`${it.icon} ${it.name} (${r.item})`);
   }
   log('sys', `🍺 QUEST COMPLETE: "${q.name}"! Reward: ${parts.join(' + ')}`);
   G.tavern.active = null;
   genTavernBoard();
   saveGame();
+  UI.refresh();
   UI.toast(`🍺 Quest complete: ${q.name}!`);
 }
 

@@ -474,6 +474,8 @@ small { color: var(--dim); }
   padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
 }
 .quest-card.active-quest { border-color: var(--accent); box-shadow: 0 0 10px rgba(224,169,76,.2); margin-bottom: 10px; }
+.quest-card.ready { border-color: #6ccb8f; box-shadow: 0 0 14px rgba(108,203,143,.35); }
+.quest-card.ready .quest-tag { background: #1c3d24; color: #6ccb8f; }
 .quest-head { font-size: .95rem; display: flex; align-items: center; gap: 6px; }
 .quest-tag { background: #3d2f14; color: var(--accent); border-radius: 8px; padding: 1px 8px; font-size: .68rem; margin-left: auto; }
 .quest-desc { font-size: .82rem; color: #b9bdcc; line-height: 1.4; flex: 1; }

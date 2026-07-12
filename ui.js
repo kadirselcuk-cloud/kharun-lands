@@ -673,26 +673,34 @@ UI.showShopItem = function (uid) {
 UI.renderTavern = function (el) {
   if (!G.tavern) genTavernBoard();
   const t = G.tavern;
-  const questCard = (q, idx) => `
-    <div class="quest-card ${idx === -1 ? 'active-quest' : ''}">
+  const rewardLineHtml = (r, itemRarity) => [
+    r.gold ? `🪙 ${r.gold.toLocaleString()}` : '',
+    r.xp ? `✨ ${r.xp.toLocaleString()} XP` : '',
+    itemRarity ? `<span style="color:${DATA.RARITIES[itemRarity].color}">${cap(itemRarity)} item</span>` : '',
+  ].filter(Boolean).join(' + ');
+  const questCard = (q, idx) => {
+    const isActive = idx === -1;
+    const preview = questRewardPreview(q.rewardSpec.goldMult, q.rewardSpec.xpMult);
+    const reward = isActive && q.ready ? q.finalReward : preview;
+    return `
+    <div class="quest-card ${isActive ? 'active-quest' : ''} ${isActive && q.ready ? 'ready' : ''}">
       <div class="quest-head">${q.icon} <b>${esc(q.name)}</b>
-        ${idx === -1 ? `<span class="quest-tag">ACTIVE</span>` : ''}
+        ${isActive ? `<span class="quest-tag">${q.ready ? 'READY' : 'ACTIVE'}</span>` : ''}
       </div>
       <div class="quest-desc">${esc(q.desc)}</div>
-      <div class="quest-reward">Reward: ${[
-        q.reward.gold ? `🪙 ${q.reward.gold.toLocaleString()}` : '',
-        q.reward.xp ? `✨ ${q.reward.xp.toLocaleString()} XP` : '',
-        q.reward.item ? `<span style="color:${DATA.RARITIES[q.reward.item].color}">${cap(q.reward.item)} item</span>` : '',
-      ].filter(Boolean).join(' + ')}</div>
-      ${idx === -1 ? `
+      <div class="quest-reward">${isActive && q.ready ? 'Reward' : 'Reward (approx.)'}: ${rewardLineHtml(reward, q.rewardSpec.item)}</div>
+      ${isActive ? `
         <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${(q.progress || 0).toLocaleString()} / ${q.target.toLocaleString()}</span></div>
-        <button class="btn btn-tiny danger" onclick="if(confirm('Abandon this quest? Progress is lost.'))abandonQuest()">✖ Abandon</button>`
+        ${q.ready
+          ? `<button class="btn btn-primary btn-small" onclick="claimQuestReward()">🎁 Claim Reward</button>`
+          : `<button class="btn btn-tiny danger" onclick="if(confirm('Abandon this quest? Progress is lost.'))abandonQuest()">✖ Abandon</button>`}`
       : `<button class="btn btn-primary btn-small" ${t.active ? 'disabled' : ''} onclick="acceptQuest(${idx})">${t.active ? 'Finish your quest first' : 'Accept'}</button>`}
     </div>`;
+  };
   el.innerHTML = `
     <div class="panel">
       <h3>🍺 The Weary Wyvern Tavern</h3>
-      <p class="hint">The tavern hums with rumors. Take a quest — only one at a time — and its progress counts automatically while you adventure. New rumors arrive whenever you return home.</p>
+      <p class="hint">The tavern hums with rumors. Take a quest — only one at a time — and its progress counts automatically while you adventure. Once finished, claim the reward yourself — it's valued against your current chapter &amp; part. New rumors arrive whenever you return home.</p>
       ${t.active ? `<h4>Your current quest</h4>${questCard(t.active, -1)}` : ''}
       <h4>Quest board</h4>
       ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => questCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}

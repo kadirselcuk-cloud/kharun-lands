@@ -5,11 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.1.0';
+DATA.VERSION = '0.2.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.2.0', notes: [
+    'Tavern: quest progress is now shown live, but the reward is no longer granted automatically — finish the task, then hit "Claim Reward" yourself.',
+    'Tavern quest gold/XP rewards are now valued against your CURRENT chapter & part (locked in the moment the quest becomes ready), not whatever level you were on when you picked it up.',
+    'Leveling curve overhauled: Level 1 costs 100 XP, Level 2 costs 300 XP, and every level after that costs 150% of the previous level\'s requirement plus 150×that level.',
+  ] },
   { v: '0.1.0', notes: [
     'Inventory: added a Settings panel with per-rarity auto-sell rules (Normal/Magical/Rare/Epic/Legendary/Unusable/Everything) — matching drops are sold on the spot instead of filling your bag. Runes are never auto-sold.',
     'Runes: added Rare Rune (3 bonuses), Epic Rune (4), and Legendary Rune (5) tiers above Faded Rune/Rune, plus an ultra-rare Mythic Rune (6) as the ultimate tier.',
