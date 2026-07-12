@@ -4,7 +4,9 @@
 'use strict';
 
 const UI = {};
-let activeTab = 'adventure';
+let activeTab = 'adventure';       // adventure | character | city | journal
+let activeCharSub = 'character';   // character | skills | inventory
+let activeCitySub = 'shop';        // shop | tavern
 let invFilter = 'all';     // all | usable
 let invType = 'all';       // all | rune | <slot>
 let invSort = 'rarity';    // rarity | type | value | name
@@ -122,10 +124,8 @@ UI.showGame = function () {
     <div id="tabs" class="tabs">
       <button data-tab="adventure">🗺️ Adventure</button>
       <button data-tab="character">🧍 Character</button>
-      <button data-tab="skills">📜 Skills</button>
-      <button data-tab="inventory">🎒 Inventory</button>
-      <button data-tab="shop">🛒 Shop</button>
-      <button data-tab="tavern">🍺 Tavern</button>
+      <button data-tab="city">🏙️ City</button>
+      <button data-tab="journal">📔 Journal</button>
     </div>
     <div id="tab-content"></div>
     <div id="modal-root"></div>
@@ -141,19 +141,49 @@ UI.refresh = function () {
   if (!G) return;
   UI.renderTopbar();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-  // level-up badges: stat points on Character, skill points on Skills
+  // level-up badge: lights up if either stat or skill points are unspent
   const charTab = document.querySelector('#tabs button[data-tab="character"]');
-  if (charTab) charTab.innerHTML = `🧍 Character${G.char.statPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
-  const skillTab = document.querySelector('#tabs button[data-tab="skills"]');
-  if (skillTab) skillTab.innerHTML = `📜 Skills${G.char.skillPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
+  if (charTab) charTab.innerHTML = `🧍 Character${(G.char.statPoints || G.char.skillPoints) ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
   const el = $('#tab-content');
   if (!el) return;
-  if (activeTab === 'character') UI.renderCharacter(el);
-  else if (activeTab === 'skills') UI.renderSkills(el);
-  else if (activeTab === 'inventory') UI.renderInventory(el);
-  else if (activeTab === 'shop') UI.renderShop(el);
-  else if (activeTab === 'tavern') UI.renderTavern(el);
+  if (activeTab === 'character') UI.renderCharacterHub(el);
+  else if (activeTab === 'city') UI.renderCityHub(el);
+  else if (activeTab === 'journal') UI.renderJournal(el);
   else UI.renderAdventure(el);
+};
+
+// ------------------------------------------------------------
+// Character hub: Character / Skills / Inventory sub-tabs
+// ------------------------------------------------------------
+UI.renderCharacterHub = function (el) {
+  el.innerHTML = `
+    <div class="subtabs">
+      <button data-sub="character" class="${activeCharSub === 'character' ? 'active' : ''}">🧍 Character${G.char.statPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}</button>
+      <button data-sub="skills" class="${activeCharSub === 'skills' ? 'active' : ''}">📜 Skills${G.char.skillPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}</button>
+      <button data-sub="inventory" class="${activeCharSub === 'inventory' ? 'active' : ''}">🎒 Inventory</button>
+    </div>
+    <div id="char-sub-content"></div>`;
+  el.querySelectorAll('.subtabs button').forEach(b => b.onclick = () => { activeCharSub = b.dataset.sub; UI.refresh(); });
+  const sc = $('#char-sub-content');
+  if (activeCharSub === 'skills') UI.renderSkills(sc);
+  else if (activeCharSub === 'inventory') UI.renderInventory(sc);
+  else UI.renderCharacter(sc);
+};
+
+// ------------------------------------------------------------
+// City hub: Shop / Tavern sub-tabs
+// ------------------------------------------------------------
+UI.renderCityHub = function (el) {
+  el.innerHTML = `
+    <div class="subtabs">
+      <button data-sub="shop" class="${activeCitySub === 'shop' ? 'active' : ''}">🛒 Shop</button>
+      <button data-sub="tavern" class="${activeCitySub === 'tavern' ? 'active' : ''}">🍺 Tavern</button>
+    </div>
+    <div id="city-sub-content"></div>`;
+  el.querySelectorAll('.subtabs button').forEach(b => b.onclick = () => { activeCitySub = b.dataset.sub; UI.refresh(); });
+  const sc = $('#city-sub-content');
+  if (activeCitySub === 'tavern') UI.renderTavern(sc);
+  else UI.renderShop(sc);
 };
 
 UI.toast = function (msg) {
@@ -545,6 +575,62 @@ UI.renderTavern = function (el) {
       ${t.active ? `<h4>Your current quest</h4>${questCard(t.active, -1)}` : ''}
       <h4>Quest board</h4>
       ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => questCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}
+    </div>`;
+};
+
+// ------------------------------------------------------------
+// Journal tab: Prologue + Chapter/Part progress as nested
+// open-close (<details>) menus. Current = gold, past = faded +
+// strikethrough, not-yet-reached = dim and locked.
+// ------------------------------------------------------------
+UI.renderJournal = function (el) {
+  const frontier = Math.min(G.unlocked || 1, MAX_LEVEL_AREA);
+  const curChapterNum = chapterNumOf(frontier);
+
+  const partEntry = (bt, chapterIdx, partIdx) => {
+    const level = chapterIdx * 10 + partIdx + 1;
+    const locName = bt.biomes[partIdx];
+    const cleared = !!G.bossKilled[level];
+    const isCurrent = !cleared && level === frontier;
+    const isFuture = level > frontier;
+    const state = cleared ? 'past' : isCurrent ? 'current' : 'future';
+    const kills = G.progress[level] || 0;
+    const body = cleared
+      ? `<p>🏆 Cleared — the legendary boss of ${esc(locName)} has fallen. This ground can still be walked again, but its tale here is told.</p>`
+      : isFuture
+        ? `<p class="hint">🔒 Not yet reached.</p>`
+        : `<p>${kills.toLocaleString()} / ${CREATURES_PER_LEVEL.toLocaleString()} creatures slain here so far.</p>`;
+    return `<details class="journal-entry journal-part ${state}" ${isCurrent ? 'open' : ''}>
+      <summary>Part ${partIdx + 1}: ${esc(locName)}</summary>
+      <div class="journal-body">${body}</div>
+    </details>`;
+  };
+
+  const chapterEntry = (bt, i) => {
+    const chapterNum = i + 1;
+    const ch = chapterData(chapterNum * 10 - 9);
+    const state = chapterNum < curChapterNum ? 'past' : chapterNum === curChapterNum ? 'current' : 'future';
+    const parts = state === 'future'
+      ? `<p class="hint">🔒 Not yet reached.</p>`
+      : Array.from({ length: 10 }, (_, p) => partEntry(bt, i, p)).join('');
+    return `<details class="journal-entry journal-chapter ${state}" ${state === 'current' ? 'open' : ''}>
+      <summary>${bt.icon} ${esc(ch.title)}</summary>
+      <div class="journal-body">
+        ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
+        ${state !== 'future' ? ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('') : ''}
+        <div class="journal-parts">${parts}</div>
+      </div>
+    </details>`;
+  };
+
+  el.innerHTML = `
+    <div class="panel">
+      <h3>📔 Journal</h3>
+      <details class="journal-entry journal-prologue">
+        <summary>📜 Prologue: ${esc(DATA.PRELUDE.title)}</summary>
+        <div class="journal-body">${DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}</div>
+      </details>
+      ${DATA.BIOME_TYPES.map(chapterEntry).join('')}
     </div>`;
 };
 

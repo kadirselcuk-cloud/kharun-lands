@@ -133,6 +133,14 @@ small { color: var(--dim); }
 }
 .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--panel2); }
 
+/* sub-tabs (inside Character / City hubs) */
+.subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.subtabs button {
+  background: var(--panel2); color: var(--dim); border: 1px solid var(--border);
+  border-radius: 7px; padding: 7px 14px; font-size: .86rem; cursor: pointer;
+}
+.subtabs button.active { color: var(--accent); border-color: var(--accent); }
+
 /* layout */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
@@ -448,3 +456,31 @@ small { color: var(--dim); }
 ::-webkit-scrollbar { width: 9px; }
 ::-webkit-scrollbar-track { background: #0a0b10; }
 ::-webkit-scrollbar-thumb { background: #2c3044; border-radius: 5px; }
+
+/* journal — open-close chapter/part accordions */
+.journal-entry {
+  border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+  background: var(--panel2); overflow: hidden;
+}
+.journal-entry summary {
+  cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: .92rem;
+  list-style: none; display: flex; align-items: center; gap: 8px;
+}
+.journal-entry summary::-webkit-details-marker { display: none; }
+.journal-entry summary::before { content: '▸'; color: var(--dim); font-size: .8rem; transition: transform .15s; }
+.journal-entry[open] > summary::before { transform: rotate(90deg); }
+.journal-body { padding: 4px 16px 14px 30px; }
+.journal-body p { font-size: .84rem; color: #b9bdcc; line-height: 1.5; margin-bottom: 8px; }
+.journal-parts { margin-top: 8px; }
+.journal-entry.journal-part { margin-bottom: 6px; }
+.journal-entry.journal-part summary { font-size: .84rem; padding: 7px 12px; font-weight: 500; }
+.journal-entry.journal-part .journal-body { padding: 2px 12px 10px 26px; }
+
+/* current: gold. past: faded + strikethrough. future: dim, locked. */
+.journal-entry.current > summary { color: var(--accent); }
+.journal-entry.current > summary::before { color: var(--accent); }
+.journal-entry.past > summary { color: var(--dim); opacity: .55; text-decoration: line-through; }
+.journal-entry.future > summary { color: var(--dim); opacity: .7; }
+.journal-entry.future { cursor: default; }
+.journal-prologue > summary { color: var(--accent); }
+.journal-story-text { font-style: italic; }
