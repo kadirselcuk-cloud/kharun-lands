@@ -219,7 +219,7 @@ function derive() {
 // ------------------------------------------------------------
 // Levels 1 and 2 are eased in (4x and 2x cheaper); level 3+ full price.
 function xpForLevel(lvl) {
-  const base = Math.round(160 * Math.pow(lvl, 1.55));
+  const base = Math.round(1600 * Math.pow(lvl, 1.55));   // x10
   return lvl === 1 ? Math.round(base / 4) : lvl === 2 ? Math.round(base / 2) : base;
 }
 
@@ -789,7 +789,7 @@ function makeCreature(level, tier) {
     maxHp: Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp * (0.9 + Math.random() * 0.2))),
     dmg: Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
-    xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp / 10)),
+    xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp)),   // x10 vs previous (was /10)
     gauge: 0, stunned: 0, dead: false,
   };
   c.hp = c.maxHp;

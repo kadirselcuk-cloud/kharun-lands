@@ -640,7 +640,7 @@ UI.renderJournal = function (el) {
       ? `<p>🏆 Cleared — the legendary boss of ${esc(locName)} has fallen. This ground can still be walked again, but its tale here is told.</p>`
       : isFuture
         ? `<p class="hint">🔒 Not yet reached.</p>`
-        : `<p>${kills.toLocaleString()} / ${CREATURES_PER_LEVEL.toLocaleString()} creatures slain here so far.</p>`;
+        : `<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
     return `<details class="journal-entry journal-part ${state}" ${isCurrent ? 'open' : ''}>
       <summary>Part ${partIdx + 1}: ${esc(locName)}</summary>
       <div class="journal-body">${body}</div>
@@ -711,9 +711,9 @@ UI.renderAdventure = function (el) {
           </div>
           <button class="btn" ${G.area >= G.unlocked || ADV ? 'disabled' : ''} onclick="G.area++;saveGame();UI.refresh()">▶</button>
         </div>
-        <div class="bar progress-bar" title="${kills}/${CREATURES_PER_LEVEL} creatures">
+        <div class="bar progress-bar" title="Level progress">
           <div style="width:${kills / CREATURES_PER_LEVEL * 100}%"></div>
-          <span>${kills} / ${CREATURES_PER_LEVEL} slain</span>
+          <span>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared</span>
         </div>
         <div class="pattern-hint">Next up: <b>${nextTier ? { normal: 'Normal creature', rare: '🔷 Rare creature', epic: '🟣 Epic creature', legendary: '🔶 LEGENDARY BOSS' }[nextTier] : 'Level cleared!'}</b></div>
         <div class="pattern-hint hint">Every 11th kill is a 🔷 Rare · every 111th a 🟣 Epic · the 1,111th is the 🔶 Legendary Boss. Slay the boss to unlock the next level.</div>
@@ -871,7 +871,7 @@ UI.refreshAdventure = function () {
   const pb = document.querySelector('.progress-bar');
   if (pb) {
     pb.querySelector('div').style.width = (kills / CREATURES_PER_LEVEL * 100) + '%';
-    pb.querySelector('span').textContent = `${kills} / ${CREATURES_PER_LEVEL} slain`;
+    pb.querySelector('span').textContent = `${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared`;
   }
   UI.scrollLog();
 };
