@@ -68,7 +68,7 @@ small { color: var(--dim); }
 .class-stats { display: flex; justify-content: center; gap: 18px; margin: 12px 0 6px; font-size: 1.05rem; }
 .class-armor { color: var(--dim); font-size: .8rem; margin-bottom: 8px; }
 .class-mainstat { font-size: .82rem; margin: 4px 0 8px; color: #b9bdcc; }
-.main-stat-chip::before { content: '⭐ '; font-size: .65rem; }
+.main-stat-chip::before { content: '⭐ '; font-size: .65rem; display: inline-block; vertical-align: middle; }
 .class-skills-preview { font-size: 1.2rem; margin-bottom: 14px; letter-spacing: 4px; }
 .class-title {
   display: inline-block; color: var(--dim); font-size: .72rem; letter-spacing: 1px;
