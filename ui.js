@@ -853,7 +853,7 @@ UI.enemyPanelHtml = function () {
 
 UI.logHtml = function () {
   if (!LOG.length) return '<p class="hint">The log fills up while adventuring…</p>';
-  return LOG.slice(-150).map(l => `<div class="log-line log-${l.t} ${l.tier ? 'tier-' + l.tier : ''} ${l.rarity ? 'rar-txt-' + l.rarity : ''}">${esc(l.txt)}</div>`).join('');
+  return LOG.slice(-50).reverse().map(l => `<div class="log-line log-${l.t} ${l.tier ? 'tier-' + l.tier : ''} ${l.rarity ? 'rar-txt-' + l.rarity : ''}">${esc(l.txt)}</div>`).join('');
 };
 
 UI.refreshAdventure = function () {
@@ -880,7 +880,7 @@ UI.refreshAdventure = function () {
 
 UI.scrollLog = function () {
   const logEl = $('#battle-log');
-  if (logEl) logEl.scrollTop = logEl.scrollHeight;
+  if (logEl) logEl.scrollTop = 0;
 };
 
 // ------------------------------------------------------------

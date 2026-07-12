@@ -15,7 +15,7 @@ let LOG = [];          // battle log — persists until the NEXT adventure start
 
 function log(t, txt, extra) {
   LOG.push(Object.assign({ t, txt }, extra || {}));
-  if (LOG.length > 600) LOG.splice(0, LOG.length - 600);
+  if (LOG.length > 50) LOG.splice(0, LOG.length - 50);
 }
 
 // ------------------------------------------------------------
