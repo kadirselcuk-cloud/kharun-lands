@@ -276,6 +276,17 @@ small { color: var(--dim); }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .socket-targets { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
 .socket-target { text-align: left; }
+.equip-changes h4 { margin-bottom: 4px; }
+
+/* settings panels (inventory / combat / auto-use) */
+.settings-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.settings-row { display: flex; align-items: center; gap: 8px; font-size: .88rem; cursor: pointer; }
+.settings-section { border-top: 1px solid var(--border); margin-top: 14px; padding-top: 10px; }
+.settings-section h4 { margin-bottom: 6px; }
+.settings-subrow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0; font-size: .84rem; }
+.settings-subrow select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
+.tier-checks { display: flex; gap: 10px; flex-wrap: wrap; font-size: .78rem; color: var(--dim); }
+.tier-checks label { display: flex; align-items: center; gap: 3px; cursor: pointer; }
 
 /* results */
 .results-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
@@ -449,6 +460,12 @@ small { color: var(--dim); }
 /* version */
 .version-tag { color: var(--dim); font-size: .72rem; opacity: .8; }
 .version-footer { text-align: center; color: #3a3e52; font-size: .7rem; margin-top: 18px; }
+.version-footer a { color: #3a3e52; text-decoration: underline; }
+.version-footer a:hover { color: var(--dim); }
+.changelog-list { display: flex; flex-direction: column; gap: 14px; margin: 10px 0; }
+.changelog-entry h4 { color: var(--accent); }
+.changelog-entry ul { margin: 4px 0 0 18px; padding: 0; font-size: .86rem; line-height: 1.5; }
+.changelog-entry li { margin-bottom: 4px; }
 
 /* tavern */
 .quest-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }

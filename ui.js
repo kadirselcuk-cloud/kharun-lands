@@ -167,7 +167,7 @@ UI.showGame = function () {
     <div id="tab-content"></div>
     <div id="modal-root"></div>
     <div id="toast"></div>
-    <div class="version-footer">Kharun Lands v${DATA.VERSION}</div>`;
+    <div class="version-footer">Kharun Lands v${DATA.VERSION} · <a href="#" onclick="UI.showChangelog();return false;">Changelog</a></div>`;
   document.querySelectorAll('#tabs button').forEach(b => {
     b.onclick = () => { activeTab = b.dataset.tab; UI.refresh(); };
   });
@@ -399,6 +399,7 @@ UI.renderInventory = function (el) {
           ${['all', 'usable'].map(f => `<button class="btn btn-tiny ${invFilter === f ? 'active' : ''}" data-f="${f}">${cap(f)}</button>`).join('')}
           <label class="inv-select">Type <select id="inv-type">${INV_TYPES.map(([v, l]) => `<option value="${v}" ${invType === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
           <label class="inv-select">Sort <select id="inv-sort">${INV_SORTS.map(([v, l]) => `<option value="${v}" ${invSort === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <button class="btn btn-tiny" onclick="UI.showInventorySettings()">⚙️ Settings</button>
         </span>
       </h3>
       <div class="sell-row">Sell all:
@@ -433,6 +434,34 @@ UI.renderInventory = function (el) {
     if (!confirm(`Sell ${matches.length} item${matches.length > 1 ? 's' : ''} for 🪙 ${gold.toLocaleString()}?`)) return;
     const r = sellAllOf(kind);
     UI.toast(`Sold ${r.count} for 🪙 ${r.gold.toLocaleString()}`);
+  });
+};
+
+UI.showInventorySettings = function () {
+  const s = G.settings.autoSell;
+  const rows = [
+    ['unusable', 'Unusable by your class/weight'],
+    ['normal', 'Normal rarity'],
+    ['magical', 'Magical rarity'],
+    ['rare', 'Rare rarity'],
+    ['epic', 'Epic rarity'],
+    ['legendary', 'Legendary rarity'],
+    ['all', 'Everything (except Runes)'],
+  ];
+  UI.modal(`
+    <h3>⚙️ Inventory Settings</h3>
+    <p class="hint">Auto-sell: when a dropped item matches a checked category below, it's sold on the spot instead of going into your inventory. Runes are never auto-sold.</p>
+    <div class="settings-list">
+      ${rows.map(([k, label]) => `
+        <label class="settings-row">
+          <input type="checkbox" data-autosell="${k}" ${s[k] ? 'checked' : ''}>
+          ${esc(label)}
+        </label>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+  document.querySelectorAll('[data-autosell]').forEach(cb => cb.onchange = () => {
+    G.settings.autoSell[cb.dataset.autosell] = cb.checked;
+    saveGame();
   });
 };
 
@@ -487,9 +516,12 @@ function baselineFor(targets) {
   return statMapOf(targets.reduce((worst, t) => mapScore(statMapOf(t)) < mapScore(statMapOf(worst)) ? t : worst));
 }
 
-UI.equippedBlockHtml = function (eq, label) {
+// candMap: when given, colors this (equipped) item's own stats relative
+// to the candidate item being considered — the reverse direction of
+// the coloring itemStatsHtml normally does for the candidate itself.
+UI.equippedBlockHtml = function (eq, label, candMap) {
   if (!eq) return '';
-  return `<div class="compare"><h4>${label}: <span style="color:${DATA.RARITIES[eq.rarity].color}">${esc(eq.name)}</span></h4>${UI.itemStatsHtml(eq)}</div>`;
+  return `<div class="compare"><h4>${label}: <span style="color:${DATA.RARITIES[eq.rarity].color}">${esc(eq.name)}</span></h4>${UI.itemStatsHtml(eq, candMap)}</div>`;
 };
 
 UI.cmpLegendHtml = function () {
@@ -497,6 +529,54 @@ UI.cmpLegendHtml = function () {
 };
 
 UI.ringLabel = function (t) { return t === G.char.equip.ring1 ? 'Equipped Left Ring' : 'Equipped Right Ring'; };
+
+// Human labels for the flat stat-map keys produced by statMapOf, used
+// by the "Equipping changes" net-delta summary below.
+const STAT_LABEL = {
+  dmg: 'Damage', armor: 'Armor', spd: 'Speed', potionCap: 'Potion Capacity',
+  str: 'Strength', dex: 'Dexterity', int: 'Intelligence', hp: 'Max HP', mana: 'Max Mana',
+  speed: 'Speed', hpRegen: 'HP Regen', manaRegen: 'Mana Regen', evasion: 'Evasion %',
+  dmgFlat: 'Weapon Damage', dmgPct: 'Weapon Damage %', dr: 'Damage Reduction %',
+  resPhys: 'Physical Resist %', resMagic: 'Magic Resist %', resPoison: 'Poison Resist %',
+  enemyResDown: 'Enemy Resist Shred %', skill: 'Skill Rank', allSkills: 'All Skills',
+  lifesteal: 'Life Steal %',
+};
+function statLabel(key) {
+  if (STAT_LABEL[key]) return STAT_LABEL[key];
+  if (key.startsWith('a_')) { const bare = key.slice(2); return STAT_LABEL[bare] || bare; }
+  return key;
+}
+function fmtDelta(v) {
+  const r = Math.round(v * 100) / 100;
+  return (r > 0 ? '+' : '') + r.toLocaleString();
+}
+
+// Net stat deltas between a candidate item and whatever it would
+// replace — the "Equipping changes:" summary at the bottom of the
+// comparison, independent of the per-line better/worse coloring above.
+UI.equipChangesHtml = function (candMap, baseMap) {
+  const keys = new Set([...Object.keys(candMap), ...Object.keys(baseMap || {})]);
+  const rows = [];
+  for (const k of keys) {
+    const diff = (candMap[k] || 0) - ((baseMap || {})[k] || 0);
+    if (Math.abs(diff) < 1e-9) continue;
+    rows.push({ k, diff });
+  }
+  if (!rows.length) return '<p class="hint">No stat changes.</p>';
+  rows.sort((x, y) => y.diff - x.diff);
+  return rows.map(({ k, diff }) => `<div class="istat ${diff > 0 ? 'cmp-better' : 'cmp-worse'}">${statLabel(k)}: ${fmtDelta(diff)}</div>`).join('');
+};
+
+// Shared block: legend + equipped-item comparisons (now colored both
+// ways) + the net "Equipping changes:" summary. Used by both the
+// inventory item modal and the shop item modal.
+UI.compareBlockHtml = function (it, targets, baseline) {
+  if (!targets.length || baseline === undefined || it.type !== 'item') return '';
+  const candMap = statMapOf(it);
+  return `${UI.cmpLegendHtml()}
+    ${targets.map(t => UI.equippedBlockHtml(t, it.slot === 'ring' ? UI.ringLabel(t) : 'Currently equipped', candMap)).join('')}
+    <div class="compare equip-changes"><h4>Equipping changes:</h4>${UI.equipChangesHtml(candMap, baseline)}</div>`;
+};
 
 // Item detail modal. context: 'inv' | 'equipped'
 UI.showItem = function (uid, context, slot) {
@@ -531,8 +611,7 @@ UI.showItem = function (uid, context, slot) {
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
-    ${targets.length && baseline !== undefined ? UI.cmpLegendHtml() : ''}
-    ${targets.map(t => UI.equippedBlockHtml(t, it.slot === 'ring' ? UI.ringLabel(t) : 'Currently equipped')).join('')}
+    ${UI.compareBlockHtml(it, targets, baseline)}
     <div class="modal-actions">${actions.join('')}<button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
@@ -581,8 +660,7 @@ UI.showShopItem = function (uid) {
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
-    ${targets.length && baseline !== undefined ? UI.cmpLegendHtml() : ''}
-    ${targets.map(t => UI.equippedBlockHtml(t, it.slot === 'ring' ? UI.ringLabel(t) : 'Currently equipped')).join('')}
+    ${UI.compareBlockHtml(it, targets, baseline)}
     <div class="modal-actions">
       <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${it.price.toLocaleString()})</button>
       <button class="btn" onclick="UI.closeModal()">Close</button>
@@ -748,7 +826,12 @@ UI.renderAdventure = function (el) {
           <p class="hint">Your hero fights round by round until the level boss falls or they drop to 0 HP. ⚠️ Falling in battle resets this level's progress (loot, gold and XP are kept) — retreating manually keeps your progress. Potions found are drunk on the spot.</p>`}
       </div>
       <div class="panel">
-        <h3>⚔️ Battle Arena</h3>
+        <h3>⚔️ Battle Arena
+          <span class="filters">
+            <button class="btn btn-tiny" onclick="UI.showCombatOptions()">⚙️ Combat Options</button>
+            <button class="btn btn-tiny" onclick="UI.showAutoUseSettings()">🤖 Auto-Use</button>
+          </span>
+        </h3>
         <div class="battle-arena">
           <div id="player-card">${UI.playerCardHtml()}</div>
           <div id="action-box">${UI.actionBoxHtml()}</div>
@@ -789,6 +872,57 @@ UI.actionBoxHtml = function () {
     <div class="action-icon">${a.icon}</div>
     <div class="action-txt">${esc(a.txt)}</div>
   </div>`;
+};
+
+const TIER_UI_LABEL = { normal: 'Normal', miniboss: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+
+UI.showCombatOptions = function () {
+  const m = G.settings.encounterMode;
+  const tiers = [['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['miniboss', 'Abnormal']];
+  const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
+  UI.modal(`
+    <h3>⚙️ Combat Options</h3>
+    <p class="hint">Choose what happens the moment each type of encounter appears.</p>
+    <div class="settings-list">
+      ${tiers.map(([id, label]) => `
+        <div class="settings-subrow">
+          <b style="min-width:90px">${label}:</b>
+          ${modeOptions.map(([v, l]) => `<label><input type="radio" name="mode-${id}" value="${v}" data-mode-tier="${id}" ${m[id] === v ? 'checked' : ''}> ${l}</label>`).join('')}
+        </div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+  document.querySelectorAll('[data-mode-tier]').forEach(r => r.onchange = () => {
+    if (r.checked) { G.settings.encounterMode[r.dataset.modeTier] = r.value; saveGame(); }
+  });
+};
+
+const AUTO_MODE_SIMPLE = [['off', 'Off'], ['100', 'Below 100% (any missing)'], ['50', 'Below 50%'], ['25', 'Below 25%']];
+const AUTO_MODE_MANA_BUFF = [['off', 'Off'], ['100', 'Mana at 100%'], ['50', 'Mana above 50%'], ['25', 'Mana above 25%']];
+const AUTO_MODE_AVAILABLE = [['off', 'Off'], ['100', 'Mana at 100%'], ['50', 'Mana above 50%'], ['available', 'Whenever available']];
+
+UI.showAutoUseSettings = function () {
+  const au = G.settings.autoUse;
+  const tierRow = key => `<div class="tier-checks">${AUTO_USE_TIERS.map(t =>
+    `<label><input type="checkbox" data-tier="${key}:${t}" ${au[key].tiers[t] ? 'checked' : ''}> ${TIER_UI_LABEL[t]}</label>`).join('')}</div>`;
+  const simpleSelect = (key, options) => `<select data-simple="${key}">${options.map(([v, l]) => `<option value="${v}" ${au[key] === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  const complexSelect = key => `<select data-complex="${key}">${AUTO_MODE_AVAILABLE.map(([v, l]) => `<option value="${v}" ${au[key].mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  UI.modal(`
+    <h3>🤖 Auto-Use Settings</h3>
+    <p class="hint">Automates potions and skills during combat, whenever nothing is manually queued. Skill rules only fire if you've learned that skill category.</p>
+    <div class="settings-section"><h4>❤️ Health Potion</h4>${simpleSelect('hpPotion', AUTO_MODE_SIMPLE)}</div>
+    <div class="settings-section"><h4>🔵 Mana Potion</h4>${simpleSelect('manaPotion', AUTO_MODE_SIMPLE)}</div>
+    <div class="settings-section"><h4>💚 Heal Skill</h4>${simpleSelect('heal', AUTO_MODE_SIMPLE)}</div>
+    <div class="settings-section"><h4>📯 Buff Skill</h4>${simpleSelect('buff', AUTO_MODE_MANA_BUFF)}</div>
+    <div class="settings-section"><h4>😤 Debuff Skill</h4>${complexSelect('debuff')}${tierRow('debuff')}</div>
+    <div class="settings-section"><h4>🔥 Ultimate</h4>${complexSelect('ultimate')}${tierRow('ultimate')}</div>
+    <div class="settings-section"><h4>⚔️ Damage Skill <small>(random among available)</small></h4>${complexSelect('damage')}${tierRow('damage')}</div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+  document.querySelectorAll('[data-simple]').forEach(sel => sel.onchange = () => { G.settings.autoUse[sel.dataset.simple] = sel.value; saveGame(); });
+  document.querySelectorAll('[data-complex]').forEach(sel => sel.onchange = () => { G.settings.autoUse[sel.dataset.complex].mode = sel.value; saveGame(); });
+  document.querySelectorAll('[data-tier]').forEach(cb => cb.onchange = () => {
+    const [key, t] = cb.dataset.tier.split(':');
+    G.settings.autoUse[key].tiers[t] = cb.checked; saveGame();
+  });
 };
 
 // Under the arena: manual potions and activatable skills.
@@ -955,6 +1089,19 @@ UI.showResults = function (run, level) {
         : `<button class="btn btn-primary" onclick="UI.closeModal();startAdventure()">⚔️ Adventure again</button>
            <button class="btn" onclick="UI.closeModal()">Close</button>`}
     </div>`);
+};
+
+UI.showChangelog = function () {
+  UI.modal(`
+    <h3>📋 Changelog</h3>
+    <div class="changelog-list">
+      ${DATA.CHANGELOG.map(entry => `
+        <div class="changelog-entry">
+          <h4>v${entry.v}</h4>
+          <ul>${entry.notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+        </div>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
 // ------------------------------------------------------------

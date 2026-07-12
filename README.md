@@ -18,7 +18,7 @@ Then open http://localhost:3111 in your browser.
 - **Combat**: round-based with an ATB speed gauge — every round each fighter gains gauge equal to their Speed and acts at 100. Faster heroes attack more often.
 - **The 1111 pattern**: each level holds 1,111 creatures. Every 11th is a 🔷 Rare (two-word name), every 111th a 🟣 Epic, and the 1,111th is the 🔶 Legendary Boss (name + title). Kill the boss to unlock the next level.
 - **Skills**: 12 per class — free main attack, two passives, two attacks, two AoEs, heal, buff, debuff, and two ultimates — with rank-ups, level gates, and prerequisites.
-- **Loot**: 11 equipment slots, Normal → Magical → Rare → Epic → Legendary rarities, class/weight restrictions, two-hand / dual-wield / weapon-and-shield rules, and socketable runes (Faded Rune / Rune / Mythic Rune) named after the stats they carry.
+- **Loot**: 11 equipment slots, Normal → Magical → Rare → Epic → Legendary rarities, class/weight restrictions, two-hand / dual-wield / weapon-and-shield rules, and socketable runes (Faded Rune / Rune / Rare Rune / Epic Rune / Legendary Rune / Mythic Rune) named after the stats they carry.
 - **Saving**: automatic, to your browser's localStorage. The title screen offers Continue or New Character.
 
 ## Files

@@ -5,7 +5,21 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.3.0';
+DATA.VERSION = '0.1.0';
+
+// Changelog — newest first. Each user-requested change bumps the
+// minor version (0.1.0, 0.2.0, 0.3.0, ...).
+DATA.CHANGELOG = [
+  { v: '0.1.0', notes: [
+    'Inventory: added a Settings panel with per-rarity auto-sell rules (Normal/Magical/Rare/Epic/Legendary/Unusable/Everything) — matching drops are sold on the spot instead of filling your bag. Runes are never auto-sold.',
+    'Runes: added Rare Rune (3 bonuses), Epic Rune (4), and Legendary Rune (5) tiers above Faded Rune/Rune, plus an ultra-rare Mythic Rune (6) as the ultimate tier.',
+    '+X All Skills is now a very rare item property, as rare as Vampiric.',
+    'Item comparison now works both ways: the item you’d replace shows its own better/worse stats too, plus a new "Equipping changes:" summary of the net difference.',
+    'Added Combat Options: choose Pause / 1x Speed / Continue Normally for how the game reacts when a Legendary, Epic, Rare, or Abnormal (Miniboss) encounter appears.',
+    'Added Auto-Use Settings: automatic health/mana potions, heal/buff/debuff/ultimate/damage skills, gated by HP or mana thresholds and (for debuff/ultimate/damage) which monster tiers are present.',
+    'Added this changelog, viewable from the footer.',
+  ] },
+];
 
 // ------------------------------------------------------------
 // Classes
@@ -494,6 +508,8 @@ DATA.RARITIES = {
   rare:      { name: 'Rare',      color: '#ffd84d', affixes: [3, 3], mult: 1.3, value: 8 },
   epic:      { name: 'Epic',      color: '#c77dff', affixes: [4, 4], mult: 1.5, value: 20 },
   legendary: { name: 'Legendary', color: '#ff8b3d', affixes: [5, 5], mult: 1.75, value: 60 },
+  // Mythic: not rolled for items — reserved for the top rune tier.
+  mythic:    { name: 'Mythic',    color: '#ff4d9e', affixes: [6, 6], mult: 2.0, value: 150 },
 };
 
 DATA.SLOTS = ['weapon', 'offhand', 'helmet', 'amulet', 'armor', 'cloak', 'belt', 'ring1', 'ring2', 'gloves', 'pants', 'boots'];
@@ -576,7 +592,7 @@ DATA.AFFIXES = [
   { id: 'resPoison', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Poison Resistance` },
   { id: 'enemyResDown', w: 3, roll: i => 2 + Math.floor(i / 12) + rint(0, 3), fmt: v => `Enemies lose ${v}% Resistances` },
   { id: 'skill', w: 4, roll: () => 1, fmt: (v, x) => `+${v} to ${x || 'a skill'}` },   // extra: skill id
-  { id: 'allSkills', w: 1.5, roll: () => 1, fmt: v => `+${v} to All Skills` },
+  { id: 'allSkills', w: 1, roll: () => 1, fmt: v => `+${v} to All Skills` },   // very rare — same weight as Vampiric
   // Vampiric: very rare, epic+ weapons only (see rollAffixes' eligibility filter).
   // Scales 1-10% life steal with item level.
   { id: 'lifesteal', w: 1, weaponOnly: true, minRarity: 'epic', roll: i => Math.min(10, 1 + Math.floor(i / 11) + rint(0, 1)), fmt: v => `+${v}% Life Steal` },

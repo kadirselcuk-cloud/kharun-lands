@@ -22,6 +22,46 @@ function log(t, txt, extra) {
 // State creation / persistence (localStorage — bigger and more
 // reliable than cookies, and never sent over the network)
 // ------------------------------------------------------------
+// Monster tiers used by the auto-use tier checkboxes and encounter-mode
+// settings. "Abnormal" is this game's player-facing name for Miniboss.
+const AUTO_USE_TIERS = ['normal', 'miniboss', 'rare', 'epic', 'legendary'];
+function emptyTierSet(v) { const o = {}; for (const t of AUTO_USE_TIERS) o[t] = v; return o; }
+
+function defaultSettings() {
+  return {
+    packSize: 1, advSpeed: 1200, lastAdvLevel: null,
+    autoSell: { normal: false, magical: false, rare: false, epic: false, legendary: false, unusable: false, all: false },
+    // per-encounter-tier behavior when a new pack of that tier spawns
+    encounterMode: { legendary: 'speed1x', epic: 'speed1x', rare: 'continue', miniboss: 'continue' },
+    autoUse: {
+      hpPotion: 'off', manaPotion: 'off',      // 'off' | 100 | 50 | 25 (HP/mana % threshold)
+      heal: 'off',                              // 'off' | 100 | 50 | 25
+      buff: 'off',                               // 'off' | 100 | 50 | 25 (mana % threshold)
+      debuff: { mode: 'off', tiers: emptyTierSet(false) },    // mode: 'off' | 100 | 50 | 'available'
+      ultimate: { mode: 'off', tiers: emptyTierSet(false) },
+      damage: { mode: 'off', tiers: emptyTierSet(false) },
+    },
+  };
+}
+// Fills in any settings fields missing from an older save without
+// clobbering what the player already configured.
+function ensureSettings() {
+  if (!G.settings) G.settings = {};
+  const def = defaultSettings();
+  for (const k of ['packSize', 'advSpeed', 'lastAdvLevel']) if (G.settings[k] === undefined) G.settings[k] = def[k];
+  if (!G.settings.autoSell) G.settings.autoSell = def.autoSell;
+  if (!G.settings.encounterMode) G.settings.encounterMode = def.encounterMode;
+  if (!G.settings.autoUse) G.settings.autoUse = def.autoUse;
+  else {
+    const au = G.settings.autoUse;
+    for (const k of ['hpPotion', 'manaPotion', 'heal', 'buff']) if (au[k] === undefined) au[k] = def.autoUse[k];
+    for (const k of ['debuff', 'ultimate', 'damage']) {
+      if (!au[k]) au[k] = def.autoUse[k];
+      else if (!au[k].tiers) au[k].tiers = emptyTierSet(false);
+    }
+  }
+}
+
 function newGame(clsId) {
   const cls = DATA.CLASSES[clsId];
   G = {
@@ -45,7 +85,7 @@ function newGame(clsId) {
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
     totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 } },
-    settings: { packSize: 1, advSpeed: 1200, lastAdvLevel: null },
+    settings: defaultSettings(),
     shop: null,
     tavern: null,
     itemSeq: 1,
@@ -90,8 +130,7 @@ function loadGame() {
   const g = peekSave();
   if (!g) return false;
   G = g;
-  if (!G.settings) G.settings = { packSize: 1 };
-  if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 1200; G.settings.lastAdvLevel = null; }
+  ensureSettings();
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
   if (!G.shop || !G.shop.stock) genShopStock();
@@ -284,7 +323,7 @@ function skillCost(s) {
   return Math.round((s.cost ? s.cost() : 0) * mult);
 }
 
-const RARITY_ORDER = { normal: 0, magical: 1, rare: 2, epic: 3, legendary: 4 };
+const RARITY_ORDER = { normal: 0, magical: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
 function rollAffixes(count, ilvl, clsId, item) {
   const out = [];
   const used = new Set();
@@ -417,18 +456,31 @@ function buildItemName(it) {
   return `${pre} ${it.baseName} ${suf}`;
 }
 
-// Runes: 1 bonus = Faded Rune, 2 = Rune, 3 = Mythic Rune.
+// Rune tiers, by bonus count, ascending: Faded(1) < Rune(2) < Rare(3) <
+// Epic(4) < Legendary(5) < Mythic(6, the ultimate tier — a rare shot
+// off any legendary-creature drop). Bonus-count range depends on which
+// creature tier dropped it.
+const RUNE_BONUS_RANGE = { normal: [1, 1], rare: [1, 2], epic: [1, 3], miniboss: [2, 4], legendary: [3, 5] };
+const RUNE_TIERS = {
+  1: { baseName: 'Faded Rune', rarity: 'normal' },
+  2: { baseName: 'Rune', rarity: 'magical' },
+  3: { baseName: 'Rare Rune', rarity: 'rare' },
+  4: { baseName: 'Epic Rune', rarity: 'epic' },
+  5: { baseName: 'Legendary Rune', rarity: 'legendary' },
+  6: { baseName: 'Mythic Rune', rarity: 'mythic' },
+};
 // Prefix/suffix are generated from randomly chosen bonus stats.
 function makeRune(ilvl, source) {
-  const counts = { normal: [1, 1], rare: [1, 2], epic: [1, 3], legendary: [2, 3] };
-  const n = rint(...counts[source]);
+  const range = RUNE_BONUS_RANGE[source] || RUNE_BONUS_RANGE.normal;
+  let n = rint(...range);
+  if (source === 'legendary' && chance(0.08)) n = 6;   // rare shot at the ultimate Mythic tier
+  const tier = RUNE_TIERS[n];
   const bonuses = rollAffixes(n, ilvl);
-  const baseName = n === 1 ? 'Faded Rune' : n === 2 ? 'Rune' : 'Mythic Rune';
   const pre = pick(DATA.NAME_PARTS[pick(bonuses).id].pre);
   const suf = pick(DATA.NAME_PARTS[pick(bonuses).id].suf);
   return {
-    uid: G ? G.itemSeq++ : rint(1, 1e9), type: 'rune', rarity: 'magical', ilvl,
-    icon: '🪨', name: `${pre} ${baseName} ${suf}`, baseName,
+    uid: G ? G.itemSeq++ : rint(1, 1e9), type: 'rune', rarity: tier.rarity, ilvl,
+    icon: '🪨', name: `${pre} ${tier.baseName} ${suf}`, baseName: tier.baseName,
     bonuses,
     value: 15 + ilvl * 2 + n * 10,
   };
@@ -924,13 +976,28 @@ function rollLoot(creature, run) {
   // else: nothing
 }
 
+// Whether an auto-sell setting matches a freshly-dropped item. Runes
+// never pass through here (they're not created via dropItem), so the
+// "sell all unequipped except runes" rule from the manual bulk-sell is
+// preserved automatically.
+function shouldAutoSell(it) {
+  const s = G.settings.autoSell;
+  if (!s) return false;
+  if (s.all) return true;
+  if (s.unusable && !canUseItem(it).ok) return true;
+  return !!s[it.rarity];
+}
+
 function dropItem(lvl, rarity, run) {
   const it = makeItem(lvl, rarity, G.char.cls);
-  run.items.push(it); G.inventory.push(it);
-  if (rarity !== 'normal') {
-    log('loot', `${it.icon} ${DATA.RARITIES[rarity].name} drop: ${it.name}`, { rarity });
-    questEvent('item_magic');
+  if (rarity !== 'normal') questEvent('item_magic');
+  if (shouldAutoSell(it)) {
+    run.gold += it.value; G.gold += it.value;
+    log('loot', `🪙 Auto-sold ${it.icon} ${it.name} for ${it.value.toLocaleString()} gold.`);
+    return;
   }
+  run.items.push(it); G.inventory.push(it);
+  if (rarity !== 'normal') log('loot', `${it.icon} ${DATA.RARITIES[rarity].name} drop: ${it.name}`, { rarity });
 }
 
 // Found potions are STORED (drunk manually); power-up scrolls auto-use.
@@ -1000,13 +1067,90 @@ function queueSkill(id) {
 }
 
 // ------------------------------------------------------------
+// Auto-Use: automatically queues potions/skills per G.settings.autoUse
+// whenever the player hasn't manually queued anything themselves.
+// ------------------------------------------------------------
+// 'off'|'100'|'50'|'25' — true once the resource has dropped BELOW
+// that fraction (100 fires on any missing amount at all).
+function belowGate(mode, frac) {
+  if (mode === '100') return frac < 0.999;
+  if (mode === '50') return frac < 0.5;
+  if (mode === '25') return frac < 0.25;
+  return false;
+}
+// 'off'|'100'|'50'|'25'|'available' — mana-based gates for buff/debuff/
+// ultimate/damage rules. '100' requires full mana, '50'/'25' require
+// ABOVE that fraction (so the resource isn't blown on a whim), and
+// 'available' (debuff/ultimate/damage only) ignores mana entirely.
+function manaGate(mode, frac) {
+  if (mode === '100') return frac >= 0.999;
+  if (mode === '50') return frac > 0.5;
+  if (mode === '25') return frac > 0.25;
+  if (mode === 'available') return true;
+  return false;
+}
+function anyEnemyTierMatches(fight, tierSet) {
+  return fight.enemies.some(e => e.hp > 0 && tierSet[e.tier]);
+}
+function eligibleSkillsOf(cats, fight) {
+  const skills = DATA.SKILLS[G.char.cls];
+  return Object.values(skills).filter(s =>
+    cats.includes(s.cat) && (G.char.skills[s.id] || 0) > 0 &&
+    (fight.cds[s.id] || 0) <= 0 && G.char.mana >= skillCost(s));
+}
+
+// Auto-drink potions once per round, same cooldown/stock rules as
+// manual drinking. Priority: heal > ultimate > debuff > buff > damage.
+function autoUsePotions() {
+  const au = G.settings.autoUse;
+  const d = ADV.d;
+  const hpFrac = d.maxHp > 0 ? G.char.hp / d.maxHp : 1;
+  const manaFrac = d.maxMana > 0 ? G.char.mana / d.maxMana : 1;
+  if (belowGate(au.hpPotion, hpFrac) && (G.potions.hp || 0) > 0 && (ADV.potCd.hp || 0) <= 0) drinkPotion('hp');
+  if (belowGate(au.manaPotion, manaFrac) && (G.potions.mana || 0) > 0 && (ADV.potCd.mana || 0) <= 0) drinkPotion('mana');
+}
+
+// Auto-selects the player's next action when nothing is manually
+// queued. Only ever sets ADV.queued — pickSkill (below) still does the
+// final validity check and actually consumes it.
+function autoQueueSkill(fight) {
+  const au = G.settings.autoUse;
+  const d = ADV.d;
+  const hpFrac = d.maxHp > 0 ? G.char.hp / d.maxHp : 1;
+  const manaFrac = d.maxMana > 0 ? G.char.mana / d.maxMana : 1;
+
+  if (belowGate(au.heal, hpFrac)) {
+    const opts = eligibleSkillsOf(['heal'], fight);
+    if (opts.length) { ADV.queued = pick(opts).id; return; }
+  }
+  if (manaGate(au.ultimate.mode, manaFrac) && anyEnemyTierMatches(fight, au.ultimate.tiers)) {
+    const opts = eligibleSkillsOf(['ult', 'ult2'], fight);
+    if (opts.length) { ADV.queued = pick(opts).id; return; }
+  }
+  if (manaGate(au.debuff.mode, manaFrac) && anyEnemyTierMatches(fight, au.debuff.tiers)) {
+    const opts = eligibleSkillsOf(['debuff'], fight);
+    if (opts.length) { ADV.queued = pick(opts).id; return; }
+  }
+  if (manaGate(au.buff, manaFrac)) {
+    const opts = eligibleSkillsOf(['buff'], fight);
+    if (opts.length) { ADV.queued = pick(opts).id; return; }
+  }
+  if (manaGate(au.damage.mode, manaFrac) && anyEnemyTierMatches(fight, au.damage.tiers)) {
+    const opts = eligibleSkillsOf(['attack', 'attack2', 'aoe', 'aoe2'], fight);
+    if (opts.length) { ADV.queued = pick(opts).id; return; }
+  }
+}
+
+// ------------------------------------------------------------
 // Combat — round-based with an ATB speed gauge.
 // Every combat round each fighter gains gauge equal to their Speed;
 // on reaching 100 they act. High Dexterity = more attacks.
 // ------------------------------------------------------------
 // Combat is player-driven now: the hero auto-swings his free basic
-// attack, and casts a skill only when the player has queued one.
+// attack, and casts a skill only when the player has queued one
+// (manually, or automatically via Auto-Use).
 function pickSkill(fight) {
+  if (!ADV.queued) autoQueueSkill(fight);
   const skills = DATA.SKILLS[G.char.cls];
   const basic = Object.values(skills).find(s => s.cat === 'basic');
   const qid = ADV.queued;
@@ -1213,6 +1357,7 @@ function startAdventure() {
     queued: null,                    // manually queued skill id
     lastAction: null,                // shown in the arena's action box
     speedMs: G.settings.advSpeed || 1200,
+    tempSpeedOverride: null,        // set while a Combat Options "1x Speed" rule is forcing the pace down
     fight: null,
     run: {
       kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
@@ -1253,6 +1398,28 @@ function resumeAdventure() {
   advTimer = setInterval(adventureTick, ADV.speedMs);
   log('sys', '▶ Adventure resumed.');
   UI.refresh();
+}
+
+// "Abnormal" is this game's player-facing name for the Miniboss tier.
+const TIER_DISPLAY_NAME = { miniboss: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+
+// Combat Options: Pause / 1x Speed / Continue Normally per encounter
+// tier, applied right after that tier's pack spawns.
+function applyEncounterMode(tier) {
+  const mode = G.settings.encounterMode[tier];
+  if (!mode || mode === 'continue' || ADV.paused) return;
+  if (mode === 'pause') {
+    ADV.paused = true;
+    clearInterval(advTimer); advTimer = null;
+    log('sys', `⏸ Auto-paused: a ${TIER_DISPLAY_NAME[tier]} encounter appeared.`);
+  } else if (mode === 'speed1x') {
+    if (ADV.tempSpeedOverride == null) {
+      ADV.tempSpeedOverride = ADV.speedMs;
+      ADV.speedMs = 1200;
+      clearInterval(advTimer);
+      advTimer = setInterval(adventureTick, 1200);
+    }
+  }
 }
 
 function setPackSize(n) {
@@ -1305,6 +1472,14 @@ function adventureTick() {
   // the hero falls and retreats home with the loot. HP Regen investment
   // directly extends how deep a run goes.
   if (!ADV.fight) {
+    // restore whatever speed the player had chosen before a Combat
+    // Options "1x Speed" override forced it down for the last encounter
+    if (ADV.tempSpeedOverride != null) {
+      ADV.speedMs = ADV.tempSpeedOverride;
+      ADV.tempSpeedOverride = null;
+      clearInterval(advTimer);
+      advTimer = setInterval(adventureTick, ADV.speedMs);
+    }
     G.char.hp = Math.min(d.maxHp, G.char.hp + d.hpRegen * 1.0);
     G.char.mana = Math.min(d.maxMana, G.char.mana + d.manaRegen * 4);
     const kills = G.progress[level] || 0;
@@ -1330,13 +1505,17 @@ function adventureTick() {
     // the battle grid's fixed 6-cell capacity exactly — see TIER_CELLS
     // in ui.js). The player's pack-size setting only scales pure-Normal
     // encounters below; these ranges are fixed regardless of that setting.
-    let enemies;
+    // encounterKind: which of the four configurable tiers (if any) this
+    // pack counts as, for the Combat Options pause/speed behavior below.
+    // Stays null for plain Normal packs, which aren't configurable.
+    let enemies, encounterKind = null;
     if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
       const miniboss = makeCreature(level, 'miniboss');
       const escort = Math.random() < 0.20
         ? [makeCreature(level, 'epic')]
         : Array.from({ length: rint(1, 2) }, () => makeCreature(level, 'rare'));
       enemies = [miniboss, ...escort];
+      encounterKind = 'miniboss';
       log('encounter', `👑 MINI BOSS: ${miniboss.name} (${miniboss.species}, Lv ${level}) prowls out of the wilds, backed by ${escort.length} ${escort[0].tier}!`, { tier: 'miniboss' });
     } else if (tier === 'normal') {
       const packMax = Math.max(1, Math.min(G.settings.packSize, normalsUntilSpecial(kills)));
@@ -1347,6 +1526,7 @@ function adventureTick() {
       const count = rint(1, 3);
       const escort = Array.from({ length: count }, () => makeCreature(level, 'normal'));
       enemies = [rare, ...escort];
+      encounterKind = 'rare';
       log('encounter', `🔷 RARE: ${rare.name} (${rare.species}, Lv ${level}) appears, flanked by ${count} creature${count > 1 ? 's' : ''}!`, { tier: 'rare' });
     } else if (tier === 'epic') {
       const epic = makeCreature(level, 'epic');
@@ -1354,12 +1534,14 @@ function adventureTick() {
       const escortTier = Math.random() < 0.20 ? 'rare' : 'normal';
       const escort = Array.from({ length: count }, () => makeCreature(level, escortTier));
       enemies = [epic, ...escort];
+      encounterKind = 'epic';
       log('encounter', `🟣 EPIC: ${epic.name} (${epic.species}, Lv ${level}) appears with ${count} ${escortTier} creatures!`, { tier: 'epic' });
     } else {
       const isChapterBoss = isChapterEndLevel(level);
       const boss = makeCreature(level, 'legendary', { isChapterBoss });
       const escort = makeCreature(level, 'epic');
       enemies = [boss, escort];
+      encounterKind = 'legendary';
       const label = isChapterBoss ? '👑🔶 CHAPTER BOSS' : '🔶 LEGENDARY BOSS';
       log('encounter', `${label}: ${boss.name} (${boss.species}, Lv ${level}) appears, backed by an Epic guardian!`, { tier: 'legendary' });
     }
@@ -1368,6 +1550,7 @@ function adventureTick() {
       debuffRounds: 0, debuffApplied: false, round: 0, playerGauge: 0,
       playerDots: {}, playerSlow: null, cursedDebuff: null, corrosiveDebuff: null,
     };
+    if (encounterKind) applyEncounterMode(encounterKind);
     saveGame();
     UI.refreshAdventure();
     return;
@@ -1400,6 +1583,8 @@ function adventureTick() {
   if (f.cursedDebuff && --f.cursedDebuff.rounds <= 0) f.cursedDebuff = null;
   if (f.corrosiveDebuff && --f.corrosiveDebuff.rounds <= 0) f.corrosiveDebuff = null;
   if (G.char.hp <= 0) { G.char.hp = 0; retreat('defeated'); return; }
+
+  autoUsePotions();
 
   // Regenerating specialty: passive heal every round regardless of actions
   for (const e of f.enemies) {
