@@ -66,7 +66,7 @@ UI.showClassSelect = function () {
   app.innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">100 levels. 111,100 monsters. Three heroes, one road. Choose who answers: <span class="version-tag">v${DATA.VERSION}</span></p>
+      <p class="subtitle">Three heroes, one road. Choose who answers: <span class="version-tag">v${DATA.VERSION}</span></p>
       <div class="class-cards">
         ${Object.values(DATA.CLASSES).map(c => `
           <div class="class-card" data-cls="${c.id}">
