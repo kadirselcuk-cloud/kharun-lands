@@ -1320,7 +1320,7 @@ function playerAct(fight) {
       log('act', `${skill.icon} ${skill.name} heals you for ${heal} HP${necroticActive(fight) ? ' (weakened by a Necrotic aura)' : ''}`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} +${heal} HP` };
     } else if (skill.buff && !skill.mult) {
-      fight.buffs.push({ ...skill.buff(r) });
+      fight.buffs.push({ ...skill.buff(r), icon: skill.icon, name: skill.name });
       log('act', `${skill.icon} You roar with ${skill.name}!`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: skill.name };
     } else if (skill.debuff && !skill.mult) {
@@ -1331,7 +1331,7 @@ function playerAct(fight) {
       log('act', `${skill.icon} ${skill.name} weakens your enemies!`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: skill.name };
     } else {
-      if (skill.buff) fight.buffs.push({ ...skill.buff(r) });
+      if (skill.buff) fight.buffs.push({ ...skill.buff(r), icon: skill.icon, name: skill.name });
       if (skill.debuff) {
         const db = skill.debuff(r);
         fight.enemyResDown = Math.max(fight.enemyResDown, db.resDown || 0);

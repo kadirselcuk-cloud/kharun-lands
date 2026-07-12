@@ -853,21 +853,54 @@ UI.renderAdventure = function (el) {
   UI.scrollLog();
 };
 
-// Left side of the arena: the hero.
+// What will actually happen on the hero's next action: the manually
+// queued skill if one is set, otherwise the free basic attack.
+UI.nextActionSkill = function () {
+  if (!G || !G.char) return null;
+  const skills = DATA.SKILLS[G.char.cls];
+  if (ADV && ADV.queued && skills[ADV.queued]) return skills[ADV.queued];
+  return Object.values(skills).find(s => s.cat === 'basic');
+};
+
+// Every buff/DOT/debuff currently active on the player, regardless of
+// source (a cast skill, a power-up scroll, or a monster specialty).
+UI.playerEffects = function () {
+  if (!ADV || !ADV.fight) return [];
+  const f = ADV.fight;
+  const out = [];
+  if (ADV.scroll > 0) out.push({ icon: '📜', rounds: ADV.scroll, label: 'Power-up scroll — +12% damage' });
+  for (const b of f.buffs) out.push({ icon: b.icon || '✨', rounds: b.rounds, label: b.name || 'Buff' });
+  if (f.cursedDebuff) out.push({ icon: '🕯️', rounds: f.cursedDebuff.rounds, label: 'Cursed — weaker attacks' });
+  if (f.corrosiveDebuff) out.push({ icon: '🧪', rounds: f.corrosiveDebuff.rounds, label: 'Corroded — less armor' });
+  if (f.playerSlow) out.push({ icon: '❄️', rounds: f.playerSlow.rounds, label: 'Slowed' });
+  if (f.playerDots) for (const k of Object.keys(f.playerDots)) {
+    const dot = f.playerDots[k];
+    out.push({ icon: dot.icon, rounds: dot.rounds, label: dot.label });
+  }
+  return out;
+};
+
+// Left side of the arena: next-action box, the hero, and active effects.
 UI.playerCardHtml = function () {
   const c = G.char, cls = DATA.CLASSES[c.cls];
   const d = ADV ? ADV.d : derive();
   const gaugePct = ADV && ADV.fight ? Math.min(100, ADV.fight.playerGauge / (d.atkInterval || 100) * 100) : 0;
+  const nextSkill = UI.nextActionSkill();
+  const effects = UI.playerEffects();
   return `
-    <div class="hero-card">
-      <div class="hero-icon">${cls.icon}</div>
-      <div class="hero-name">${esc(c.name)}</div>
-      <div class="hero-sub">Lv ${c.level} ${cls.name}</div>
-      <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
-      <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${Math.round(c.mana).toLocaleString()}/${d.maxMana.toLocaleString()}</span></div>
-      <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
-      ${ADV && ADV.scroll > 0 ? `<div class="scroll-ind">📜 +12% dmg (${ADV.scroll} rounds)</div>` : ''}
-      ${ADV && ADV.queued ? `<div class="queued-ind">⏳ ${DATA.SKILLS[c.cls][ADV.queued].icon} ${esc(DATA.SKILLS[c.cls][ADV.queued].name)} queued</div>` : ''}
+    <div class="player-row">
+      <div class="next-action-box" title="${nextSkill ? esc(nextSkill.name) : ''}">${nextSkill ? nextSkill.icon : ''}</div>
+      <div class="hero-card">
+        <div class="hero-icon">${cls.icon}</div>
+        <div class="hero-name">${esc(c.name)}</div>
+        <div class="hero-sub">Lv ${c.level} ${cls.name}</div>
+        <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
+        <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${Math.round(c.mana).toLocaleString()}/${d.maxMana.toLocaleString()}</span></div>
+        <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
+      </div>
+      <div class="effects-grid">
+        ${effects.map(e => `<div class="effect-icon" title="${esc(e.label)}">${e.icon}<span class="effect-rounds">${e.rounds}</span></div>`).join('')}
+      </div>
     </div>`;
 };
 

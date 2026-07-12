@@ -5,11 +5,14 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.3.0';
+DATA.VERSION = '0.4.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.4.0', notes: [
+    'Battle Arena: replaced the two text lines under the hero (power-scroll and queued-skill indicators) with a next-action box to the hero\'s left showing what the hero will actually do next, and a buffs/debuffs icon grid to the hero\'s right (4 rows tall, adding a new column every 4 effects) with the remaining-round count overlaid on each icon.',
+  ] },
   { v: '0.3.0', notes: [
     'Bugfix: Epic and Legendary encounters (and to a lesser extent Mini Bosses) could get skipped entirely on a level, because escort-pack kills were advancing the level\'s 1111-pattern position past the exact checkpoint that triggers them. Only the featured creature of a pack now advances that position — escorts are bonus kills only.',
     'Bugfix: Combat Options\' and Auto-Use\'s "Abnormal" category now also matches any regular creature that rolled a specialty (e.g. a Normal-rarity Explosive), not just true Mini Bosses.',
