@@ -14,7 +14,7 @@ DATA.CLASSES = {
   warrior: {
     id: 'warrior', name: 'Warrior', heroName: 'Kharun', icon: '⚔️',
     desc: 'A front-line bruiser. High Strength and Dexterity make him a wall of HP that hits like a falling tower.',
-    story: 'A seasoned legion man who deserted rather than lost — Kharun has buried more brothers than he can name and kept marching anyway. He carries command instincts he can\'t switch off and sees strangers as people to protect whether they ask for it or not. Somewhere past the first trial lies the thing that broke his shield-wall, and half a century late, he means to return the favor.',
+    story: 'Kharun was born to a noble house that still claims descent from the ancient king whose name he carries — a birthright he never much wanted. He earned his rank in the legion honestly, until a rival commander sold out his position to cover his own failure, leaving Kharun\'s unit slaughtered and Kharun himself branded a deserter rather than let the truth reach command. He\'s let the record stand; a war of paperwork against a man with more friends than he has surviving soldiers isn\'t one he can win. These days he goes by no house name, takes any contract that pays, and has learned that a good mercenary is judged by results, not questions — which suits a man with plenty to hide.',
     playstyle: 'Play Kharun if you want to survive mistakes: the deepest HP pool, heavy armor, stuns, and damage reduction. He grinds through packs slowly but almost never dies.',
     baseStats: { str: 11, dex: 9, int: 5 },   // total 25, min 5
     mainStat: 'str',
@@ -44,8 +44,9 @@ DATA.CLASSES = {
 DATA.PRELUDE = {
   title: 'The Contract',
   paragraphs: [
-    'Fifty years ago, an old prophecy named three heroes — a warrior, a mage, and a rogue — fated to walk the length of the Kharun Lands and seal the wound bleeding at the world\'s heart.',
-    'They reached the first trial, outside a farming town called Harvestgate, and never came back. The monument they left behind still stands. So does the contract.',
+    'Long before the prophecy, there was a king. Kharun united the scattered holds of this land under one banner and gave his life holding a border no one else could hold. The land kept his name rather than let it be forgotten: the Kharun Lands.',
+    'But the border he died defending was never truly closed — only slowed. Something old and patient still bleeds through the wound at the world\'s heart, and an older prophecy swore that a warrior, a mage, and a rogue would one day walk the length of these lands and seal it for good.',
+    'Fifty years ago, three such heroes reached the first trial, outside a farming town called Harvestgate, and never came back. The monument they left behind still stands. So does the contract.',
     'No one has dared finish it in half a century — until three strangers, each running from something of their own, were handed the dead heroes\' names, their gear, and their unfinished road.',
     'Whether they were chosen, or simply the last three left standing when the world needed a warrior, a mage, and a rogue, is a question none of them have thought to ask yet.',
   ],
