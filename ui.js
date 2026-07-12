@@ -823,8 +823,7 @@ const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary
 UI.enemyPanelHtml = function () {
   if (!ADV) return `<p class="hint">No fight in progress.</p>`;
   if (!ADV.fight) {
-    return `<p class="hint">🥾 Traveling to the next encounter…</p>
-      <div class="enemy-cards">${'<div class="enemy-placeholder"></div>'.repeat(6)}</div>`;
+    return `<div class="enemy-cards">${'<div class="enemy-placeholder"></div>'.repeat(6)}</div>`;
   }
   const f = ADV.fight;
   const used = f.enemies.reduce((s, e) => s + (TIER_CELLS[e.tier] || 1), 0);
