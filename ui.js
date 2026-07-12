@@ -734,10 +734,10 @@ UI.renderAdventure = function (el) {
               <button class="btn" onclick="${ADV.paused ? 'resumeAdventure()' : 'pauseAdventure()'}">${ADV.paused ? '▶ Resume' : '⏸ Pause'}</button>
               <button class="btn danger" onclick="stopAdventure()">🏳️ Retreat now</button>
               <span class="speed-ctl">Speed:
-                <button class="btn btn-tiny ${ADV.speedMs === 600 ? 'active' : ''}" onclick="setAdvSpeed(600)">1×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 200 ? 'active' : ''}" onclick="setAdvSpeed(200)">3×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 60 ? 'active' : ''}" onclick="setAdvSpeed(60)">10×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 20 ? 'active' : ''}" onclick="setAdvSpeed(20)">MAX</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 1200 ? 'active' : ''}" onclick="setAdvSpeed(1200)">1×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 400 ? 'active' : ''}" onclick="setAdvSpeed(400)">3×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 120 ? 'active' : ''}" onclick="setAdvSpeed(120)">10×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 40 ? 'active' : ''}" onclick="setAdvSpeed(40)">MAX</button>
               </span>
             </div>
             <p class="hint">Your hero fights until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this level's progress — retreat while you still can to keep it!</p>
@@ -823,7 +823,8 @@ const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary
 UI.enemyPanelHtml = function () {
   if (!ADV) return `<p class="hint">No fight in progress.</p>`;
   if (!ADV.fight) {
-    return `<div class="enemy-cards">${'<div class="enemy-placeholder"></div>'.repeat(6)}</div>`;
+    return `<p class="hint">Travelling...</p>
+      <div class="enemy-cards">${'<div class="enemy-placeholder"></div>'.repeat(6)}</div>`;
   }
   const f = ADV.fight;
   const used = f.enemies.reduce((s, e) => s + (TIER_CELLS[e.tier] || 1), 0);

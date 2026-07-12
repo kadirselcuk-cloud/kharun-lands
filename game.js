@@ -45,7 +45,7 @@ function newGame(clsId) {
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
     totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 } },
-    settings: { packSize: 1, advSpeed: 600, lastAdvLevel: null },
+    settings: { packSize: 1, advSpeed: 1200, lastAdvLevel: null },
     shop: null,
     tavern: null,
     itemSeq: 1,
@@ -91,7 +91,7 @@ function loadGame() {
   if (!g) return false;
   G = g;
   if (!G.settings) G.settings = { packSize: 1 };
-  if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 600; G.settings.lastAdvLevel = null; }
+  if (G.settings.advSpeed === undefined) { G.settings.advSpeed = 1200; G.settings.lastAdvLevel = null; }
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
   if (!G.shop || !G.shop.stock) genShopStock();
@@ -1101,7 +1101,7 @@ function startAdventure() {
   // level, but reset to defaults when adventuring in a new level.
   if (G.settings.lastAdvLevel !== level) {
     G.settings.packSize = 1;
-    G.settings.advSpeed = 600;
+    G.settings.advSpeed = 1200;
     G.settings.lastAdvLevel = level;
   }
   // areas cleared before re-runnability landed sit at 1111 — reset them
@@ -1115,7 +1115,7 @@ function startAdventure() {
     potCd: { hp: 0, mana: 0 },       // manual potion cooldowns (ticks)
     queued: null,                    // manually queued skill id
     lastAction: null,                // shown in the arena's action box
-    speedMs: G.settings.advSpeed || 600,
+    speedMs: G.settings.advSpeed || 1200,
     fight: null,
     run: {
       kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
