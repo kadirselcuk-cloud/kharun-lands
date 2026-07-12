@@ -628,20 +628,19 @@ UI.renderJournal = function (el) {
   const frontier = Math.min(G.unlocked || 1, MAX_LEVEL_AREA);
   const curChapterNum = chapterNumOf(frontier);
 
+  // Only parts reached so far (past or current) are rendered at all —
+  // unstarted parts aren't listed, same as unreached chapters.
   const partEntry = (bt, chapterIdx, partIdx) => {
     const level = chapterIdx * 10 + partIdx + 1;
     const locName = bt.biomes[partIdx];
     const cleared = !!G.bossKilled[level];
-    const isCurrent = !cleared && level === frontier;
-    const isFuture = level > frontier;
-    const state = cleared ? 'past' : isCurrent ? 'current' : 'future';
+    const state = cleared ? 'past' : 'current';
     const kills = G.progress[level] || 0;
+    const beginning = `<p class="prelude-text journal-story-text">${esc(partStory(level, 'beginning'))}</p>`;
     const body = cleared
-      ? `<p>🏆 Cleared — the legendary boss of ${esc(locName)} has fallen. This ground can still be walked again, but its tale here is told.</p>`
-      : isFuture
-        ? `<p class="hint">🔒 Not yet reached.</p>`
-        : `<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
-    return `<details class="journal-entry journal-part ${state}" ${isCurrent ? 'open' : ''}>
+      ? `${beginning}<p class="prelude-text journal-story-text">${esc(partStory(level, 'end'))}</p><p class="hint">🏆 Cleared — this ground can still be walked again, but its tale here is told.</p>`
+      : `${beginning}<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
+    return `<details class="journal-entry journal-part ${state}" ${state === 'current' ? 'open' : ''}>
       <summary>Part ${partIdx + 1}: ${esc(locName)}</summary>
       <div class="journal-body">${body}</div>
     </details>`;
@@ -653,7 +652,10 @@ UI.renderJournal = function (el) {
     const chapterNum = i + 1;
     const ch = chapterData(chapterNum * 10 - 9);
     const state = chapterNum < curChapterNum ? 'past' : 'current';
-    const parts = Array.from({ length: 10 }, (_, p) => partEntry(bt, i, p)).join('');
+    // past chapters: every part is cleared. current chapter: only up
+    // through the frontier part (the rest haven't started yet).
+    const visiblePartCount = state === 'past' ? 10 : ((frontier - 1) % 10) + 1;
+    const parts = Array.from({ length: visiblePartCount }, (_, p) => partEntry(bt, i, p)).join('');
     return `<details class="journal-entry journal-chapter ${state}" ${state === 'current' ? 'open' : ''}>
       <summary>${bt.icon} ${esc(ch.title)}</summary>
       <div class="journal-body">
