@@ -38,7 +38,7 @@ function newGame(clsId) {
       kills: 0,
     },
     gold: 25,
-    potions: { hp: 3, mana: 1 },   // drinkable stock — used manually in combat
+    potions: { hp: 2, mana: 1 },   // drinkable stock — capped by potionCapacity(); used manually in combat
     inventory: [],       // items + runes
     area: 1,             // selected area level
     unlocked: 1,         // highest unlocked area
@@ -317,6 +317,14 @@ function rollSockets() {
   return 0;
 }
 
+// Potion capacity a belt grants (applies equally to HP and Mana slots),
+// tiered by the belt's item level: low levels 1-3, mid 2-6, high 4-8.
+function beltPotionCap(ilvl) {
+  if (ilvl <= 33) return rint(1, 3);
+  if (ilvl <= 66) return rint(2, 6);
+  return rint(4, 8);
+}
+
 function makeItem(ilvl, rarity, clsHint) {
   const scale = itemScale(ilvl);
   const rar = DATA.RARITIES[rarity];
@@ -349,12 +357,16 @@ function makeItem(ilvl, rarity, clsHint) {
     it.baseName = base.name; it.weight = weight;
     it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
     if (slot === 'helmet' || slot === 'armor') it.sockets = rollSockets();
-  } else { // jewelry: amulet / ring / cloak — pure affix carriers, always at least magical
-    const kind = pick(['amulet', 'ring', 'ring', 'cloak']);
+  } else { // jewelry: amulet / ring / cloak / belt
+    const kind = pick(['amulet', 'ring', 'ring', 'cloak', 'belt']);
     const base = DATA.JEWELRY_BASES[kind];
     it.slot = kind; it.base = kind; it.icon = base.icon; it.baseName = base.name;
     if (base.armor) it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
-    if (rarity === 'normal') { rarity = 'magical'; it.rarity = 'magical'; }
+    if (kind === 'belt') {
+      it.potionCap = beltPotionCap(ilvl);   // belts function at any rarity, not socketable
+    } else if (rarity === 'normal') { // amulet/ring/cloak are pure affix carriers
+      rarity = 'magical'; it.rarity = 'magical';
+    }
   }
 
   const [aMin, aMax] = DATA.RARITIES[it.rarity].affixes;
@@ -826,16 +838,29 @@ function dropItem(lvl, rarity, run) {
 
 // Found potions are STORED (drunk manually); power-up scrolls auto-use.
 const SCROLL_ROUNDS = 100;
+const BASE_POTION_CAP = 2;   // capacity per potion type with no belt equipped
+
+// A belt adds its potionCap to BOTH the HP and Mana slots equally.
+function potionCapacity() {
+  const belt = G.char.equip.belt;
+  return BASE_POTION_CAP + (belt && belt.potionCap ? belt.potionCap : 0);
+}
+
 function gainPotion(kind, run) {
   if (kind === 'scroll') {
     ADV.scroll = (ADV.scroll || 0) + SCROLL_ROUNDS;
     run.potions.scroll++;
     log('loot', `📜 A power-up scroll unfurls on its own! +12% damage for ${SCROLL_ROUNDS} rounds.`);
-  } else {
-    G.potions[kind] = (G.potions[kind] || 0) + 1;
-    run.potions[kind]++;
-    log('loot', `🧪 Found a ${kind === 'hp' ? 'health' : 'mana'} potion (stored — click to drink).`);
+    return;
   }
+  const cap = potionCapacity();
+  if ((G.potions[kind] || 0) >= cap) {
+    log('loot', `🧪 Found a ${kind === 'hp' ? 'health' : 'mana'} potion, but your belt has no room for it — it spills, wasted. (${cap}/${cap} ${kind === 'hp' ? 'health' : 'mana'})`);
+    return;
+  }
+  G.potions[kind] = (G.potions[kind] || 0) + 1;
+  run.potions[kind]++;
+  log('loot', `🧪 Found a ${kind === 'hp' ? 'health' : 'mana'} potion (${G.potions[kind]}/${cap} stored — click to drink).`);
   questEvent('potion');
 }
 

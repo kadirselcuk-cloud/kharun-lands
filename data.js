@@ -368,10 +368,10 @@ DATA.RARITIES = {
   legendary: { name: 'Legendary', color: '#ff8b3d', affixes: [5, 5], mult: 1.75, value: 60 },
 };
 
-DATA.SLOTS = ['weapon', 'offhand', 'helmet', 'amulet', 'armor', 'cloak', 'ring1', 'ring2', 'gloves', 'pants', 'boots'];
+DATA.SLOTS = ['weapon', 'offhand', 'helmet', 'amulet', 'armor', 'cloak', 'belt', 'ring1', 'ring2', 'gloves', 'pants', 'boots'];
 DATA.SLOT_LABEL = {
   weapon: 'Weapon', offhand: 'Off Hand / Shield', helmet: 'Helmet', amulet: 'Amulet', armor: 'Armor',
-  cloak: 'Cloak', ring1: 'Left Ring', ring2: 'Right Ring', gloves: 'Gloves', pants: 'Pants', boots: 'Footwear',
+  cloak: 'Cloak', belt: 'Belt', ring1: 'Left Ring', ring2: 'Right Ring', gloves: 'Gloves', pants: 'Pants', boots: 'Footwear',
 };
 
 // Weapon bases. hands: 1|2. classes: which classes can use (null = all).
@@ -412,11 +412,17 @@ DATA.ARMOR_BASES = {
 };
 DATA.ARMOR_ICONS = { helmet: '🪖', armor: '🎽', gloves: '🧤', pants: '👖', boots: '🥾' };
 
-// Jewelry / misc bases (no weight class; magical+ only carriers).
+// Jewelry / misc bases (no weight class). amulet/ring/cloak are pure
+// affix carriers, always at least magical. belt is the exception:
+// not socketable, unrestricted by class/weight, and can be normal
+// rarity — every belt (any rarity) carries potion capacity as its
+// base stat (see beltPotionCap in game.js), with affixes on top once
+// magical+.
 DATA.JEWELRY_BASES = {
   amulet: { name: 'Amulet', icon: '📿' },
   ring: { name: 'Ring', icon: '💍' },
   cloak: { name: 'Cloak', icon: '🧣', armor: 2 },
+  belt: { name: 'Belt', icon: '👝' },
 };
 
 // Affix pool: id, label(v), weight, roll(ilvl) -> value
@@ -509,6 +515,7 @@ DATA.ITEM_NOUNS = {
   amulet: ['Tear', 'Heart', 'Promise', 'Memory'],
   ring: ['Band', 'Coil', 'Oath', 'Circle'],
   cloak: ['Shadow', 'Wings', 'Veil', 'Shroud'],
+  belt: ['Cinch', 'Girdle', 'Sash', 'Reserve'],
 };
 
 // Short adjectives per affix — the first word of a rare/epic weapon name.

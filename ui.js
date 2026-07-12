@@ -206,6 +206,7 @@ UI.renderCharacter = function (el) {
         <div class="stat-row"><span>💗 HP Regen</span><b>${d.hpRegen}</b></div>
         <div class="stat-row"><span>💨 Evasion</span><b>${d.evasion}%</b></div>
         <div class="stat-row"><span>💧 Mana Regen</span><b>${d.manaRegen}</b></div>
+        <div class="stat-row"><span>👝 Potion Capacity</span><b>${potionCapacity()}</b><small class="effect">${G.char.equip.belt ? esc(G.char.equip.belt.name) : 'no belt equipped — base 2'}</small></div>
         <h3>Combat</h3>
         <div class="stat-row"><span>🗡️ Damage</span><b>${d.baseDmgMin.toLocaleString()}–${d.baseDmgMax.toLocaleString()}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
         <div class="stat-row"><span>⏱️ Attack Interval</span><b>${d.atkInterval}</b><small class="effect">weapon ×${d.atkFactor} — lower = faster swings</small></div>
@@ -358,6 +359,7 @@ function statMapOf(it) {
   if (it.dmgMin) m.dmg = (it.dmgMin + it.dmgMax) / 2;
   if (it.armor) m.armor = it.armor;
   if (it.spd) m.spd = it.spd;
+  if (it.potionCap) m.potionCap = it.potionCap;
   for (const a of allAffixesOf(it)) m['a_' + a.id] = (m['a_' + a.id] || 0) + a.v;
   return m;
 }
@@ -377,6 +379,7 @@ UI.itemStatsHtml = function (it, baseline) {
   const runes = it.runes || [];
   return `${it.dmgMin ? `<div class="istat ${cls('dmg')}">Damage: <b>${it.dmgMin.toLocaleString()}–${it.dmgMax.toLocaleString()}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
     ${it.armor ? `<div class="istat ${cls('armor')}">Armor: <b>${it.armor.toLocaleString()}</b></div>` : ''}
+    ${it.potionCap ? `<div class="istat ${cls('potionCap')}">Potion Capacity: <b>+${it.potionCap}</b> (HP &amp; Mana each)</div>` : ''}
     ${it.spd ? `<div class="istat ${cls('spd')}">Speed: <b>+${it.spd}</b></div>` : ''}
     ${it.atkSpd ? `<div class="istat">Attack Speed: <b>${it.atkSpd < 0.8 ? 'Very Fast' : it.atkSpd < 1 ? 'Fast' : it.atkSpd === 1 ? 'Normal' : it.atkSpd <= 1.2 ? 'Slow' : 'Very Slow'}</b> (×${it.atkSpd})</div>` : ''}
     ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
@@ -638,13 +641,14 @@ UI.actionBoxHtml = function () {
 
 // Under the arena: manual potions and activatable skills.
 UI.controlsHtml = function () {
-  if (!ADV) return `<p class="hint">🧪 Potions stored: ❤️ ${G.potions.hp} · 🔵 ${G.potions.mana} — usable during adventures.</p>`;
+  const potCap = potionCapacity();
+  if (!ADV) return `<p class="hint">🧪 Potions stored: ❤️ ${G.potions.hp}/${potCap} · 🔵 ${G.potions.mana}/${potCap}${G.char.equip.belt ? ` (${esc(G.char.equip.belt.name)} equipped)` : ' — no belt equipped, base capacity only'} — usable during adventures.</p>`;
   const c = G.char;
   const potBtn = (kind, icon, label) => {
     const cd = ADV.potCd[kind] || 0;
     const n = G.potions[kind] || 0;
     return `<button class="btn pot-btn ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || n <= 0 || ADV.paused ? 'disabled' : ''} onclick="drinkPotion('${kind}')">
-      ${icon} ${label} ×${n}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ''}</button>`;
+      ${icon} ${label} ×${n}/${potCap}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ''}</button>`;
   };
   const actives = Object.values(DATA.SKILLS[c.cls]).filter(s => !s.passive && s.cat !== 'basic' && (c.skills[s.id] || 0) > 0);
   const skillBtn = s => {
