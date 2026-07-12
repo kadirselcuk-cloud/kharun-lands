@@ -353,9 +353,12 @@ small { color: var(--dim); }
 /* enemy panel — fixed 2x3 battle grid: normals/rares one cell each,
    epics fill a row (3 cells), legendaries fill the whole grid (6 cells) */
 .round-ind { font-size: .76rem; color: var(--dim); margin-bottom: 6px; }
+/* 2 columns x 3 rows, mobile-friendly. Every one of the 6 slots is a
+   fixed size regardless of what's in it (or nothing), so the arena
+   never resizes/jumps as enemies appear, die, or change tier. */
 .enemy-cards {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, minmax(140px, auto));
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 140px);
   gap: 8px; margin-bottom: 12px;
 }
 .enemy-placeholder {
@@ -365,12 +368,13 @@ small { color: var(--dim); }
 }
 .enemy-card {
   background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+  overflow: hidden;
 }
 .enemy-card.dead { opacity: .38; }
 .enemy-card.tierb-rare { border-color: #3d5aa8; }
 .enemy-card.tierb-epic {
   border-color: #7d3da8; box-shadow: 0 0 14px rgba(199,125,255,.35);
-  grid-column: 1 / -1; min-height: 150px; padding: 14px 18px;
+  grid-column: 1 / -1; padding: 14px 18px;
   display: flex; flex-direction: column; justify-content: center;
 }
 .enemy-card.tierb-epic .enemy-name { font-size: 1.25rem; }
@@ -378,7 +382,7 @@ small { color: var(--dim); }
 .enemy-card.tierb-epic .enemy-stats { font-size: .85rem; }
 .enemy-card.tierb-miniboss {
   border-color: #2d8a84; box-shadow: 0 0 14px rgba(78,205,196,.35);
-  grid-column: span 2; min-height: 140px; padding: 12px 16px;
+  grid-column: span 2; padding: 12px 16px;
   display: flex; flex-direction: column; justify-content: center;
 }
 .enemy-card.tierb-miniboss .enemy-name { font-size: 1.1rem; }
@@ -390,7 +394,7 @@ small { color: var(--dim); }
 }
 .enemy-card.tierb-legendary {
   border-color: #a8623d; border-width: 2px; box-shadow: 0 0 24px rgba(255,139,61,.45);
-  grid-column: 1 / -1; grid-row: span 2; min-height: 296px; padding: 22px 26px;
+  grid-column: 1 / -1; grid-row: span 2; padding: 18px 22px;
   display: flex; flex-direction: column; justify-content: center; gap: 6px;
   background: radial-gradient(400px 200px at 50% 0%, #2a1c12, var(--panel2));
 }

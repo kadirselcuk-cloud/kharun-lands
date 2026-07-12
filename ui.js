@@ -732,10 +732,10 @@ UI.renderAdventure = function (el) {
               <button class="btn" onclick="${ADV.paused ? 'resumeAdventure()' : 'pauseAdventure()'}">${ADV.paused ? '▶ Resume' : '⏸ Pause'}</button>
               <button class="btn danger" onclick="stopAdventure()">🏳️ Retreat now</button>
               <span class="speed-ctl">Speed:
-                <button class="btn btn-tiny ${ADV.speedMs === 300 ? 'active' : ''}" onclick="setAdvSpeed(300)">1×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 100 ? 'active' : ''}" onclick="setAdvSpeed(100)">3×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 30 ? 'active' : ''}" onclick="setAdvSpeed(30)">10×</button>
-                <button class="btn btn-tiny ${ADV.speedMs === 10 ? 'active' : ''}" onclick="setAdvSpeed(10)">MAX</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 600 ? 'active' : ''}" onclick="setAdvSpeed(600)">1×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 200 ? 'active' : ''}" onclick="setAdvSpeed(200)">3×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 60 ? 'active' : ''}" onclick="setAdvSpeed(60)">10×</button>
+                <button class="btn btn-tiny ${ADV.speedMs === 20 ? 'active' : ''}" onclick="setAdvSpeed(20)">MAX</button>
               </span>
             </div>
             <p class="hint">Your hero fights until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this level's progress — retreat while you still can to keep it!</p>
@@ -815,8 +815,8 @@ UI.controlsHtml = function () {
 };
 
 // Detailed cards for every enemy in the current fight.
-// grid cells each tier occupies in the 3x2 battle grid
-const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 3, legendary: 6 };
+// grid cells each tier occupies in the 2x3 (mobile-friendly) battle grid
+const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary: 4 };
 
 UI.enemyPanelHtml = function () {
   if (!ADV) return `<p class="hint">No fight in progress.</p>`;
