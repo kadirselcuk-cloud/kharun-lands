@@ -284,6 +284,35 @@ DATA.CAT_LABEL = {
 };
 
 // ------------------------------------------------------------
+// Monster specialties — rolled onto individual creatures. Not to be
+// confused with DATA.AFFIXES below, which is the unrelated item-enchant
+// pool. Odds per tier and stacking rules live in game.js (rollAffixes);
+// this table is just name/icon/color/tooltip for display + lookup.
+// ------------------------------------------------------------
+DATA.SPECIALTIES = {
+  regen:      { name: 'Regenerating', icon: '🌿', color: '#6ccb8f', desc: 'Regenerates 3% of max HP every round.' },
+  vampiric:   { name: 'Vampiric',     icon: '🩸', color: '#c23d6b', desc: 'Heals itself for 25% of the damage it deals to you.' },
+  resistant:  { name: 'Resistant',    icon: '🛡️', color: '#6c9bff', desc: '+20% resistance to all damage types.' },
+  resilient:  { name: 'Resilient',    icon: '🦴', color: '#9aa0b5', desc: 'Takes 20% less damage from all sources.' },
+  poisonous:  { name: 'Poisonous',    icon: '☠️', color: '#7a9a3d', desc: 'Attacks poison you, dealing damage over a few rounds.' },
+  necrotic:   { name: 'Necrotic',     icon: '💀', color: '#7d3da8', desc: 'While alive, your healing is reduced by 75%.' },
+  magical:    { name: 'Magical',      icon: '✨', color: '#c77dff', desc: 'Attacks deal random bonus magic damage.' },
+  explosive:  { name: 'Explosive',    icon: '💥', color: '#ff6b3d', desc: 'Explodes on death, damaging you.' },
+  frozen:     { name: 'Frozen',       icon: '❄️', color: '#6cd4ff', desc: '25% chance per attack to slow your attack gauge.' },
+  burning:    { name: 'Burning',      icon: '🔥', color: '#ff8b3d', desc: '25% chance per attack to ignite you over time.' },
+  evasive:    { name: 'Evasive',      icon: '💨', color: '#b9bdcc', desc: '25% chance to fully evade your attacks.' },
+  reflective: { name: 'Reflective',   icon: '🪞', color: '#4ecdc4', desc: 'Reflects 20% of the damage you deal back at you.' },
+  enraged:    { name: 'Enraged',      icon: '😡', color: '#ff4d4d', desc: 'Attacks faster and harder as its HP drops.' },
+  berserk:    { name: 'Berserk',      icon: '🪓', color: '#d94f4f', desc: 'Deals more damage but takes more as its HP drops.' },
+  cursed:     { name: 'Cursed',       icon: '🕯️', color: '#7a5cff', desc: 'Attacks weaken your damage output for a few rounds.' },
+  golem:      { name: 'Golem',        icon: '🗿', color: '#8a7355', desc: 'Takes 80% less magic damage, but double physical damage.' },
+  spectral:   { name: 'Spectral',     icon: '👻', color: '#a8c8ff', desc: 'Takes 80% less physical damage, but double magic damage.' },
+  colossal:   { name: 'Colossal',     icon: '🏔️', color: '#8a6d3d', desc: '+50% max HP, -25% speed.' },
+  swift:      { name: 'Swift',        icon: '🌀', color: '#4cd9d9', desc: '+40% speed.' },
+  corrosive:  { name: 'Corrosive',    icon: '🧪', color: '#8fbf3d', desc: "Attacks temporarily corrode your armor." },
+};
+
+// ------------------------------------------------------------
 // Biomes — 10 types x 10 variations = 100 levels
 // Each creature: name, attack name, atkType (phys|magic|poison),
 // res {phys, magic, poison} in %, and role multipliers.

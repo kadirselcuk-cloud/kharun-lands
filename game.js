@@ -778,7 +778,43 @@ function makeElf(level) {
 function elfChunkRarity() { const r = Math.random() * 100; return r < 80 ? 'magical' : r < 97 ? 'rare' : 'epic'; }
 function elfKillRarity() { const r = Math.random() * 100; return r < 75 ? 'rare' : r < 97 ? 'epic' : 'legendary'; }
 
-function makeCreature(level, tier) {
+// ------------------------------------------------------------
+// Monster specialties (affixes)
+// ------------------------------------------------------------
+// Chance a creature of a given tier rolls ONE specialty. Legendary is
+// handled separately below (it always gets 1-2, or exactly 2 for the
+// boss at the end of a chapter — level % 10 === 0).
+const AFFIX_CHANCE = { normal: 0.10, rare: 0.20, epic: 0.50, miniboss: 1.0 };
+const AFFIX_IDS = Object.keys(DATA.SPECIALTIES);
+function isChapterEndLevel(level) { return level % 10 === 0; }
+
+function rollAffixCount(tier, isChapterBoss) {
+  if (tier === 'legendary') return isChapterBoss ? 2 : (Math.random() < 0.5 ? 1 : 2);
+  const ch = AFFIX_CHANCE[tier] || 0;
+  return Math.random() < ch ? 1 : 0;
+}
+function rollAffixes(tier, isChapterBoss) {
+  const n = rollAffixCount(tier, isChapterBoss);
+  if (n === 0) return [];
+  const pool = AFFIX_IDS.slice();
+  const out = [];
+  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  return out;
+}
+function hasAffix(e, id) { return !!(e.affixes && e.affixes.includes(id)); }
+// specialties whose stat effect is baked in once, at creation time —
+// everything else (poison, vamp, evasive, etc.) is resolved live in combat
+function applyAffixStatMods(c) {
+  if (!c.affixes || !c.affixes.length) return;
+  for (const a of c.affixes) {
+    if (a === 'resistant') { for (const k of Object.keys(c.res)) c.res[k] = Math.min(85, c.res[k] + 20); }
+    else if (a === 'resilient') { c.dr = (c.dr || 0) + 0.20; }
+    else if (a === 'colossal') { c.maxHp = Math.round(c.maxHp * 1.5); c.hp = c.maxHp; c.spd = Math.round(c.spd * 0.75); }
+    else if (a === 'swift') { c.spd = Math.round(c.spd * 1.4); }
+  }
+}
+
+function makeCreature(level, tier, opts) {
   const info = areaInfo(level);
   const base = pick(creaturesForLevel(level));
   const conf = TIER_CONF[tier];
@@ -799,6 +835,8 @@ function makeCreature(level, tier) {
   if (tier !== 'normal') {
     for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
+  c.affixes = rollAffixes(tier, opts && opts.isChapterBoss);
+  applyAffixStatMods(c);
   return c;
 }
 
@@ -927,6 +965,7 @@ function drinkPotion(kind) {
     if (roll < 0.005) { heal = d.maxHp; label = '🌟 FULL HEALTH potion! Fully restored'; }
     else if (roll < 0.255) { heal = Math.round(d.maxHp * 0.40); label = '✨ GREATER health potion!'; }
     else { heal = Math.round(d.maxHp * 0.20); label = 'Health potion.'; }
+    if (ADV.fight && necroticActive(ADV.fight)) { heal = Math.round(heal * 0.25); label += ' (weakened by a Necrotic aura)'; }
     const before = G.char.hp;
     G.char.hp = Math.min(d.maxHp, G.char.hp + heal);
     log('loot', `🧪 ${label} +${Math.round(G.char.hp - before)} HP.`);
@@ -970,19 +1009,51 @@ function pickSkill(fight) {
   return basic;
 }
 
+// ------------------------------------------------------------
+// Specialty helpers that depend on live combat state (current HP,
+// active fight debuffs) rather than a one-time stat at creation.
+// ------------------------------------------------------------
+function enemyMissingFrac(e) { return e.maxHp > 0 ? Math.max(0, 1 - e.hp / e.maxHp) : 0; }
+function effectiveEnemyDmg(e) {
+  let mult = 1;
+  const mf = enemyMissingFrac(e);
+  if (hasAffix(e, 'enraged')) mult += mf * 0.6;
+  if (hasAffix(e, 'berserk')) mult += mf * 0.8;
+  return e.dmg * mult;
+}
+function effectiveEnemySpd(e) {
+  return hasAffix(e, 'enraged') ? e.spd * (1 + enemyMissingFrac(e) * 0.5) : e.spd;
+}
+function incomingDmgMult(e) {
+  return hasAffix(e, 'berserk') ? 1 + enemyMissingFrac(e) * 0.5 : 1;
+}
+function necroticActive(fight) { return fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'necrotic')); }
+
 function playerHit(fight, enemy, skill, r) {
+  if (hasAffix(enemy, 'evasive') && Math.random() < 0.25) return 0;
   const d = ADV.d;
   const raw = rint(d.baseDmgMin, d.baseDmgMax) * (skill.mult ? skill.mult(r) : 1);
-  let dmgBoost = 1 + (ADV.scroll > 0 ? 0.12 : 0);   // power-up scroll
+  let dmgBoost = 1 + (ADV.scroll > 0 ? 0.12 : 0) - (fight.cursedDebuff ? fight.cursedDebuff.dmgDown : 0);   // power-up scroll, weakened by Cursed
+  dmgBoost = Math.max(0.1, dmgBoost);
   for (const b of fight.buffs) if (b.dmgPct) dmgBoost += b.dmgPct;
   const isMagic = skill.magic || (d.weaponMagic && skill.cat === 'basic');
   const resKey = isMagic ? 'magic' : 'phys';
   let res = enemy.res[resKey] - d.enemyResDown - (fight.enemyResDown || 0);
   if (skill.pierce) res *= (1 - skill.pierce);
   res = Math.max(-50, Math.min(75, res));
-  const dmg = Math.max(1, Math.round(raw * dmgBoost * (1 - res / 100)));
+  let dmg = Math.max(1, Math.round(raw * dmgBoost * (1 - res / 100)));
+  if (hasAffix(enemy, 'golem')) dmg = resKey === 'phys' ? dmg * 2 : Math.max(1, Math.round(dmg * 0.2));
+  if (hasAffix(enemy, 'spectral')) dmg = resKey === 'phys' ? Math.max(1, Math.round(dmg * 0.2)) : dmg * 2;
+  if (enemy.dr) dmg = Math.max(1, Math.round(dmg * (1 - enemy.dr)));
+  dmg = Math.max(1, Math.round(dmg * incomingDmgMult(enemy)));
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
+  if (hasAffix(enemy, 'reflective')) {
+    const reflect = Math.max(1, Math.round(dmg * 0.20));
+    G.char.hp -= reflect;
+    ADV.run.dmgTaken += reflect;
+    log('enemy', `🪞 ${enemy.name.split(' — ')[0]}'s reflective ward sends ${reflect} damage back at you!`);
+  }
   if (enemy.tier === 'elf') fight.elfHits = (fight.elfHits || 0) + 1;
   return dmg;
 }
@@ -990,18 +1061,30 @@ function playerHit(fight, enemy, skill, r) {
 function enemyHit(fight, enemy) {
   const d = ADV.d;
   if (Math.random() * 100 < d.evasion) return { dodged: true, dmg: 0 };
-  let raw = enemy.dmg * (0.85 + Math.random() * 0.3);
+  let raw = effectiveEnemyDmg(enemy) * (0.85 + Math.random() * 0.3);
   if (fight.enemyDmgDown) raw *= (1 - fight.enemyDmgDown);
   const resKey = enemy.atkType === 'magic' ? 'magic' : enemy.atkType === 'poison' ? 'poison' : 'phys';
   let dmg = raw * (1 - d.res[resKey] / 100);
   if (enemy.atkType === 'phys') {
-    const armorRed = d.armor / (d.armor + 40 + 8 * enemy.level);
+    const armor = d.armor * (1 - (fight.corrosiveDebuff ? fight.corrosiveDebuff.armorDown : 0));
+    const armorRed = armor / (armor + 40 + 8 * enemy.level);
     dmg *= (1 - armorRed);
   }
   dmg *= (1 - d.dr);
+  if (hasAffix(enemy, 'magical')) dmg += raw * (0.15 + Math.random() * 0.15);
   dmg = Math.max(1, Math.round(dmg));
   G.char.hp -= dmg;
   ADV.run.dmgTaken += dmg;
+  if (hasAffix(enemy, 'vampiric')) enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.max(1, Math.round(dmg * 0.25)));
+  if (hasAffix(enemy, 'poisonous')) {
+    fight.playerDots.poison = { icon: '☠️', label: `${enemy.name.split(' — ')[0]}'s poison`, dmg: Math.max(1, Math.round(enemy.dmg * 0.12)), rounds: 3 };
+  }
+  if (hasAffix(enemy, 'burning') && Math.random() < 0.25) {
+    fight.playerDots.burning = { icon: '🔥', label: 'Burning', dmg: Math.max(1, Math.round(enemy.dmg * 0.15)), rounds: 3 };
+  }
+  if (hasAffix(enemy, 'frozen') && Math.random() < 0.25) fight.playerSlow = { pct: 0.30, rounds: 2 };
+  if (hasAffix(enemy, 'cursed')) fight.cursedDebuff = { dmgDown: 0.12, rounds: 3 };
+  if (hasAffix(enemy, 'corrosive')) fight.corrosiveDebuff = { armorDown: 0.20, rounds: 3 };
   return { dodged: false, dmg };
 }
 
@@ -1022,8 +1105,9 @@ function playerAct(fight) {
     if (skill.healPct) {
       let heal = Math.round(d.maxHp * skill.healPct(r));
       if (c.cls === 'mage') heal += Math.round(d.int * 1.5);
+      if (necroticActive(fight)) heal = Math.round(heal * 0.25);
       c.hp = Math.min(d.maxHp, c.hp + heal);
-      log('act', `${skill.icon} ${skill.name} heals you for ${heal} HP`);
+      log('act', `${skill.icon} ${skill.name} heals you for ${heal} HP${necroticActive(fight) ? ' (weakened by a Necrotic aura)' : ''}`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} +${heal} HP` };
     } else if (skill.buff && !skill.mult) {
       fight.buffs.push({ ...skill.buff(r) });
@@ -1049,8 +1133,8 @@ function playerAct(fight) {
       for (const t of tgts) {
         const dmg = playerHit(fight, t, skill, r);
         total += dmg;
-        parts.push(`${t.name.split(' — ')[0]} for ${dmg.toLocaleString()}`);
-        if (skill.stun && t.hp > 0) t.stunned = (t.stunned || 0) + skill.stun;
+        parts.push(dmg > 0 ? `${t.name.split(' — ')[0]} for ${dmg.toLocaleString()}` : `${t.name.split(' — ')[0]} (evaded!)`);
+        if (skill.stun && dmg > 0 && t.hp > 0) t.stunned = (t.stunned || 0) + skill.stun;
       }
       log('act', `${skill.icon} ${skill.name} hits ${parts.join(', ')}`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${total.toLocaleString()} dmg` };
@@ -1220,6 +1304,7 @@ function adventureTick() {
       ADV.fight = {
         enemies: [elf], cds: {}, buffs: [], enemyDmgDown: 0, enemyResDown: 0,
         debuffRounds: 0, debuffApplied: false, round: 0, playerGauge: 0,
+        playerDots: {}, playerSlow: null, cursedDebuff: null, corrosiveDebuff: null,
         elf: true, elfHits: 0, elfChunks: 0,
       };
       log('encounter', `🧝 A SNEAKY ELF with a bulging bag darts across your path! (5 hits before he escapes!)`, { tier: 'elf' });
@@ -1228,22 +1313,47 @@ function adventureTick() {
       return;
     }
 
+    // Non-normal encounters bring a pack of escorts along (sized to fit
+    // the battle grid's fixed 6-cell capacity exactly — see TIER_CELLS
+    // in ui.js). The player's pack-size setting only scales pure-Normal
+    // encounters below; these ranges are fixed regardless of that setting.
     let enemies;
     if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
-      enemies = [makeCreature(level, 'miniboss')];
-      log('encounter', `👑 MINI BOSS: ${enemies[0].name} (${enemies[0].species}, Lv ${level}) prowls out of the wilds!`, { tier: 'miniboss' });
+      const miniboss = makeCreature(level, 'miniboss');
+      const escort = Math.random() < 0.20
+        ? [makeCreature(level, 'epic')]
+        : Array.from({ length: rint(1, 2) }, () => makeCreature(level, 'rare'));
+      enemies = [miniboss, ...escort];
+      log('encounter', `👑 MINI BOSS: ${miniboss.name} (${miniboss.species}, Lv ${level}) prowls out of the wilds, backed by ${escort.length} ${escort[0].tier}!`, { tier: 'miniboss' });
     } else if (tier === 'normal') {
       const packMax = Math.max(1, Math.min(G.settings.packSize, normalsUntilSpecial(kills)));
       enemies = Array.from({ length: packMax }, () => makeCreature(level, 'normal'));
       log('encounter', `⚔️ ${enemies.length > 1 ? enemies.length + ' creatures block your path' : 'A creature blocks your path'}: ${enemies.map(e => e.name).join(', ')}`);
+    } else if (tier === 'rare') {
+      const rare = makeCreature(level, 'rare');
+      const count = rint(1, 3);
+      const escort = Array.from({ length: count }, () => makeCreature(level, 'normal'));
+      enemies = [rare, ...escort];
+      log('encounter', `🔷 RARE: ${rare.name} (${rare.species}, Lv ${level}) appears, flanked by ${count} creature${count > 1 ? 's' : ''}!`, { tier: 'rare' });
+    } else if (tier === 'epic') {
+      const epic = makeCreature(level, 'epic');
+      const count = rint(2, 4);
+      const escortTier = Math.random() < 0.20 ? 'rare' : 'normal';
+      const escort = Array.from({ length: count }, () => makeCreature(level, escortTier));
+      enemies = [epic, ...escort];
+      log('encounter', `🟣 EPIC: ${epic.name} (${epic.species}, Lv ${level}) appears with ${count} ${escortTier} creatures!`, { tier: 'epic' });
     } else {
-      enemies = [makeCreature(level, tier)];
-      const label = { rare: '🔷 RARE', epic: '🟣 EPIC', legendary: '🔶 LEGENDARY BOSS' }[tier];
-      log('encounter', `${label}: ${enemies[0].name} (${enemies[0].species}, Lv ${level}) appears!`, { tier });
+      const isChapterBoss = isChapterEndLevel(level);
+      const boss = makeCreature(level, 'legendary', { isChapterBoss });
+      const escort = makeCreature(level, 'epic');
+      enemies = [boss, escort];
+      const label = isChapterBoss ? '👑🔶 CHAPTER BOSS' : '🔶 LEGENDARY BOSS';
+      log('encounter', `${label}: ${boss.name} (${boss.species}, Lv ${level}) appears, backed by an Epic guardian!`, { tier: 'legendary' });
     }
     ADV.fight = {
       enemies, cds: {}, buffs: [], enemyDmgDown: 0, enemyResDown: 0,
       debuffRounds: 0, debuffApplied: false, round: 0, playerGauge: 0,
+      playerDots: {}, playerSlow: null, cursedDebuff: null, corrosiveDebuff: null,
     };
     saveGame();
     UI.refreshAdventure();
@@ -1262,10 +1372,31 @@ function adventureTick() {
   }
   if (ADV.scroll > 0) ADV.scroll--;   // power-up scroll burns during combat
 
+  // monster-specialty DOTs/debuffs applied on the player tick down and
+  // deal their damage here (poisonous/burning), same cadence as buffs above
+  if (f.playerDots) {
+    for (const key of Object.keys(f.playerDots)) {
+      const dot = f.playerDots[key];
+      G.char.hp = Math.max(0, G.char.hp - dot.dmg);
+      ADV.run.dmgTaken += dot.dmg;
+      log('enemy', `${dot.icon} ${dot.label} deals ${dot.dmg} damage`);
+      if (--dot.rounds <= 0) delete f.playerDots[key];
+    }
+  }
+  if (f.playerSlow && --f.playerSlow.rounds <= 0) f.playerSlow = null;
+  if (f.cursedDebuff && --f.cursedDebuff.rounds <= 0) f.cursedDebuff = null;
+  if (f.corrosiveDebuff && --f.corrosiveDebuff.rounds <= 0) f.corrosiveDebuff = null;
+  if (G.char.hp <= 0) { G.char.hp = 0; retreat('defeated'); return; }
+
+  // Regenerating specialty: passive heal every round regardless of actions
+  for (const e of f.enemies) {
+    if (e.hp > 0 && hasAffix(e, 'regen')) e.hp = Math.min(e.maxHp, e.hp + Math.max(1, Math.round(e.maxHp * 0.03)));
+  }
+
   // ATB gauges: Speed (from Dexterity) fills the gauge; the weapon's
   // attack interval decides how much gauge one swing costs
-  f.playerGauge += d.speed;
-  for (const e of f.enemies) if (e.hp > 0) e.gauge += e.spd;
+  f.playerGauge += d.speed * (f.playerSlow ? (1 - f.playerSlow.pct) : 1);
+  for (const e of f.enemies) if (e.hp > 0) e.gauge += effectiveEnemySpd(e);
 
   const queue = [];
   const intv = d.atkInterval || 100;
@@ -1310,7 +1441,15 @@ function adventureTick() {
   }
 
   // resolve deaths
-  for (const e of f.enemies) if (e.hp <= 0 && !e.dead) handleKill(e, run);
+  for (const e of f.enemies) if (e.hp <= 0 && !e.dead) {
+    if (hasAffix(e, 'explosive')) {
+      const boom = Math.max(1, Math.round(e.maxHp * 0.08));
+      G.char.hp = Math.max(0, G.char.hp - boom);
+      ADV.run.dmgTaken += boom;
+      log('enemy', `💥 ${e.name.split(' — ')[0]} explodes on death for ${boom} damage!`);
+    }
+    handleKill(e, run);
+  }
 
   if (G.char.hp <= 0) { G.char.hp = 0; retreat('defeated'); return; }
 

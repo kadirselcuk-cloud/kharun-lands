@@ -835,7 +835,9 @@ UI.enemyPanelHtml = function () {
     ${f.enemies.map(e => `
       <div class="enemy-card ${e.hp <= 0 ? 'dead' : ''} tierb-${e.tier}">
         <div class="enemy-name" style="color:${tierColor[e.tier]}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
-        <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}</div>
+        <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}
+          ${(e.affixes || []).map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
+        </div>
         <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${Math.max(0, Math.round(e.hp))}/${e.maxHp}</span></div>
         <div class="enemy-stats">
           ${e.tier === 'elf' ? `<span>🎒 Hits: ${f.elfHits || 0}/5 — he never fights back!</span>` : `
