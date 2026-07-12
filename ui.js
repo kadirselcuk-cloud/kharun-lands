@@ -890,7 +890,7 @@ UI.showCombatOptions = function () {
   const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
   UI.modal(`
     <h3>⚙️ Combat Options</h3>
-    <p class="hint">Choose what happens the moment each type of encounter appears.</p>
+    <p class="hint">Choose what happens the moment each type of encounter appears. "Abnormal" covers Mini Bosses and also any regular creature that rolled a specialty (Vampiric, Explosive, etc.), whatever its rarity.</p>
     <div class="settings-list">
       ${tiers.map(([id, label]) => `
         <div class="settings-subrow">
@@ -916,7 +916,7 @@ UI.showAutoUseSettings = function () {
   const complexSelect = key => `<select data-complex="${key}">${AUTO_MODE_AVAILABLE.map(([v, l]) => `<option value="${v}" ${au[key].mode === v ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   UI.modal(`
     <h3>🤖 Auto-Use Settings</h3>
-    <p class="hint">Automates potions and skills during combat, whenever nothing is manually queued. Skill rules only fire if you've learned that skill category.</p>
+    <p class="hint">Automates potions and skills during combat, whenever nothing is manually queued. Skill rules only fire if you've learned that skill category. "Abnormal" covers Mini Bosses and also any regular creature that rolled a specialty, whatever its rarity.</p>
     <div class="settings-section"><h4>❤️ Health Potion</h4>${simpleSelect('hpPotion', AUTO_MODE_SIMPLE)}</div>
     <div class="settings-section"><h4>🔵 Mana Potion</h4>${simpleSelect('manaPotion', AUTO_MODE_SIMPLE)}</div>
     <div class="settings-section"><h4>💚 Heal Skill</h4>${simpleSelect('heal', AUTO_MODE_SIMPLE)}</div>

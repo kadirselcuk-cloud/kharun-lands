@@ -5,11 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.2.0';
+DATA.VERSION = '0.3.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.3.0', notes: [
+    'Bugfix: Epic and Legendary encounters (and to a lesser extent Mini Bosses) could get skipped entirely on a level, because escort-pack kills were advancing the level\'s 1111-pattern position past the exact checkpoint that triggers them. Only the featured creature of a pack now advances that position — escorts are bonus kills only.',
+    'Bugfix: Combat Options\' and Auto-Use\'s "Abnormal" category now also matches any regular creature that rolled a specialty (e.g. a Normal-rarity Explosive), not just true Mini Bosses.',
+  ] },
   { v: '0.2.0', notes: [
     'Tavern: quest progress is now shown live, but the reward is no longer granted automatically — finish the task, then hit "Claim Reward" yourself.',
     'Tavern quest gold/XP rewards are now valued against your CURRENT chapter & part (locked in the moment the quest becomes ready), not whatever level you were on when you picked it up.',

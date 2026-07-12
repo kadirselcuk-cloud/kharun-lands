@@ -1139,8 +1139,11 @@ function manaGate(mode, frac) {
   if (mode === 'available') return true;
   return false;
 }
+// "Abnormal" (the tierSet.miniboss checkbox) also matches any living
+// creature carrying a specialty affix, regardless of its actual tier —
+// not just true Miniboss-tier enemies (which always have one anyway).
 function anyEnemyTierMatches(fight, tierSet) {
-  return fight.enemies.some(e => e.hp > 0 && tierSet[e.tier]);
+  return fight.enemies.some(e => e.hp > 0 && (tierSet[e.tier] || (tierSet.miniboss && e.affixes && e.affixes.length)));
 }
 function eligibleSkillsOf(cats, fight) {
   const skills = DATA.SKILLS[G.char.cls];
@@ -1373,7 +1376,11 @@ function handleKill(e, run) {
   run.kills[e.tier]++;
   G.totals.kills[e.tier]++;
   G.char.kills++;
-  G.progress[ADV.level] = (G.progress[ADV.level] || 0) + 1;
+  // Only the featured creature of an encounter advances the level's
+  // 1111 pattern position — escort companions are bonus kills (extra
+  // XP/loot/stats) and must NOT push the kill-count past the exact
+  // checkpoints (111th = Epic, 1111th = Legendary) that trigger them.
+  if (!e.isEscort) G.progress[ADV.level] = (G.progress[ADV.level] || 0) + 1;
   const ups = gainXp(e.xp, run);
   run.xp += e.xp;
   log('kill', `☠️ ${e.name} is slain! (+${e.xp} XP)`, { tier: e.tier });
@@ -1564,6 +1571,7 @@ function adventureTick() {
       const escort = Math.random() < 0.20
         ? [makeCreature(level, 'epic')]
         : Array.from({ length: rint(1, 2) }, () => makeCreature(level, 'rare'));
+      escort.forEach(e => e.isEscort = true);   // bonus kills — don't consume the 1111 pattern position
       enemies = [miniboss, ...escort];
       encounterKind = 'miniboss';
       log('encounter', `👑 MINI BOSS: ${miniboss.name} (${miniboss.species}, Lv ${level}) prowls out of the wilds, backed by ${escort.length} ${escort[0].tier}!`, { tier: 'miniboss' });
@@ -1571,10 +1579,15 @@ function adventureTick() {
       const packMax = Math.max(1, Math.min(G.settings.packSize, normalsUntilSpecial(kills)));
       enemies = Array.from({ length: packMax }, () => makeCreature(level, 'normal'));
       log('encounter', `⚔️ ${enemies.length > 1 ? enemies.length + ' creatures block your path' : 'A creature blocks your path'}: ${enemies.map(e => e.name).join(', ')}`);
+      // "Abnormal" isn't just the Miniboss tier — any creature carrying
+      // a specialty (e.g. a plain Normal with Explosive) counts too, and
+      // reuses the same "miniboss" Combat Options / Auto-Use slot.
+      if (enemies.some(e => e.affixes && e.affixes.length)) encounterKind = 'miniboss';
     } else if (tier === 'rare') {
       const rare = makeCreature(level, 'rare');
       const count = rint(1, 3);
       const escort = Array.from({ length: count }, () => makeCreature(level, 'normal'));
+      escort.forEach(e => e.isEscort = true);
       enemies = [rare, ...escort];
       encounterKind = 'rare';
       log('encounter', `🔷 RARE: ${rare.name} (${rare.species}, Lv ${level}) appears, flanked by ${count} creature${count > 1 ? 's' : ''}!`, { tier: 'rare' });
@@ -1583,6 +1596,7 @@ function adventureTick() {
       const count = rint(2, 4);
       const escortTier = Math.random() < 0.20 ? 'rare' : 'normal';
       const escort = Array.from({ length: count }, () => makeCreature(level, escortTier));
+      escort.forEach(e => e.isEscort = true);
       enemies = [epic, ...escort];
       encounterKind = 'epic';
       log('encounter', `🟣 EPIC: ${epic.name} (${epic.species}, Lv ${level}) appears with ${count} ${escortTier} creatures!`, { tier: 'epic' });
@@ -1590,6 +1604,7 @@ function adventureTick() {
       const isChapterBoss = isChapterEndLevel(level);
       const boss = makeCreature(level, 'legendary', { isChapterBoss });
       const escort = makeCreature(level, 'epic');
+      escort.isEscort = true;
       enemies = [boss, escort];
       encounterKind = 'legendary';
       const label = isChapterBoss ? '👑🔶 CHAPTER BOSS' : '🔶 LEGENDARY BOSS';
