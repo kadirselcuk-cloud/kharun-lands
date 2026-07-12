@@ -18,7 +18,22 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 UI.init = function () {
   const save = peekSave();
   if (save) UI.showTitle(save);
-  else UI.showClassSelect();
+  else UI.showPrelude();
+};
+
+// One-time lore screen shown before a hero is chosen.
+UI.showPrelude = function () {
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <h2 class="prelude-title">${esc(DATA.PRELUDE.title)}</h2>
+        ${DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        <button class="btn btn-primary btn-big" id="begin-btn">📜 Take Up the Contract</button>
+      </div>
+      <p class="subtitle version-tag">v${DATA.VERSION}</p>
+    </div>`;
+  $('#begin-btn').onclick = () => UI.showClassSelect();
 };
 
 // Title screen when a saved hero exists: Continue or start over.
@@ -51,12 +66,13 @@ UI.showClassSelect = function () {
   app.innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">100 levels. 111,100 monsters. One hero. Choose your class: <span class="version-tag">v${DATA.VERSION}</span></p>
+      <p class="subtitle">100 levels. 111,100 monsters. Three heroes, one road. Choose who answers: <span class="version-tag">v${DATA.VERSION}</span></p>
       <div class="class-cards">
         ${Object.values(DATA.CLASSES).map(c => `
           <div class="class-card" data-cls="${c.id}">
             <div class="class-icon">${c.icon}</div>
-            <h2>${c.name}</h2>
+            <h2>${esc(c.heroName)}</h2>
+            <div class="class-title">${c.name}</div>
             <p class="class-desc">${c.desc}</p>
             <p class="class-story">${c.story}</p>
             <p class="class-playstyle">💡 ${c.playstyle}</p>
@@ -70,22 +86,13 @@ UI.showClassSelect = function () {
             <div class="class-skills-preview">
               ${Object.values(DATA.SKILLS[c.id]).slice(0, 6).map(s => `<span title="${esc(s.name)}">${s.icon}</span>`).join('')}…
             </div>
-            <button class="btn btn-primary pick-btn">Play ${c.name}</button>
+            <button class="btn btn-primary pick-btn">Play as ${esc(c.heroName)}</button>
           </div>`).join('')}
       </div>
-      <div class="name-row">
-        <label>Hero name: <input id="hero-name" maxlength="18" value="${esc(pick(DATA.DEFAULT_NAMES))}"></label>
-        <button class="btn btn-tiny" id="reroll-name" title="Roll another name">🎲</button>
-      </div>
     </div>`;
-  $('#reroll-name').onclick = () => {
-    const cur = $('#hero-name').value;
-    const others = DATA.DEFAULT_NAMES.filter(n => n !== cur);
-    $('#hero-name').value = pick(others.length ? others : DATA.DEFAULT_NAMES);
-  };
   app.querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
-      newGame(card.dataset.cls, $('#hero-name').value.trim());
+      newGame(card.dataset.cls);
       UI.showGame();
     };
   });

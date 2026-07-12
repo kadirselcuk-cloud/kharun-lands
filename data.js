@@ -5,43 +5,51 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.2.0';
+DATA.VERSION = '1.3.0';
 
 // ------------------------------------------------------------
 // Classes
 // ------------------------------------------------------------
 DATA.CLASSES = {
   warrior: {
-    id: 'warrior', name: 'Warrior', icon: '⚔️',
+    id: 'warrior', name: 'Warrior', heroName: 'Kharun', icon: '⚔️',
     desc: 'A front-line bruiser. High Strength and Dexterity make him a wall of HP that hits like a falling tower.',
-    story: 'Forged in the border legions that held the Kharun Lands against the first incursions, the Warrior buried a hundred brothers and kept marching. When the legions disbanded, he did not. Somewhere past the Green Plains lies the thing that broke his shield-wall — and he means to return the favor, one biome at a time.',
-    playstyle: 'Play the Warrior if you want to survive mistakes: the deepest HP pool, heavy armor, stuns, and damage reduction. He grinds through packs slowly but almost never dies.',
+    story: 'A seasoned legion man who deserted rather than lost — Kharun has buried more brothers than he can name and kept marching anyway. He carries command instincts he can\'t switch off and sees strangers as people to protect whether they ask for it or not. Somewhere past the first trial lies the thing that broke his shield-wall, and half a century late, he means to return the favor.',
+    playstyle: 'Play Kharun if you want to survive mistakes: the deepest HP pool, heavy armor, stuns, and damage reduction. He grinds through packs slowly but almost never dies.',
     baseStats: { str: 11, dex: 9, int: 5 },   // total 25, min 5
     mainStat: 'str',
     armorWeights: ['heavy', 'medium', 'light'],
   },
   rogue: {
-    id: 'rogue', name: 'Rogue', icon: '🗡️',
+    id: 'rogue', name: 'Rogue', heroName: 'Pars', icon: '🗡️',
     desc: 'A blur of blades. Highest Dexterity, solid Strength — strikes fast, dodges often, and bleeds enemies dry.',
-    story: 'Raised in the thieves\' warrens beneath the old capital, the Rogue stole her first blade at nine and her first bounty at thirteen. The guilds cast her out for taking a contract on one of their own — the one who sold her family to the swamps. The trail leads through every dark corner of the Kharun Lands, and she was never one to leave a job unfinished.',
-    playstyle: 'Play the Rogue if you want tempo: the highest Speed means extra actions every round, high Evasion turns hits into misses, and resistance-piercing strikes shred tough enemies. Fast, slippery, and lethal — but thinner armor punishes bad odds.',
+    story: 'Young, talented well past what his experience should allow, and cocky in the way people are before they\'ve been humbled — Pars is the kind of natural who makes guild veterans nervous. That\'s exactly why the guild wants him dead: not for running, but for being better than the ones who trained him. The trail leads through every dark corner of the Kharun Lands, and he was never one to leave a job unfinished.',
+    playstyle: 'Play Pars if you want tempo: the highest Speed means extra actions every round, high Evasion turns hits into misses, and resistance-piercing strikes shred tough enemies. Fast, slippery, and lethal — but thinner armor punishes bad odds.',
     baseStats: { str: 8, dex: 12, int: 5 },
     mainStat: 'dex',
     armorWeights: ['medium', 'light'],
   },
   mage: {
-    id: 'mage', name: 'Mage', icon: '🔮',
+    id: 'mage', name: 'Mage', heroName: 'Minnie', icon: '🔮',
     desc: 'A glass cannon of raw Intelligence. Fragile, but commands a deep pool of mana and devastating spells.',
-    story: 'The last student of the Sunken Academy, the Mage watched his masters seal themselves inside its vaults to contain what they had summoned. He carries the only key — his own mind — and a debt that can only be paid in the Heart of the Abyss. Every spell he casts is a page from a book the world was never meant to read.',
-    playstyle: 'Play the Mage if you want raw power: the biggest hits in the game, huge mana reserves, the strongest heal, and area spells that erase whole packs. Magic damage ignores armor entirely — but his low HP means the best defense is a dead enemy.',
+    story: 'The last student of the Sunken Academy, Minnie watched her masters seal themselves inside its vaults to contain what they had summoned. Experienced and warm where the others are guarded, she\'s become the group\'s actual grown-up — the one who patches wounds, talks sense into the reckless, and asks the hard questions nobody else wants to ask. She carries the only key left — her own mind — and a debt she intends to pay in full.',
+    playstyle: 'Play Minnie if you want raw power: the biggest hits in the game, huge mana reserves, the strongest heal, and area spells that erase whole packs. Magic damage ignores armor entirely — but her low HP means the best defense is a dead enemy.',
     baseStats: { str: 5, dex: 7, int: 13 },
     mainStat: 'int',
     armorWeights: ['light'],
   },
 };
 
-// Random default hero names offered on the class-select screen
-DATA.DEFAULT_NAMES = ['Kage', 'Xazel', 'Junior', 'Pars', 'Kharun', 'Minnie', 'Begum'];
+// Opening-screen prelude, shown once before the hero is chosen.
+DATA.PRELUDE = {
+  title: 'The Contract',
+  paragraphs: [
+    'Fifty years ago, an old prophecy named three heroes — a warrior, a mage, and a rogue — fated to walk the length of the Kharun Lands and seal the wound bleeding at the world\'s heart.',
+    'They reached the first trial, outside a farming town called Harvestgate, and never came back. The monument they left behind still stands. So does the contract.',
+    'No one has dared finish it in half a century — until three strangers, each running from something of their own, were handed the dead heroes\' names, their gear, and their unfinished road.',
+    'Whether they were chosen, or simply the last three left standing when the world needed a warrior, a mage, and a rogue, is a question none of them have thought to ask yet.',
+  ],
+};
 
 // ------------------------------------------------------------
 // Skills — 12 per class

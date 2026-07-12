@@ -22,13 +22,13 @@ function log(t, txt, extra) {
 // State creation / persistence (localStorage — bigger and more
 // reliable than cookies, and never sent over the network)
 // ------------------------------------------------------------
-function newGame(clsId, name) {
+function newGame(clsId) {
   const cls = DATA.CLASSES[clsId];
   G = {
     v: 1,
     char: {
       cls: clsId,
-      name: name || cls.name,
+      name: cls.heroName,
       level: 1, xp: 0,
       statPoints: 0, skillPoints: 1,
       stats: { ...cls.baseStats },
