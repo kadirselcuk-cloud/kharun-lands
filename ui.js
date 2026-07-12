@@ -407,6 +407,7 @@ UI.renderInventory = function (el) {
         <button class="btn btn-tiny danger" data-sell="rare">Rare</button>
         <button class="btn btn-tiny danger" data-sell="epic">Epic</button>
         <button class="btn btn-tiny danger" data-sell="legendary">Legendary</button>
+        <button class="btn btn-tiny danger" data-sell="all">Unequipped (except Runes)</button>
       </div>
       ${items.length === 0 ? '<p class="hint">Nothing here yet — go on an adventure!</p>' : ''}
       <div class="inv-grid">
@@ -541,9 +542,10 @@ UI.showItem = function (uid, context, slot) {
 UI.renderShop = function (el) {
   if (!G.shop || !G.shop.stock) genShopStock();
   const stock = G.shop.stock;
+  const shopName = DATA.BIOME_TYPES[chapterNumOf(G.area) - 1].shopName;
   el.innerHTML = `
     <div class="panel">
-      <h3>🛒 Traveling Merchant
+      <h3>🛒 ${esc(shopName)}
         <span class="filters">
           <button class="btn btn-tiny" onclick="restockShop()" ${G.gold < restockCost() ? 'disabled' : ''}>♻ New stock (🪙 ${restockCost()})</button>
         </span>

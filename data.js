@@ -319,7 +319,7 @@ DATA.SPECIALTIES = {
 // ------------------------------------------------------------
 DATA.BIOME_TYPES = [
 {
-  type: 'Plains', icon: '🌾',
+  type: 'Plains', icon: '🌾', shopName: 'Harvestgate Trading Post',
   biomes: ['Green Plains', 'Sunny Meadows', 'Grain Fields', 'Windswept Steppe', 'Thistle Downs',
            'Wildflower Expanse', 'Dry Grasslands', 'Storm-Brushed Flats', 'Dark Plains', 'Ashen Prairie'],
   creatures: [
@@ -335,7 +335,7 @@ DATA.BIOME_TYPES = [
                'the Trampler of Harvests', 'the Golden Plague', 'the Whispering Doom', 'the Horizon Shadow'],
 },
 {
-  type: 'Forest', icon: '🌲',
+  type: 'Forest', icon: '🌲', shopName: 'Hollow Bough Trading Post',
   biomes: ['Verdant Woods', 'Old Growth Forest', 'Mossy Thicket', 'Whispering Grove', 'Tangled Briarwood',
            'Fungal Undergrowth', 'Shadowed Canopy', 'Bleakbark Forest', 'Gloomroot Wilds', 'Rotwood'],
   creatures: [
@@ -351,7 +351,7 @@ DATA.BIOME_TYPES = [
                'the Verdant Nightmare', 'the Hundred-Ring Horror', 'the Sap-Drinker', 'the Grove Warden Fallen'],
 },
 {
-  type: 'Swamp', icon: '🐸',
+  type: 'Swamp', icon: '🐸', shopName: 'Murkwater Bazaar',
   biomes: ['Misty Marsh', 'Croaking Fen', 'Peat Bog', 'Leech Waters', 'Sunken Mire',
            'Fetid Quagmire', 'Blackwater Bayou', 'Serpent’s Wallow', 'Plague Marsh', 'Dead Man’s Bog'],
   creatures: [
@@ -367,7 +367,7 @@ DATA.BIOME_TYPES = [
                'the Fetid King', 'the Thing Below', 'the Croaking Doom', 'the Leech Lord'],
 },
 {
-  type: 'Desert', icon: '🏜️',
+  type: 'Desert', icon: '🏜️', shopName: 'Last Oasis Caravan',
   biomes: ['Golden Dunes', 'Scorched Sands', 'Mirage Flats', 'Cactus Barrens', 'Sirocco Wastes',
            'Bone Dunes', 'Glass Desert', 'Sandstorm Expanse', 'Sunblasted Wastes', 'Dune Sea of Ash'],
   creatures: [
@@ -383,7 +383,7 @@ DATA.BIOME_TYPES = [
                'the Bleached Horror', 'the Storm of a Thousand Grains', 'the Mirage King', 'the Scouring Wind'],
 },
 {
-  type: 'Mountains', icon: '⛰️',
+  type: 'Mountains', icon: '⛰️', shopName: 'Cairnwatch Armory',
   biomes: ['Foothill Crags', 'Granite Slopes', 'Eagle Peaks', 'Misty Summits', 'Avalanche Pass',
            'Thunder Ridge', 'Frostbitten Cliffs', 'Titan’s Staircase', 'Shattered Spires', 'Doompeak'],
   creatures: [
@@ -399,7 +399,7 @@ DATA.BIOME_TYPES = [
                'the Granite Colossus', 'the Thunder That Answers', 'the Unclimbable', 'the Summit’s Curse'],
 },
 {
-  type: 'Tundra', icon: '❄️',
+  type: 'Tundra', icon: '❄️', shopName: 'Frosthold Trading Post',
   biomes: ['White Expanse', 'Frozen Steppe', 'Glacier Fields', 'Permafrost Plains', 'Icebound Coast',
            'Blizzard Wastes', 'Crystal Tundra', 'Aurora Flats', 'Frozen Graveyard', 'Eternal Winter'],
   creatures: [
@@ -415,7 +415,7 @@ DATA.BIOME_TYPES = [
                'the Glacier That Hungers', 'the Last Cold', 'the Aurora’s Shadow', 'the Permafrost King'],
 },
 {
-  type: 'Volcanic', icon: '🌋',
+  type: 'Volcanic', icon: '🌋', shopName: 'Cinderforge Bazaar',
   biomes: ['Ember Foothills', 'Smoldering Fields', 'Basalt Flats', 'Lava Rivers', 'Ashfall Plateau',
            'Cinder Wastes', 'Magma Chasms', 'Obsidian Ridge', 'Pyroclast Plain', 'Heart of the Volcano'],
   creatures: [
@@ -431,7 +431,7 @@ DATA.BIOME_TYPES = [
                'the Obsidian Tyrant', 'the Furnace That Breathes', 'the Ashbringer', 'the Caldera King'],
 },
 {
-  type: 'Caverns', icon: '🕳️',
+  type: 'Caverns', icon: '🕳️', shopName: 'Deepvault Exchange',
   biomes: ['Echoing Caves', 'Glowshroom Caverns', 'Crystal Grottos', 'Web-Choked Tunnels', 'Sunless Lake',
            'Chasm of Whispers', 'Fungal Depths', 'Bone Pits', 'Abyssal Caverns', 'The Screaming Dark'],
   creatures: [
@@ -447,7 +447,7 @@ DATA.BIOME_TYPES = [
                'the Sunless Emperor', 'the Hundred-Eyed', 'the Echo of Madness', 'the Devourer Below'],
 },
 {
-  type: 'Shadowlands', icon: '👻',
+  type: 'Shadowlands', icon: '👻', shopName: 'Wraithmarket',
   biomes: ['Twilight Moor', 'Gloom Valley', 'Cursed Barrows', 'Haunted Wastes', 'Nightmare Fields',
            'Spectral Forest', 'Vale of Sorrow', 'Wraithlands', 'The Black Mire', 'Edge of Oblivion'],
   creatures: [
@@ -463,7 +463,7 @@ DATA.BIOME_TYPES = [
                'the Soul-Shackler', 'the Nightmare Made Flesh', 'the Weeping Tyrant', 'the Herald of Oblivion'],
 },
 {
-  type: 'The Abyss', icon: '🔥',
+  type: 'The Abyss', icon: '🔥', shopName: 'Abyssal Black Market',
   biomes: ['Rift’s Edge', 'Broken Reality', 'Void Shallows', 'Demonic Foothold', 'Chaos Spires',
            'Burning Abyss', 'The Endless Fall', 'Maw of Madness', 'Throne Approach', 'Heart of the Abyss'],
   creatures: [
@@ -564,8 +564,8 @@ DATA.AFFIXES = [
   { id: 'hp', w: 10, roll: i => Math.round((12 + rint(0, 10)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max HP` },
   { id: 'mana', w: 8, roll: i => Math.round((8 + rint(0, 6)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max Mana` },
   { id: 'speed', w: 8, roll: i => 2 + Math.floor(i / 5) + rint(0, 3), fmt: v => `+${v} Speed` },
-  { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} HP Regen` },
-  { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Mana Regen` },
+  { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} HP Regen` },
+  { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Mana Regen` },
   { id: 'evasion', w: 6, roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
   { id: 'dmgFlat', w: 10, roll: i => Math.round((2 + rint(0, 3)) * dmgScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
   { id: 'dmgPct', w: 8, roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
@@ -577,6 +577,9 @@ DATA.AFFIXES = [
   { id: 'enemyResDown', w: 3, roll: i => 2 + Math.floor(i / 12) + rint(0, 3), fmt: v => `Enemies lose ${v}% Resistances` },
   { id: 'skill', w: 4, roll: () => 1, fmt: (v, x) => `+${v} to ${x || 'a skill'}` },   // extra: skill id
   { id: 'allSkills', w: 1.5, roll: () => 1, fmt: v => `+${v} to All Skills` },
+  // Vampiric: very rare, epic+ weapons only (see rollAffixes' eligibility filter).
+  // Scales 1-10% life steal with item level.
+  { id: 'lifesteal', w: 1, weaponOnly: true, minRarity: 'epic', roll: i => Math.min(10, 1 + Math.floor(i / 11) + rint(0, 1)), fmt: v => `+${v}% Life Steal` },
 ];
 
 // Name parts keyed by affix id — items and runes generate their
@@ -656,6 +659,7 @@ DATA.AFFIX_ADJ = {
   resPhys: ['Sturdy', 'Oaken', 'Blunting'], resMagic: ['Runed', 'Gleaming', 'Null'], resPoison: ['Vile', 'Venom', 'Sour'],
   enemyResDown: ['Sundering', 'Piercing', 'Rending'], skill: ['Practiced', 'Honed', 'Studied'],
   allSkills: ['Peerless', 'Perfect', 'Exalted'],
+  lifesteal: ['Vampiric', 'Bloodthirsty', 'Leeching'],
 };
 
 // Heroic epithets per affix — the first word of a legendary weapon name.
@@ -668,6 +672,7 @@ DATA.AFFIX_HEROIC = {
   resPhys: ["Juggernaut's", "Ironsoul's"], resMagic: ["Spellbreaker's", "Nullwarden's"], resPoison: ["Plaguebane's", "Serpentlord's"],
   enemyResDown: ["Worldsplitter's", "Siegemaster's"], skill: ["Virtuoso's", "Master's"],
   allSkills: ["Master's", "Grandmaster's"],
+  lifesteal: ["Bloodletter's", "Nightfeeder's"],
 };
 
 // helper available to data + game

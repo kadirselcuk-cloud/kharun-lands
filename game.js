@@ -130,7 +130,7 @@ function derive() {
     str: c.stats.str, dex: c.stats.dex, int: c.stats.int,
     armor: 0, evasion: 0, speed: 0,
     hpFlat: 0, manaFlat: 0, hpPct: 0, manaPct: 0,
-    hpRegen: 0, manaRegen: 0,
+    hpRegen: 0, manaRegen: 0, lifesteal: 0,
     dmgFlat: 0, dmgPct: 0, dr: 0,
     res: { phys: 0, magic: 0, poison: 0 },
     enemyResDown: 0,
@@ -159,6 +159,7 @@ function derive() {
         case 'resMagic': d.res.magic += a.v; break;
         case 'resPoison': d.res.poison += a.v; break;
         case 'enemyResDown': d.enemyResDown += a.v; break;
+        case 'lifesteal': d.lifesteal += a.v; break;
       }
     }
   }
@@ -204,6 +205,7 @@ function derive() {
   // caps
   d.res.phys = Math.min(75, d.res.phys); d.res.magic = Math.min(75, d.res.magic); d.res.poison = Math.min(75, d.res.poison);
   d.dr = Math.min(0.6, d.dr);
+  d.lifesteal = Math.min(15, d.lifesteal);
   // base damage: weapon + main stat scaling; the class's main stat
   // additionally grants +1% damage per point
   const main = { warrior: d.str, rogue: d.dex, mage: d.int }[c.cls];
@@ -282,10 +284,18 @@ function skillCost(s) {
   return Math.round((s.cost ? s.cost() : 0) * mult);
 }
 
-function rollAffixes(count, ilvl, clsId) {
+const RARITY_ORDER = { normal: 0, magical: 1, rare: 2, epic: 3, legendary: 4 };
+function rollAffixes(count, ilvl, clsId, item) {
   const out = [];
   const used = new Set();
-  const pool = DATA.AFFIXES;
+  // Gated affixes (e.g. Vampiric: weapon-only, epic+) only enter the
+  // pool when the caller passes the item they're rolling for and it
+  // qualifies — runes (no item passed) never roll them.
+  const pool = DATA.AFFIXES.filter(a => {
+    if (a.weaponOnly && (!item || item.slot !== 'weapon')) return false;
+    if (a.minRarity && (!item || RARITY_ORDER[item.rarity] < RARITY_ORDER[a.minRarity])) return false;
+    return true;
+  });
   const totalW = pool.reduce((s, a) => s + a.w, 0);
   let guard = 0;
   while (out.length < count && guard++ < 200) {
@@ -370,7 +380,7 @@ function makeItem(ilvl, rarity, clsHint) {
   }
 
   const [aMin, aMax] = DATA.RARITIES[it.rarity].affixes;
-  it.affixes = rollAffixes(rint(aMin, aMax), ilvl, clsHint);
+  it.affixes = rollAffixes(rint(aMin, aMax), ilvl, clsHint, it);
   it.name = buildItemName(it);
   it.value = Math.max(1, Math.round((2 + ilvl * 1.5) * DATA.RARITIES[it.rarity].value));
   return it;
@@ -407,13 +417,13 @@ function buildItemName(it) {
   return `${pre} ${it.baseName} ${suf}`;
 }
 
-// Runes: 1 bonus = Flawed Rune, 2 = Rune, 3 = Great Rune.
+// Runes: 1 bonus = Faded Rune, 2 = Rune, 3 = Mythic Rune.
 // Prefix/suffix are generated from randomly chosen bonus stats.
 function makeRune(ilvl, source) {
   const counts = { normal: [1, 1], rare: [1, 2], epic: [1, 3], legendary: [2, 3] };
   const n = rint(...counts[source]);
   const bonuses = rollAffixes(n, ilvl);
-  const baseName = n === 1 ? 'Flawed Rune' : n === 2 ? 'Rune' : 'Great Rune';
+  const baseName = n === 1 ? 'Faded Rune' : n === 2 ? 'Rune' : 'Mythic Rune';
   const pre = pick(DATA.NAME_PARTS[pick(bonuses).id].pre);
   const suf = pick(DATA.NAME_PARTS[pick(bonuses).id].suf);
   return {
@@ -481,10 +491,12 @@ function sellItem(uid) {
   saveGame(); UI.refresh();
 }
 
-// Bulk selling. kind: 'junk' (normal+magical) | 'unusable' | 'rare' | 'epic' | 'legendary'
+// Bulk selling. kind: 'all' (every unequipped item) | 'junk' (normal+magical)
+// | 'unusable' | 'rare' | 'epic' | 'legendary'
 function sellMatches(kind) {
   return G.inventory.filter(i => {
     if (i.type !== 'item') return false;   // runes are never bulk-sold
+    if (kind === 'all') return true;
     if (kind === 'junk') return i.rarity === 'normal' || i.rarity === 'magical';
     if (kind === 'unusable') return !canUseItem(i).ok;
     return i.rarity === kind;
@@ -793,7 +805,7 @@ function rollAffixCount(tier, isChapterBoss) {
   const ch = AFFIX_CHANCE[tier] || 0;
   return Math.random() < ch ? 1 : 0;
 }
-function rollAffixes(tier, isChapterBoss) {
+function rollSpecialties(tier, isChapterBoss) {
   const n = rollAffixCount(tier, isChapterBoss);
   if (n === 0) return [];
   const pool = AFFIX_IDS.slice();
@@ -835,7 +847,7 @@ function makeCreature(level, tier, opts) {
   if (tier !== 'normal') {
     for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
-  c.affixes = rollAffixes(tier, opts && opts.isChapterBoss);
+  c.affixes = rollSpecialties(tier, opts && opts.isChapterBoss);
   applyAffixStatMods(c);
   return c;
 }
@@ -892,16 +904,16 @@ function rollLoot(creature, run) {
   if (tier === 'legendary' || tier === 'miniboss') {
     run.gold += goldBase; G.gold += goldBase;
     const r = Math.random() * 100;
-    if (r < 80) dropItem(lvl, rollItemRarity(tier), run);
+    if (r < 75) dropItem(lvl, rollItemRarity(tier), run);
     else gainPotion(pick(['hp', 'mana', 'scroll']), run);
     return;
   }
 
   const r = Math.random() * 100;
   const T = {
-    normal: { gold: 42, item: 12, hpPot: 3, manaPot: 2.5, buffPot: 0.25 },
-    rare:   { gold: 55, item: 25, hpPot: 2.5, manaPot: 2, buffPot: 1 },
-    epic:   { gold: 55, item: 32, hpPot: 1.5, manaPot: 1.5, buffPot: 1.5 },
+    normal: { gold: 42, item: 12, hpPot: 4, manaPot: 3.5, buffPot: 0.35 },
+    rare:   { gold: 55, item: 25, hpPot: 3.5, manaPot: 3, buffPot: 1.4 },
+    epic:   { gold: 55, item: 32, hpPot: 2.5, manaPot: 2.2, buffPot: 2 },
   }[tier];
   let acc = 0;
   if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; return; }
@@ -1048,6 +1060,7 @@ function playerHit(fight, enemy, skill, r) {
   dmg = Math.max(1, Math.round(dmg * incomingDmgMult(enemy)));
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
+  if (d.lifesteal) G.char.hp = Math.min(d.maxHp, G.char.hp + Math.max(1, Math.round(dmg * (d.lifesteal / 100))));
   if (hasAffix(enemy, 'reflective')) {
     const reflect = Math.max(1, Math.round(dmg * 0.20));
     G.char.hp -= reflect;
