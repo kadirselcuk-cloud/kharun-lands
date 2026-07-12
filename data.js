@@ -31,7 +31,7 @@ DATA.CLASSES = {
   },
   mage: {
     id: 'mage', name: 'Mage', heroName: 'Minnie', icon: '🔮',
-    desc: 'A glass cannon of raw Intelligence. Fragile, but commands a deep pool of mana and devastating spells.',
+    desc: 'A glass cannon of raw Intelligence. Fragile, but with a deep pool of mana and devastating spells.',
     story: 'The last student of the Sunken Academy, Minnie was still an apprentice when one of her own masters was revealed as a secret summoner in service of an ancient demon — years of quiet ritual work disguised as scholarship, until the night he used the Academy\'s own rites to fling its doors open from the inside. The masters who caught it in time didn\'t have the strength left to undo what he\'d started; they had only enough to seal themselves inside the vaults with it, buying the world time they never expected to spend themselves. Minnie survived because she was sent running for help that arrived too late. Experienced and warm where the others are guarded, she\'s become the group\'s actual grown-up — the one who patches wounds, talks sense into the reckless, and asks the hard questions nobody else wants to ask. She carries the only key left — her own mind, and everything she saw that night — and a debt she intends to pay in full.',
     playstyle: 'Play Minnie if you want raw power: the biggest hits in the game, huge mana reserves, the strongest heal, and area spells that erase whole packs. Magic damage ignores armor entirely — but her low HP means the best defense is a dead enemy.',
     baseStats: { str: 5, dex: 7, int: 13 },
