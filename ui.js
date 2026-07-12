@@ -77,9 +77,9 @@ UI.showClassSelect = function () {
             <p class="class-story">${c.story}</p>
             <p class="class-playstyle">💡 ${c.playstyle}</p>
             <div class="class-stats">
-              <div class="${c.mainStat === 'str' ? 'main-stat-chip' : ''}"><span class="stat-str">STR</span> ${c.baseStats.str}</div>
-              <div class="${c.mainStat === 'dex' ? 'main-stat-chip' : ''}"><span class="stat-dex">DEX</span> ${c.baseStats.dex}</div>
-              <div class="${c.mainStat === 'int' ? 'main-stat-chip' : ''}"><span class="stat-int">INT</span> ${c.baseStats.int}</div>
+              <div class="${c.mainStat === 'str' ? 'main-stat-chip' : ''}">${c.mainStat === 'str' ? '<span class="star-icon">⭐</span>' : ''}<span class="stat-str">STR</span> ${c.baseStats.str}</div>
+              <div class="${c.mainStat === 'dex' ? 'main-stat-chip' : ''}">${c.mainStat === 'dex' ? '<span class="star-icon">⭐</span>' : ''}<span class="stat-dex">DEX</span> ${c.baseStats.dex}</div>
+              <div class="${c.mainStat === 'int' ? 'main-stat-chip' : ''}">${c.mainStat === 'int' ? '<span class="star-icon">⭐</span>' : ''}<span class="stat-int">INT</span> ${c.baseStats.int}</div>
             </div>
             <div class="class-mainstat">⭐ Main stat: <span class="stat-${c.mainStat}">${{ str: 'Strength', dex: 'Dexterity', int: 'Intelligence' }[c.mainStat]}</span> — each point grants +1% damage</div>
             <div class="class-armor">Armor: ${c.armorWeights.map(cap).join(', ')}</div>
