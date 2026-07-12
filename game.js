@@ -584,7 +584,7 @@ function genQuest() {
     () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, reward: { gold: goldR(3), item: 'magical' } }; },
     () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, reward: { item: 'epic' } }; },
     () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, reward: { gold: goldR(10), item: 'epic' } }; },
-    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling deeper biome levels (5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare' } }; },
+    () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, reward: { gold: goldR(6), item: 'rare' } }; },
   ];
   return Object.assign(pick(makers)(), { progress: 0 });
 }
@@ -657,6 +657,17 @@ function restockShop() {
 function areaInfo(level) {
   const t = DATA.BIOME_TYPES[Math.floor((level - 1) / 10)];
   return { level, type: t, biome: t.biomes[(level - 1) % 10] };
+}
+
+// The 10 biome types double as the game's 10 story chapters (levels
+// 1-10 = Chapter 1, 11-20 = Chapter 2, etc). Chapters without a
+// custom title yet fall back to their biome type name.
+function chapterNumOf(level) { return Math.floor((level - 1) / 10) + 1; }
+function chapterData(level) {
+  const n = chapterNumOf(level);
+  const ch = (DATA.CHAPTERS && DATA.CHAPTERS[n - 1]) || {};
+  const title = ch.title || `Chapter ${n}: ${DATA.BIOME_TYPES[n - 1].type}`;
+  return { num: n, title, headline: ch.headline || '', story: ch.story || [] };
 }
 
 // tier of the NEXT creature given kills-so-far in this area level
@@ -1079,7 +1090,7 @@ function startAdventure() {
   };
   G.totals.adventures++;
   const info = areaInfo(level);
-  log('sys', `⚔️ Venturing into ${info.biome} (Level ${level} — ${info.type.type})...`);
+  log('sys', `⚔️ Venturing into ${info.biome} (Level ${level} — ${chapterData(level).title})...`);
   UI.refresh();
   advTimer = setInterval(adventureTick, ADV.speedMs);
 }
@@ -1274,7 +1285,9 @@ function adventureTick() {
       G.bossKilled[level] = true;
       if (level < MAX_LEVEL_AREA && G.unlocked <= level) {
         G.unlocked = level + 1;
-        log('sys', `🗺️ Area Level ${level + 1} unlocked: ${areaInfo(level + 1).biome}!`);
+        const nextInfo = areaInfo(level + 1);
+        const enteringNewChapter = chapterNumOf(level + 1) !== chapterNumOf(level);
+        log('sys', `🗺️ Level ${level + 1} unlocked: ${nextInfo.biome}${enteringNewChapter ? ` — ${chapterData(level + 1).title} begins!` : '!'}`);
       }
       run.bossDefeated = true;
       G.progress[level] = 0;   // cleared areas can be run again from the start

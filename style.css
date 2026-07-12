@@ -89,6 +89,13 @@ small { color: var(--dim); }
   margin-bottom: 14px;
 }
 .prelude-box .btn-big { margin-top: 20px; }
+.chapter-headline-big {
+  color: #d9a94c; font-style: italic; font-size: 1rem; line-height: 1.5;
+  text-align: center; margin-bottom: 18px;
+}
+.chapter-headline {
+  color: #a9977a; font-style: italic; font-size: .84rem; margin: -2px 0 12px;
+}
 
 /* topbar */
 #topbar {

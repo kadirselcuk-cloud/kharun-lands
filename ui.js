@@ -56,9 +56,27 @@ UI.showTitle = function (save) {
   $('#newchar-btn').onclick = () => {
     if (confirm(`Delete ${c.name} (Lv ${c.level} ${cls.name}) and start a new hero?`)) {
       localStorage.removeItem(SAVE_KEY);
-      UI.showClassSelect();
+      UI.showPrelude();
     }
   };
+};
+
+// Shown once, full-screen, the first time a hero enters a chapter —
+// currently only used for Chapter 1, right after character creation.
+UI.showChapterIntro = function (chapterNum) {
+  const ch = chapterData((chapterNum - 1) * 10 + 1);
+  const icon = DATA.BIOME_TYPES[chapterNum - 1].icon;
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <h2 class="prelude-title">${icon} ${esc(ch.title)}</h2>
+        ${ch.headline ? `<p class="chapter-headline-big">${esc(ch.headline)}</p>` : ''}
+        ${ch.story.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        <button class="btn btn-primary btn-big" id="chapter-continue-btn">▶ Continue</button>
+      </div>
+    </div>`;
+  $('#chapter-continue-btn').onclick = () => UI.showGame();
 };
 
 UI.showClassSelect = function () {
@@ -93,7 +111,7 @@ UI.showClassSelect = function () {
   app.querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
       newGame(card.dataset.cls);
-      UI.showGame();
+      UI.showChapterIntro(1);
     };
   });
 };
@@ -549,17 +567,19 @@ UI.pickSocketTarget = function (runeUid) {
 // ------------------------------------------------------------
 UI.renderAdventure = function (el) {
   const info = areaInfo(G.area);
+  const chapter = chapterData(G.area);
   const kills = G.progress[G.area] || 0;
   const nextTier = nextCreatureTier(kills);
   el.innerHTML = `
     <div class="two-col">
       <div class="panel">
-        <h3>🗺️ Area Selection</h3>
+        <h3>📖 ${esc(chapter.title)}</h3>
+        ${chapter.headline ? `<p class="chapter-headline">${esc(chapter.headline)}</p>` : ''}
         <div class="area-picker">
           <button class="btn" ${G.area <= 1 || ADV ? 'disabled' : ''} onclick="G.area--;saveGame();UI.refresh()">◀</button>
           <div class="area-info">
             <div class="area-name">${info.type.icon} ${esc(info.biome)}</div>
-            <div class="area-sub">Level ${G.area} / ${MAX_LEVEL_AREA} · ${info.type.type} biome ${G.bossKilled[G.area] ? '· 🏆 boss defeated' : ''}</div>
+            <div class="area-sub">Level ${G.area} / ${MAX_LEVEL_AREA} ${G.bossKilled[G.area] ? '· 🏆 boss defeated' : ''}</div>
           </div>
           <button class="btn" ${G.area >= G.unlocked || ADV ? 'disabled' : ''} onclick="G.area++;saveGame();UI.refresh()">▶</button>
         </div>
@@ -738,6 +758,7 @@ UI.scrollLog = function () {
 // ------------------------------------------------------------
 UI.showResults = function (run, level) {
   const info = areaInfo(level);
+  const chapter = chapterData(level);
   const k = run.kills;
   const totalKills = k.normal + k.rare + k.epic + (k.miniboss || 0) + k.legendary;
   const outcomeTxt = {
@@ -757,7 +778,7 @@ UI.showResults = function (run, level) {
   ];
   UI.modal(`
     <h3>${outcomeTxt}</h3>
-    <div class="item-sub">${info.type.icon} ${esc(info.biome)} — Level ${level}</div>
+    <div class="item-sub">${info.type.icon} ${esc(chapter.title)} · ${esc(info.biome)} — Level ${level}</div>
     <h4>Battle report</h4>
     <div class="results-grid">
       <div class="res-box"><b>⚔️ ${Math.round(run.dmgDealt).toLocaleString()}</b><span>damage dealt</span></div>

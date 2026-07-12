@@ -52,6 +52,59 @@ DATA.PRELUDE = {
   ],
 };
 
+// The 10 biome types (see DATA.BIOME_TYPES) double as the game's 10
+// story chapters. Shown once, full-screen, the first time a hero
+// enters that chapter. Only Chapter 1 has a settled title/story so
+// far — the rest are placeholders (headline + a line of atmosphere)
+// until they get the same treatment.
+DATA.CHAPTERS = [
+  { // Chapter 1 — levels 1-10, Plains
+    title: 'Chapter 1: Harvestgate',
+    headline: 'A dead contract. Three strangers. One road left unfinished.',
+    story: [
+      'Harvestgate smells like woodsmoke and turned earth — a farming town that has spent twenty years quietly pretending its monument isn\'t there.',
+      'The town elder doesn\'t ask why the three of them came, or whether they\'re ready. She just holds out the paperwork the last heroes never got to sign, and gear the last heroes never got to wear.',
+      'Kharun, Pars, and Minnie take up the names on the contract. Whatever answers, out past the wheat fields, doesn\'t know yet that it isn\'t three ghosts walking toward it.',
+    ],
+  },
+  { // Chapter 2 — Forest
+    headline: 'The road narrows, and the trees remember more than the maps admit.',
+    story: ['The wilds beyond Harvestgate don\'t have a name on any map yet — but something out here has been waiting for company.'],
+  },
+  { // Chapter 3 — Swamp
+    headline: 'Debts come due where the water runs still and dark.',
+    story: ['Every town keeps its secrets underwater. This one just floats them closer to the surface.'],
+  },
+  { // Chapter 4 — Desert
+    headline: 'The sand keeps every footprint that was ever too afraid to come back.',
+    story: ['Out past the last well, the map stops pretending it knows what\'s still alive.'],
+  },
+  { // Chapter 5 — Mountains
+    headline: 'Old soldiers remember everything except how to stop marching.',
+    story: ['The mountains don\'t forgive failed campaigns. They just keep them, frozen, at the top.'],
+  },
+  { // Chapter 6 — Tundra
+    headline: 'The cold here isn\'t weather. It\'s a warning that stopped being polite.',
+    story: ['Nothing survives this far north by accident.'],
+  },
+  { // Chapter 7 — Volcanic
+    headline: 'Everything down here was made by someone who meant it.',
+    story: ['The forge-heat never quite reaches the deepest halls — and neither does the truth.'],
+  },
+  { // Chapter 8 — Caverns
+    headline: 'Some cities go underground to hide. This one went to be forgotten.',
+    story: ['Not everyone who disappeared meant to.'],
+  },
+  { // Chapter 9 — Shadowlands
+    headline: 'The dead here don\'t stay buried. They stay employed.',
+    story: ['Grief, this far out, starts looking a lot like a job description.'],
+  },
+  { // Chapter 10 — The Abyss
+    headline: 'Every road they walked was leading here. None of them chose that.',
+    story: ['This is where the contract runs out, one way or another.'],
+  },
+];
+
 // ------------------------------------------------------------
 // Skills — 12 per class
 // cat: basic | passive | passive2 | attack | attack2 | aoe | aoe2 |
