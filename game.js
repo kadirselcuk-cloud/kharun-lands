@@ -926,6 +926,8 @@ function applyAffixStatMods(c) {
     else if (a === 'colossal') { c.maxHp = Math.round(c.maxHp * 1.5); c.hp = c.maxHp; c.spd = Math.round(c.spd * 0.75); }
     else if (a === 'swift') { c.spd = Math.round(c.spd * 1.4); }
   }
+  // Each specialty makes the creature worth 20% more XP.
+  c.xp = Math.round(c.xp * (1 + 0.20 * c.affixes.length));
 }
 
 function makeCreature(level, tier, opts) {
@@ -991,6 +993,14 @@ function rollItemRarity(tier) {
 
 const RUNE_CHANCE = { normal: 0.001, rare: 0.01, epic: 0.02, miniboss: 0.05, legendary: 0.10 };
 
+// Per-tier chance an item (rather than gold/potion/nothing) drops —
+// reused below to give specialty creatures extra, independent shots
+// at an item on top of their normal roll.
+function itemDropChance(tier) {
+  if (tier === 'legendary' || tier === 'miniboss') return 0.75;
+  return ({ normal: 12, rare: 25, epic: 32 }[tier] || 0) / 100;
+}
+
 function rollLoot(creature, run) {
   const tier = creature.tier;
   const lvl = creature.level;
@@ -1008,22 +1018,33 @@ function rollLoot(creature, run) {
     const r = Math.random() * 100;
     if (r < 75) dropItem(lvl, rollItemRarity(tier), run);
     else gainPotion(pick(['hp', 'mana', 'scroll']), run);
-    return;
+  } else {
+    const r = Math.random() * 100;
+    const T = {
+      normal: { gold: 42, item: 12, hpPot: 4, manaPot: 3.5, buffPot: 0.35 },
+      rare:   { gold: 55, item: 25, hpPot: 3.5, manaPot: 3, buffPot: 1.4 },
+      epic:   { gold: 55, item: 32, hpPot: 2.5, manaPot: 2.2, buffPot: 2 },
+    }[tier];
+    let acc = 0;
+    if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; }
+    else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier), run); }
+    else if (r < (acc += T.hpPot)) { gainPotion('hp', run); }
+    else if (r < (acc += T.manaPot)) { gainPotion('mana', run); }
+    else if (r < (acc += T.buffPot)) { gainPotion('scroll', run); }
+    // else: nothing
   }
 
-  const r = Math.random() * 100;
-  const T = {
-    normal: { gold: 42, item: 12, hpPot: 4, manaPot: 3.5, buffPot: 0.35 },
-    rare:   { gold: 55, item: 25, hpPot: 3.5, manaPot: 3, buffPot: 1.4 },
-    epic:   { gold: 55, item: 32, hpPot: 2.5, manaPot: 2.2, buffPot: 2 },
-  }[tier];
-  let acc = 0;
-  if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; return; }
-  if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier), run); return; }
-  if (r < (acc += T.hpPot)) { gainPotion('hp', run); return; }
-  if (r < (acc += T.manaPot)) { gainPotion('mana', run); return; }
-  if (r < (acc += T.buffPot)) { gainPotion('scroll', run); return; }
-  // else: nothing
+  // Specialties: one extra independent item-drop roll per abnormality
+  // (same per-tier item chance as the base roll) — a creature with 2
+  // specialties gets 2 extra rolls, on top of its normal roll, so it
+  // can drop up to 3 items total.
+  const specialtyCount = (creature.affixes && creature.affixes.length) || 0;
+  if (specialtyCount) {
+    const chanceEach = itemDropChance(tier);
+    for (let i = 0; i < specialtyCount; i++) {
+      if (chance(chanceEach)) dropItem(lvl, rollItemRarity(tier), run);
+    }
+  }
 }
 
 // Whether an auto-sell setting matches a freshly-dropped item. Runes

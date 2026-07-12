@@ -5,11 +5,14 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.4.0';
+DATA.VERSION = '0.5.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.5.0', notes: [
+    'Creatures with a specialty (Vampiric, Explosive, etc.) now give +20% XP per specialty when killed, and roll one extra independent item-drop chance per specialty on top of their normal loot roll — a creature with 2 specialties can drop up to 3 items.',
+  ] },
   { v: '0.4.0', notes: [
     'Battle Arena: replaced the two text lines under the hero (power-scroll and queued-skill indicators) with a next-action box to the hero\'s left showing what the hero will actually do next, and a buffs/debuffs icon grid to the hero\'s right (4 rows tall, adding a new column every 4 effects) with the remaining-round count overlaid on each icon.',
   ] },
