@@ -14,6 +14,12 @@ game at runtime.
 
 ---
 
+## 1.1.1 (fix)
+
+- Quest-start screen (`UI.showQuestStart`) dropped its "Quest N:"/"Location:"
+  text labels, keeping only the icons + quest name/location — same cleanup
+  already applied to the Journal and quest-end screens in 1.1.0.
+
 ## 1.1.0 (minor)
 
 Gameplay changes: Sneaky Elf tiers and Miniboss timing, bundled with a few

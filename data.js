@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.1.0';
+DATA.VERSION = '1.1.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.1.1', notes: [
+    'Quest-start screen no longer shows "Quest N:"/"Location:" labels, just the quest name and location (icons kept) — matching the same cleanup already done in the Journal and quest-end screens.',
+  ] },
   { v: '1.1.0', notes: [
     'Sneaky Elf now comes in three types — Golden (common, baseline HP/drops), Emerald and Diamond (rarer, tougher, noticeably better loot odds on both the bag-shake and kill drops).',
     'Mini Bosses now start appearing from Chapter 1\'s 3rd quest (previously the 5th); every later chapter can roll one from its very first quest.',
