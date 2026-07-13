@@ -502,7 +502,8 @@ small { color: var(--dim); }
   display: flex; flex-direction: column; justify-content: center;
 }
 .enemy-card.tierb-epic .enemy-name { font-size: 1.25rem; }
-.enemy-card.tierb-epic .enemy-hp { height: 22px; }
+.enemy-card.tierb-epic .enemy-hp { height: 26px; }
+.enemy-card.tierb-epic .enemy-gauge { height: 4px; }
 .enemy-card.tierb-epic .enemy-stats { font-size: .85rem; }
 /* Mini Boss: light pinkish red, with a tense pulsing card animation. */
 .enemy-card.tierb-miniboss {
@@ -552,6 +553,12 @@ small { color: var(--dim); }
   0%, 100% { box-shadow: 0 0 20px rgba(209,32,44,.4); }
   50%      { box-shadow: 0 0 40px rgba(209,32,44,.85); border-color: #d1202c; }
 }
+/* .bar's flex:1 targets the main axis, which is vertical inside the
+   epic/miniboss/legendary/elf card variants above (they're column flex
+   containers) — without this override the hp/gauge bars collapse via
+   flex-basis:0 instead of respecting their tier-specific heights, same
+   issue as .hero-card .bar. */
+.enemy-card .bar { flex: none; }
 .enemy-name { font-weight: 700; font-size: .88rem; line-height: 1.25; }
 .enemy-sub { font-size: .7rem; color: var(--dim); margin: 1px 0 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; }
 .affix-badge { font-weight: 700; white-space: nowrap; }

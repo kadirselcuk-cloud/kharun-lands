@@ -14,6 +14,29 @@ game at runtime.
 
 ---
 
+## 1.1.0 (minor)
+
+Gameplay changes: Sneaky Elf tiers and Miniboss timing, bundled with a few
+small UI/text cleanups touched along the way.
+
+- Sneaky Elf split into three types: Golden (common baseline), Emerald and
+  Diamond (rarer, more HP, better bag-shake/kill drop odds). Spawn weights
+  ~70/22/8%. HP multipliers 10x/14x/18x vs a normal monster.
+- `minibossPossible`: Chapter 1 now allows Minibosses from its 3rd quest
+  (was the 5th); every chapter after Chapter 1 allows them from its very
+  first quest.
+- Journal entries and quest-end/victory text drop "Quest N" numbering,
+  showing just the quest name. The `.setup` "Sets up Quest N: …" hook text
+  is now stripped of that dev-facing prefix and capitalized at render time
+  (`questSetupText` in ui.js) rather than shown raw.
+- Removed the class icon from the Battle Arena hero card (kept in the
+  topbar and title/continue screen).
+- Fixed a real bug: Epic/Miniboss/Legendary/Elf enemy cards are column-flex
+  containers, so `.bar`'s `flex:1` (flex-basis:0) was silently collapsing
+  their HP/gauge bars to ~1.6px regardless of the tier-specific `height`
+  rules — the same class of bug already fixed once on `.hero-card .bar`.
+  Added `.enemy-card .bar { flex: none; }`.
+
 ## 1.0.1 (fix)
 
 UI/UX and mobile-friendliness pass following the v1.0.0 story rework. No

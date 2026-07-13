@@ -874,7 +874,12 @@ const WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 };
 // very small chance to be replaced by a wandering mini boss — doubled on
 // the 10th part (the chapter's boss level) to 3%.
 function minibossChance(level) { return (level % 10 === 0) ? 0.03 : 0.015; }
-function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
+// Chapter 1 eases the player in — minibosses only start from its 3rd
+// quest. Every later chapter can roll a miniboss from its very first quest.
+function minibossPossible(level) {
+  if (chapterNumOf(level) === 1) return (((level - 1) % 10) + 1) >= 3;
+  return true;
+}
 
 // The bag-carrying elf (a nod to Golden Axe): a rare bonus encounter.
 // He never attacks; the hero gets at most 5 hits before he escapes.
@@ -882,19 +887,48 @@ function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
 // small chance of epic); killing him outright spills a rare-or-better
 // with a very low chance of legendary. He doesn't count toward the
 // level's 1111 creatures.
+//
+// Three types, rolled whenever an elf encounter triggers — Golden is the
+// common baseline, Emerald and Diamond are progressively rarer, tougher
+// (more HP), and carry better loot odds (both chunk and kill drops).
 const ELF_CHANCE = 0.01;
+const ELF_TYPES = {
+  golden:  { name: 'Golden Elf',  color: '#e0c14c', hpMult: 10, weight: 70,
+    chunk: [['magical', 80], ['rare', 17], ['epic', 3]],
+    kill:  [['rare', 75], ['epic', 22], ['legendary', 3]] },
+  emerald: { name: 'Emerald Elf', color: '#3ddc6f', hpMult: 14, weight: 22,
+    chunk: [['magical', 55], ['rare', 35], ['epic', 10]],
+    kill:  [['rare', 55], ['epic', 35], ['legendary', 10]] },
+  diamond: { name: 'Diamond Elf', color: '#3ddbe0', hpMult: 18, weight: 8,
+    chunk: [['magical', 30], ['rare', 45], ['epic', 25]],
+    kill:  [['rare', 30], ['epic', 45], ['legendary', 25]] },
+};
+function pickElfType() {
+  const totalW = Object.values(ELF_TYPES).reduce((s, t) => s + t.weight, 0);
+  let r = Math.random() * totalW;
+  for (const [id, t] of Object.entries(ELF_TYPES)) { if (r < t.weight) return id; r -= t.weight; }
+  return 'golden';
+}
+function rollFromTable(table) {
+  const r = Math.random() * 100;
+  let acc = 0;
+  for (const [rarity, pct] of table) { acc += pct; if (r < acc) return rarity; }
+  return table[table.length - 1][0];
+}
 function makeElf(level) {
-  const hp = Math.round(39 * 10 * enemyHpScale(level));   // 10x a normal monster (5x, +100%)
+  const elfType = pickElfType();
+  const t = ELF_TYPES[elfType];
+  const hp = Math.round(39 * t.hpMult * enemyHpScale(level));
   return {
-    tier: 'elf', level, species: 'Bag Carrier', name: 'Sneaky Elf',
+    tier: 'elf', elfType, level, species: 'Bag Carrier', name: t.name,
     attack: 'Frantic Dodging', atkType: 'phys', res: { phys: 0, magic: 0, poison: 0 },
     maxHp: hp, hp, dmg: 0, spd: 0,
     xp: Math.max(2, Math.round((4 + level * 2.2) / 2)),
     gauge: 0, stunned: 0, dead: false,
   };
 }
-function elfChunkRarity() { const r = Math.random() * 100; return r < 80 ? 'magical' : r < 97 ? 'rare' : 'epic'; }
-function elfKillRarity() { const r = Math.random() * 100; return r < 75 ? 'rare' : r < 97 ? 'epic' : 'legendary'; }
+function elfChunkRarity(elfType) { return rollFromTable(ELF_TYPES[elfType || 'golden'].chunk); }
+function elfKillRarity(elfType) { return rollFromTable(ELF_TYPES[elfType || 'golden'].kill); }
 
 // ------------------------------------------------------------
 // Monster specialties (affixes)
@@ -1601,7 +1635,7 @@ function adventureTick() {
         playerDots: {}, playerSlow: null, cursedDebuff: null, corrosiveDebuff: null,
         elf: true, elfHits: 0, elfChunks: 0,
       };
-      log('encounter', `🧝 A SNEAKY ELF with a bulging bag darts across your path! (5 hits before he escapes!)`, { tier: 'elf' });
+      log('encounter', `🧝 A ${elf.name.toUpperCase()} with a bulging bag darts across your path! (5 hits before he escapes!)`, { tier: 'elf' });
       saveGame();
       UI.refreshAdventure();
       return;
@@ -1736,11 +1770,11 @@ function adventureTick() {
     const lost = (e.maxHp - Math.max(0, e.hp)) / e.maxHp;
     while (f.elfChunks < 3 && lost >= 0.25 * (f.elfChunks + 1)) {
       f.elfChunks++;
-      dropItem(ADV.level, elfChunkRarity(), run);
+      dropItem(ADV.level, elfChunkRarity(e.elfType), run);
       log('loot', `🧝 Something shakes loose from the elf's bag! (${f.elfChunks * 25}% battered)`);
     }
     if (e.hp <= 0) {
-      dropItem(ADV.level, elfKillRarity(), run);
+      dropItem(ADV.level, elfKillRarity(e.elfType), run);
       const ups = gainXp(e.xp, run); run.xp += e.xp;
       log('kill', `🧝 The elf collapses — his whole bag spills open!`, { tier: 'elf' });
       if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);

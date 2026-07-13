@@ -17,6 +17,16 @@ function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<':
 
 // Clickable version tag + Changelog link, same markup on every screen
 // (title, prelude, class select, chapter/quest screens, epilogue, in-game).
+// Quest .setup strings in data.js are written as "Sets up Quest N: <scene
+// sentence>" (a dev-facing hook comment baked into the story text). At
+// render time we strip that prefix and capitalize what's left, so players
+// only see the scene-setting sentence itself.
+function questSetupText(setup) {
+  if (!setup) return '';
+  const rest = setup.replace(/^Sets up Quest \d+:\s*/i, '');
+  return rest.charAt(0).toUpperCase() + rest.slice(1);
+}
+
 UI.versionFooterHtml = function () {
   return `<div class="version-footer">Kharun Lands v${DATA.VERSION} · <a href="#" onclick="UI.showChangelog();return false;">Changelog</a></div>`;
 };
@@ -146,10 +156,10 @@ UI.showQuestEnd = function (level) {
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
         <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
-        <h2 class="prelude-title part-intro-header">🧭 Quest ${info.questNum}: ${esc(info.quest.name)} — Complete</h2>
+        <h2 class="prelude-title part-intro-header">🧭 ${esc(info.quest.name)} — Complete</h2>
         <div class="quest-location-tag">🗺️ ${esc(info.location)}</div>
         ${info.quest.outro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
-        ${info.quest.setup ? `<p class="quest-setup">→ ${esc(info.quest.setup)}</p>` : ''}
+        ${info.quest.setup ? `<p class="quest-setup">${esc(questSetupText(info.quest.setup))}</p>` : ''}
         <button class="btn btn-primary btn-big" id="quest-end-btn">▶ Continue</button>
       </div>
       ${UI.versionFooterHtml()}
@@ -905,11 +915,11 @@ UI.renderJournal = function (el) {
     const body = cleared
       ? `${intro}${objective}
          ${q.outro.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
-         ${q.setup ? `<p class="quest-setup">→ ${esc(q.setup)}</p>` : ''}
+         ${q.setup ? `<p class="quest-setup">${esc(questSetupText(q.setup))}</p>` : ''}
          <p class="hint">🏆 Quest complete — this ground can still be walked again, but its tale here is told.</p>`
       : `${intro}${objective}<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
     return `<details class="journal-entry journal-part ${state}" ${state === 'current' ? 'open' : ''}>
-      <summary>🧭 Quest ${questIdx + 1}: ${esc(q.name)}</summary>
+      <summary>🧭 ${esc(q.name)}</summary>
       <div class="journal-body">
         <div class="quest-location-tag">🗺️ Location: ${esc(q.location)}</div>
         ${body}
@@ -1058,7 +1068,7 @@ UI.showQuestInfo = function (level) {
     <p class="quest-objective">🎯 Objective: ${esc(info.quest.objective)}</p>
     ${cleared ? `
       ${info.quest.outro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
-      ${info.quest.setup ? `<p class="quest-setup">→ ${esc(info.quest.setup)}</p>` : ''}
+      ${info.quest.setup ? `<p class="quest-setup">${esc(questSetupText(info.quest.setup))}</p>` : ''}
     ` : ''}
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
@@ -1138,7 +1148,6 @@ UI.playerCardHtml = function () {
     <div class="player-row">
       <div class="next-action-box" title="${nextSkill ? esc(nextSkill.name) : ''}">${nextSkill ? nextSkill.icon : ''}</div>
       <div class="hero-card">
-        <div class="hero-icon">${cls.icon}</div>
         <div class="hero-name">${esc(c.name)}</div>
         <div class="hero-sub">Lv ${c.level} ${cls.name}</div>
         <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
@@ -1212,7 +1221,11 @@ UI.showBestiary = function (level, pageIdx) {
     body = `
       <h3>🧝 Sneaky Elf</h3>
       <div class="item-sub">A rare bonus encounter (${(ELF_CHANCE * 100).toFixed(0)}% chance instead of a normal fight) — doesn't count toward the quest's 1,111 kills.</div>
-      <p class="prelude-text">He never attacks and flees after at most 5 hits. Every 25% of his HP you knock off shakes an item loose from his bag: mostly Magical, sometimes Rare, rarely Epic. If you manage to kill him outright before he flees, he drops something even better: usually Rare, sometimes Epic, very rarely Legendary.</p>`;
+      <p class="prelude-text">He never attacks and flees after at most 5 hits. Every 25% of his HP you knock off shakes an item loose from his bag; killing him outright before he flees spills the whole thing.</p>
+      <div class="bestiary-tiers">
+        ${Object.entries(ELF_TYPES).map(([id, t]) => `<div class="bestiary-tier-row"><span style="color:${t.color}">🧝 ${esc(t.name)}</span><span>❤️ ~${Math.round(39 * t.hpMult * enemyHpScale(level)).toLocaleString()} HP</span><span>${t.weight}% of elf sightings</span></div>`).join('')}
+      </div>
+      <p class="prelude-text">Golden is the common baseline. Emerald and Diamond are progressively rarer, tougher, and carry noticeably better loot odds on both the 25%-HP bag drops and the final kill drop.</p>`;
   } else {
     const boss = info.quest.boss;
     const isChapterBoss = isChapterEndLevel(level);
@@ -1347,7 +1360,11 @@ const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary
 // A chapter's 10th-quest boss overrides to a darker blood-red.
 const TIER_COLOR = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#ff6b7a', legendary: '#ff8b3d', elf: '#8fd96c' };
 const CHAPTER_BOSS_COLOR = '#d1202c';
-function enemyColor(e) { return e.isChapterBoss ? CHAPTER_BOSS_COLOR : (TIER_COLOR[e.tier] || TIER_COLOR.normal); }
+function enemyColor(e) {
+  if (e.isChapterBoss) return CHAPTER_BOSS_COLOR;
+  if (e.tier === 'elf' && e.elfType && ELF_TYPES[e.elfType]) return ELF_TYPES[e.elfType].color;
+  return TIER_COLOR[e.tier] || TIER_COLOR.normal;
+}
 function enemyCardClass(e) { return `tierb-${e.tier}${e.isChapterBoss ? ' tierb-chapterboss' : ''}`; }
 function enemyTierLabel(e) {
   if (e.tier === 'legendary') return e.isChapterBoss ? 'Chapter Boss' : 'Quest Boss';
@@ -1468,7 +1485,7 @@ UI.showResults = function (run, level) {
             <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
           </div>`).join('')}
       </div>` : ''}
-    ${isBoss ? `<p class="part-end-story">🏆 ${esc(info.quest.boss.name)} has fallen — Quest ${info.questNum}: ${esc(info.quest.name)} is complete! Hit Continue to see how the story unfolds.</p>` : ''}
+    ${isBoss ? `<p class="part-end-story">🏆 ${esc(info.quest.boss.name)} has fallen — ${esc(info.quest.name)} is complete! Hit Continue to see how the story unfolds.</p>` : ''}
     ${isBoss && run.partReward ? `
       <h4>🎁 Quest Reward</h4>
       <div class="quest-reward-box">

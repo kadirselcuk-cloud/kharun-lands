@@ -5,12 +5,19 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.0.1';
+DATA.VERSION = '1.1.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.1.0', notes: [
+    'Sneaky Elf now comes in three types — Golden (common, baseline HP/drops), Emerald and Diamond (rarer, tougher, noticeably better loot odds on both the bag-shake and kill drops).',
+    'Mini Bosses now start appearing from Chapter 1\'s 3rd quest (previously the 5th); every later chapter can roll one from its very first quest.',
+    'Journal and quest-end/victory text no longer show "Quest N" numbering, just the quest name; the "Sets up Quest N" hook now shows only its scene-setting sentence, capitalized.',
+    'Removed the player\'s class icon from the Battle Arena hero card.',
+    'Fixed Epic/Miniboss/Legendary/Elf enemy cards: their HP and attack-gauge bars were silently collapsing to the wrong size because of the same column-flex/flex:1 issue previously fixed on the hero card — heights now render correctly (thicker HP bar, thinner gauge on Epic).',
+  ] },
   { v: '1.0.1', notes: [
     'Epilogue is now paged like the Prologue, with a page counter and a Skip button on its first page; Back/Continue are now the same size everywhere.',
     'The version tag is now clickable (opens the Changelog) on every pre-game screen, not just a few.',
