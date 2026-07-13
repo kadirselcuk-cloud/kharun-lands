@@ -646,6 +646,15 @@ function buyShopItem(uid) {
   UI.toast(`Bought ${it.name}`);
 }
 
+// Buy then immediately equip, as one action. `slot` is only meaningful for
+// rings ('ring1'/'ring2') and 1H weapons ('weapon'/'offhand') — equipItem
+// falls back to the item's own slot otherwise. If the purchase fails (not
+// enough gold), the uid never lands in G.inventory, so the equip is skipped.
+function buyAndEquip(uid, slot) {
+  buyShopItem(uid);
+  if (G.inventory.some(i => i.uid === uid)) equipItem(uid, slot);
+}
+
 function restockCost() { return 200 + G.unlocked * 100; }
 
 // ------------------------------------------------------------

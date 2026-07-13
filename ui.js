@@ -660,6 +660,20 @@ UI.showShopItem = function (uid) {
   const targets = compareTargetsFor(it);
   const baseline = it.type === 'item' ? baselineFor(targets) : undefined;
   const statsHtml = UI.itemStatsHtml(it, baseline);
+
+  const equipActions = [];
+  if (it.type === 'item' && usable.ok) {
+    if (it.slot === 'ring') {
+      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'ring1');UI.closeModal()">Buy & Equip Left</button>`);
+      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'ring2');UI.closeModal()">Buy & Equip Right</button>`);
+    } else if (it.slot === 'weapon' && it.hands === 1) {
+      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'weapon');UI.closeModal()">Buy & Equip Main Hand</button>`);
+      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'offhand');UI.closeModal()">Buy & Equip Off Hand</button>`);
+    } else {
+      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid});UI.closeModal()">Buy & Equip</button>`);
+    }
+  }
+
   UI.modal(`
     <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
@@ -667,6 +681,7 @@ UI.showShopItem = function (uid) {
     ${UI.compareBlockHtml(it, targets, baseline)}
     <div class="modal-actions">
       <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${it.price.toLocaleString()})</button>
+      ${equipActions.join('')}
       <button class="btn" onclick="UI.closeModal()">Close</button>
     </div>`);
 };

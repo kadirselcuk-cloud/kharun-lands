@@ -5,11 +5,14 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.7.0';
+DATA.VERSION = '0.8.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.8.0', notes: [
+    'Shop: added "Buy & Equip" next to Buy on any usable item — for rings this is "Buy & Equip Left"/"Buy & Equip Right", for one-handed weapons "Buy & Equip Main Hand"/"Buy & Equip Off Hand".',
+  ] },
   { v: '0.7.0', notes: [
     'Battle Arena action bar: on mobile, the icon buttons no longer stretch oversized when only a few are active — capped to a consistent size, matching desktop.',
     '"Enemies at once" now goes up to 6.',

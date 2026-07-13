@@ -192,3 +192,28 @@ to exactly fill the battle arena's fixed 6-cell grid (`TIER_CELLS.normal
 monster"); doubled to `39 * 10` per a direct "+100% HP" request. Comment
 updated to say 10x rather than describe it as "5x, doubled" so a future
 read of the code isn't left doing that arithmetic again.
+
+## Shop "Buy & Equip" (`buyAndEquip` in game.js, `UI.showShopItem` in ui.js)
+
+- `equipItem(uid, slot)` (game.js) only ever looks the item up **in
+  `G.inventory` by uid** — it has no path for equipping something that
+  isn't already owned. So "Buy & Equip" can't be its own primitive; it has
+  to be "buy, then equip" as two calls. `buyAndEquip(uid, slot)` does
+  exactly that: calls `buyShopItem(uid)`, then only calls `equipItem` if
+  the uid actually made it into `G.inventory` (i.e. the purchase didn't
+  get rejected for insufficient gold) — reuses `buyShopItem`'s own
+  gold-check/toast rather than duplicating that logic.
+- This causes `saveGame()`/`UI.refresh()` to run twice in a row (once
+  inside each of `buyShopItem` and `equipItem`) — harmless, not worth
+  special-casing to avoid.
+- `UI.showShopItem` branches on `it.slot` exactly like the inventory item
+  modal's equip buttons (`UI.showItem`, same file) does: `ring` → "Buy &
+  Equip Left"/"Buy & Equip Right" (`ring1`/`ring2`), a 1-handed `weapon` →
+  "Buy & Equip Main Hand"/"Buy & Equip Off Hand" (`weapon`/`offhand`),
+  anything else usable → a single "Buy & Equip" (no explicit slot, so
+  `equipItem` falls back to `it.slot`). Runes (`it.type === 'rune'`) get
+  no equip buttons — they're socketed into an item, not equipped.
+- Verified in the browser console: buying+equipping a ring actually lands
+  it in `G.char.equip.ring1` (not left sitting in inventory), removes it
+  from `G.shop.stock`, and deducts gold; with `G.gold = 0`, the call is a
+  no-op (item stays in shop stock, nothing equipped).
