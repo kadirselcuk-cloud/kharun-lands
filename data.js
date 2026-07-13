@@ -5,11 +5,23 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.0.0';
+DATA.VERSION = '1.0.1';
 
-// Changelog — newest first. Each user-requested change bumps the
-// minor version (0.1.0, 0.2.0, 0.3.0, ...).
+// Changelog — newest first. FIX versions = bug fixes/design-only changes,
+// MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
+// See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.0.1', notes: [
+    'Epilogue is now paged like the Prologue, with a page counter and a Skip button on its first page; Back/Continue are now the same size everywhere.',
+    'The version tag is now clickable (opens the Changelog) on every pre-game screen, not just a few.',
+    'Unified icons: 📖 Chapters, 🧭 Quests, 🗺️ Locations, used consistently everywhere instead of a different icon per chapter.',
+    'Adventure page simplified: just the quest name (no "Quest 1:"), no more "Level X/100", clickable quest/location, and the inline help text moved into new ❓ Help buttons (Adventure page + Combat Arena).',
+    '"Enemies at once" moved into a new ⚙️ Adventure Settings modal.',
+    'New 🐾 Bestiary: browse a quest\'s local threats (with Rare/Epic/Miniboss stats), the wandering Sneaky Elf, and the quest boss — accessible from the Adventure page and from "The pack that got you" on defeat.',
+    'New ❓ Help button (top bar) explaining the game, tabs, and Chapter/Quest/Location structure.',
+    'Opening the Adventure tab now scrolls to the Battle Arena.',
+    'Mobile-friendliness pass across the top bar, modals, and Combat Options/Auto-Use screens.',
+  ] },
   { v: '1.0.0', notes: [
     'THE KHARUN LANDS STORY UPDATE: the entire game now follows the ten-chapter story — Prologue, Chapters 1-10 with ten Quests each, and an Epilogue. Biomes and Parts are gone; every level is now a story Quest tied 1:1 to a Location.',
     'New paged Prologue ("The Last Ward") before character selection, and all-new hero backstories for Kharun, Pars and Minnie on the character select screen.',

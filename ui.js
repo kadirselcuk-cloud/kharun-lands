@@ -15,6 +15,12 @@ let journalPage = null;    // 'prologue' | chapter number | 'epilogue' — null 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+// Clickable version tag + Changelog link, same markup on every screen
+// (title, prelude, class select, chapter/quest screens, epilogue, in-game).
+UI.versionFooterHtml = function () {
+  return `<div class="version-footer">Kharun Lands v${DATA.VERSION} · <a href="#" onclick="UI.showChangelog();return false;">Changelog</a></div>`;
+};
+
 // ------------------------------------------------------------
 // Screens
 // ------------------------------------------------------------
@@ -39,14 +45,22 @@ UI.showPrelude = function (pageIdx) {
         <h2 class="prelude-title">${esc(page.title)}</h2>
         ${page.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         <div class="prelude-nav">
-          ${i > 0 ? `<button class="btn" id="prelude-back-btn">◀ Back</button>` : ''}
-          <button class="btn btn-primary btn-big" id="prelude-next-btn">${last ? '⚔️ Choose Your Hero' : '▶ Continue'}</button>
+          <div class="prelude-nav-side">
+            ${i > 0 ? `<button class="btn btn-big" id="prelude-back-btn">◀ Back</button>` : ''}
+            ${i === 0 && !last ? `<button class="btn btn-big" id="prelude-skip-btn">Skip ▶▶</button>` : ''}
+          </div>
+          <div class="prelude-nav-side">
+            <button class="btn btn-primary btn-big" id="prelude-next-btn">${last ? '⚔️ Choose Your Hero' : '▶ Continue'}</button>
+            <span class="prelude-page-indicator">Page ${i + 1}/${pages.length}</span>
+          </div>
         </div>
       </div>
-      <p class="subtitle version-tag">v${DATA.VERSION}</p>
+      ${UI.versionFooterHtml()}
     </div>`;
   const back = $('#prelude-back-btn');
   if (back) back.onclick = () => UI.showPrelude(i - 1);
+  const skip = $('#prelude-skip-btn');
+  if (skip) skip.onclick = () => UI.showClassSelect();
   $('#prelude-next-btn').onclick = () => last ? UI.showClassSelect() : UI.showPrelude(i + 1);
 };
 
@@ -57,14 +71,15 @@ UI.showTitle = function (save) {
   $('#app').innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser. <span class="version-tag">v${DATA.VERSION}</span></p>
+      <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser.</p>
       <div class="title-box">
         <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
-          <small>Level ${c.level} ${cls.name} · Quest ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
+          <small>Level ${c.level} ${cls.name} · 🧭 Quest ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
         </div>
         <button class="btn btn-primary btn-big" id="continue-btn">▶ Continue</button>
         <button class="btn" id="newchar-btn">✚ New Character (deletes this hero)</button>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   $('#continue-btn').onclick = () => { loadGame(); UI.showGame(); };
   $('#newchar-btn').onclick = () => {
@@ -84,11 +99,12 @@ UI.showChapterIntro = function (chapterNum) {
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
-        <h2 class="prelude-title">${ch.icon} ${esc(ch.title)}</h2>
+        <h2 class="prelude-title">📖 ${esc(ch.title)}</h2>
         ${ch.headline ? `<p class="chapter-headline-big">${esc(ch.headline)}</p>` : ''}
         ${ch.story.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         <button class="btn btn-primary btn-big" id="chapter-start-btn">▶ Continue</button>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   $('#chapter-start-btn').onclick = () => UI.showQuestStart(startLevel);
 };
@@ -102,12 +118,13 @@ UI.showQuestStart = function (level) {
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
         <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
-        <h2 class="prelude-title part-intro-header">Quest ${info.questNum}: ${esc(info.quest.name)}</h2>
-        <div class="quest-location-tag">📍 Location: ${esc(info.location)}</div>
+        <h2 class="prelude-title part-intro-header">🧭 Quest ${info.questNum}: ${esc(info.quest.name)}</h2>
+        <div class="quest-location-tag">🗺️ Location: ${esc(info.location)}</div>
         ${info.quest.intro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         <p class="quest-objective">🎯 Objective: ${esc(info.quest.objective)}</p>
         <button class="btn btn-primary btn-big" id="quest-start-btn">▶ Start</button>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   $('#quest-start-btn').onclick = () => {
     G.area = Math.min(level, G.unlocked);
@@ -129,12 +146,13 @@ UI.showQuestEnd = function (level) {
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
         <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
-        <h2 class="prelude-title part-intro-header">Quest ${info.questNum}: ${esc(info.quest.name)} — Complete</h2>
-        <div class="quest-location-tag">📍 ${esc(info.location)}</div>
+        <h2 class="prelude-title part-intro-header">🧭 Quest ${info.questNum}: ${esc(info.quest.name)} — Complete</h2>
+        <div class="quest-location-tag">🗺️ ${esc(info.location)}</div>
         ${info.quest.outro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         ${info.quest.setup ? `<p class="quest-setup">→ ${esc(info.quest.setup)}</p>` : ''}
         <button class="btn btn-primary btn-big" id="quest-end-btn">▶ Continue</button>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   $('#quest-end-btn').onclick = () => {
     if (chapterDone) UI.showChapterEnd(chapterNumOf(level));
@@ -152,30 +170,49 @@ UI.showChapterEnd = function (chapterNum) {
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
         <div class="part-intro-chapter-tag">Chapter Ending</div>
-        <h2 class="prelude-title">${ch.icon} ${esc(ch.title)}</h2>
+        <h2 class="prelude-title">📖 ${esc(ch.title)}</h2>
         ${(ch.ending || []).map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         <button class="btn btn-primary btn-big" id="chapter-end-btn">${lastChapter ? '📖 Epilogue' : '▶ Continue'}</button>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   $('#chapter-end-btn').onclick = () => lastChapter ? UI.showEpilogue() : UI.showChapterIntro(chapterNum + 1);
 };
 
 // The Epilogue — shown once after Chapter 10's ending (and afterwards
-// readable any time from the Journal).
-UI.showEpilogue = function () {
+// readable any time from the Journal). Paged one section at a time, same
+// Back/Continue/page-indicator/Skip pattern as the Prologue (UI.showPrelude).
+UI.showEpilogue = function (pageIdx) {
+  const sections = DATA.EPILOGUE.sections;
+  const i = Math.max(0, Math.min(sections.length - 1, pageIdx || 0));
+  const section = sections[i];
+  const last = i === sections.length - 1;
   $('#app').innerHTML = `
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
-        <h2 class="prelude-title">📖 Epilogue: ${esc(DATA.EPILOGUE.title)}</h2>
-        ${DATA.EPILOGUE.sections.map(s => `
-          <h3 class="part-intro-header">${esc(s.h)}</h3>
-          ${s.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}`).join('')}
-        <p class="prelude-text epilogue-end">— END —</p>
-        <button class="btn btn-primary btn-big" id="epilogue-btn">▶ Return to the Kharun Lands</button>
+        <div class="part-intro-chapter-tag">📖 Epilogue: ${esc(DATA.EPILOGUE.title)} · Page ${i + 1} of ${sections.length}</div>
+        <h2 class="prelude-title">${esc(section.h)}</h2>
+        ${section.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        ${last ? `<p class="prelude-text epilogue-end">— END —</p>` : ''}
+        <div class="prelude-nav">
+          <div class="prelude-nav-side">
+            ${i > 0 ? `<button class="btn btn-big" id="epilogue-back-btn">◀ Back</button>` : ''}
+            ${i === 0 && !last ? `<button class="btn btn-big" id="epilogue-skip-btn">Skip ▶▶</button>` : ''}
+          </div>
+          <div class="prelude-nav-side">
+            <button class="btn btn-primary btn-big" id="epilogue-next-btn">${last ? '🏠 Return to the Kharun Lands' : '▶ Continue'}</button>
+            <span class="prelude-page-indicator">Page ${i + 1}/${sections.length}</span>
+          </div>
+        </div>
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
-  $('#epilogue-btn').onclick = () => UI.showGame();
+  const back = $('#epilogue-back-btn');
+  if (back) back.onclick = () => UI.showEpilogue(i - 1);
+  const skip = $('#epilogue-skip-btn');
+  if (skip) skip.onclick = () => UI.showGame();
+  $('#epilogue-next-btn').onclick = () => last ? UI.showGame() : UI.showEpilogue(i + 1);
 };
 
 // Called after the boss-victory modal's Continue button: first the
@@ -197,7 +234,7 @@ UI.showClassSelect = function () {
   app.innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">Three heroes, one road. Choose who answers: <span class="version-tag">v${DATA.VERSION}</span></p>
+      <p class="subtitle">Three heroes, one road. Choose who answers.</p>
       <div class="class-cards">
         ${Object.values(DATA.CLASSES).map(c => `
           <div class="class-card" data-cls="${c.id}">
@@ -220,6 +257,7 @@ UI.showClassSelect = function () {
             <button class="btn btn-primary pick-btn">Play as ${esc(c.heroName)}</button>
           </div>`).join('')}
       </div>
+      ${UI.versionFooterHtml()}
     </div>`;
   app.querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
@@ -241,9 +279,16 @@ UI.showGame = function () {
     <div id="tab-content"></div>
     <div id="modal-root"></div>
     <div id="toast"></div>
-    <div class="version-footer">Kharun Lands v${DATA.VERSION} · <a href="#" onclick="UI.showChangelog();return false;">Changelog</a></div>`;
+    ${UI.versionFooterHtml()}`;
   document.querySelectorAll('#tabs button').forEach(b => {
-    b.onclick = () => { activeTab = b.dataset.tab; UI.refresh(); };
+    b.onclick = () => {
+      activeTab = b.dataset.tab;
+      UI.refresh();
+      if (b.dataset.tab === 'adventure') {
+        const arena = document.querySelector('.battle-arena');
+        if (arena) arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    };
   });
   UI.refresh();
 };
@@ -328,7 +373,21 @@ UI.renderTopbar = function () {
       ${c.skillPoints ? `<span class="pts">+${c.skillPoints} skill</span>` : ''}
       <button class="btn btn-tiny" onclick="saveGame();UI.toast('💾 Game saved')" title="The game also auto-saves constantly">💾 Save</button>
       <button class="btn btn-tiny" onclick="if(confirm('Delete this hero and start over?'))resetGame()">↺ Reset</button>
+      <button class="btn btn-tiny" onclick="UI.showGameHelp()">❓ Help</button>
     </div>`;
+};
+
+UI.showGameHelp = function () {
+  UI.modal(`
+    <h3>❓ Kharun Lands — Help</h3>
+    <p class="prelude-text">Play through a ten-chapter story as Kharun (Warrior), Pars (Rogue), or Minnie (Mage). Every Quest is tied to one Location and ends with a named boss — beat it to unlock the next Quest, and beat a chapter's 10th Quest to unlock the next Chapter.</p>
+    <p class="prelude-text"><b>📖 Chapters</b> group ten Quests each around one region of the story. <b>🧭 Quests</b> are individual objectives with their own intro, creatures and boss. <b>🗺️ Locations</b> are where a Quest physically takes place.</p>
+    <p class="prelude-text"><b>🗺️ Adventure</b> — fight through your current Quest's creatures. Has its own ❓ Help and ⚔️ Combat Arena ❓ Help for details on the gauge, potions and skills.</p>
+    <p class="prelude-text"><b>🧍 Character</b> — your stats, skills, and inventory/equipment.</p>
+    <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
+    <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
+    <p class="prelude-text">💾 Save writes your progress immediately (the game also auto-saves constantly). ↺ Reset permanently deletes your current hero and starts over.</p>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
 // ------------------------------------------------------------
@@ -850,9 +909,9 @@ UI.renderJournal = function (el) {
          <p class="hint">🏆 Quest complete — this ground can still be walked again, but its tale here is told.</p>`
       : `${intro}${objective}<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
     return `<details class="journal-entry journal-part ${state}" ${state === 'current' ? 'open' : ''}>
-      <summary>Quest ${questIdx + 1}: ${esc(q.name)}</summary>
+      <summary>🧭 Quest ${questIdx + 1}: ${esc(q.name)}</summary>
       <div class="journal-body">
-        <div class="quest-location-tag">📍 Location: ${esc(q.location)}</div>
+        <div class="quest-location-tag">🗺️ Location: ${esc(q.location)}</div>
         ${body}
       </div>
     </details>`;
@@ -879,7 +938,7 @@ UI.renderJournal = function (el) {
     const visibleQuestCount = state === 'past' ? 10 : ((frontier - 1) % 10) + 1;
     const quests = Array.from({ length: visibleQuestCount }, (_, q) => questEntry(ch, i, q)).join('');
     const chapterCleared = !!G.bossKilled[chapterNum * 10];
-    pageTitle = `${ch.icon} ${esc(ch.title)}`;
+    pageTitle = `📖 ${esc(ch.title)}`;
     pageBody = `
       ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
       ${ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
@@ -922,38 +981,31 @@ UI.renderAdventure = function (el) {
   const info = areaInfo(G.area);
   const chapter = info.chapter;
   const kills = G.progress[G.area] || 0;
-  const nextTier = nextCreatureTier(kills);
-  const isChapterBossLevel = isChapterEndLevel(G.area);
-  const bossLabel = isChapterBossLevel
-    ? `<span class="chapterboss-txt">🩸 CHAPTER BOSS: ${esc(info.quest.boss.name)}</span>`
-    : `🔶 QUEST BOSS: ${esc(info.quest.boss.name)}`;
   el.innerHTML = `
     <div class="two-col">
       <div class="panel">
-        <h3>📖 ${esc(chapter.title)}</h3>
-        ${chapter.headline ? `<p class="chapter-headline">${esc(chapter.headline)}</p>` : ''}
+        <h3>📖 ${esc(chapter.title)}
+          <span class="filters">
+            <button class="btn btn-tiny" onclick="UI.showAdventureSettings()">⚙️ Settings</button>
+            <button class="btn btn-tiny" onclick="UI.showAdventureHelp()">❓ Help</button>
+          </span>
+        </h3>
         <div class="area-picker">
           <button class="btn" ${G.area <= 1 || ADV ? 'disabled' : ''} onclick="G.area--;saveGame();UI.refresh()">◀</button>
           <div class="area-info">
-            <div class="area-sub">Quest ${info.questNum}: ${esc(info.quest.name)}</div>
-            <div class="area-name">${chapter.icon} 📍 ${esc(info.location)}</div>
-            <div class="area-sub">Level ${G.area} / ${MAX_LEVEL_AREA} ${G.bossKilled[G.area] ? '· 🏆 quest complete' : ''}</div>
+            <div class="area-sub area-clickable" onclick="UI.showQuestInfo(${G.area})">🧭 ${esc(info.quest.name)}</div>
+            <div class="area-name area-clickable" onclick="UI.showQuestInfo(${G.area})">🗺️ ${esc(info.location)}</div>
           </div>
           <button class="btn" ${G.area >= G.unlocked || ADV ? 'disabled' : ''} onclick="G.area++;saveGame();UI.refresh()">▶</button>
         </div>
         <div class="quest-objective adv-objective">🎯 ${esc(info.quest.objective)}</div>
         <div class="bar progress-bar" title="Quest progress">
           <div style="width:${kills / CREATURES_PER_LEVEL * 100}%"></div>
-          <span>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared</span>
+          <span>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared${G.bossKilled[G.area] ? ' · 🏆 quest complete' : ''}</span>
         </div>
-        <div class="pattern-hint">Next up: <b>${nextTier ? { normal: 'Normal creature', rare: '🔷 Rare creature', epic: '🟣 Epic creature', legendary: bossLabel }[nextTier] : 'Quest cleared!'}</b></div>
-        <div class="pattern-hint hint">Every 11th kill is a 🔷 Rare · every 111th a 🟣 Epic · the 1,111th is the quest\'s boss: <b>${esc(info.quest.boss.name)}</b>. Slay it to complete the quest.</div>
-        <div class="pack-row">
-          <span>⚔️ Enemies at once:</span>
-          ${[1, 2, 3, 4, 5, 6].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" onclick="setPackSize(${n})">${n}</button>`).join('')}
-          <small class="hint-inline">more enemies = faster progress, more danger</small>
-        </div>
-        <h3>Local threats <small>(this quest's creatures)</small></h3>
+        <h3>Local threats <small>(this quest's creatures)</small>
+          <span class="filters"><button class="btn btn-tiny" onclick="UI.showBestiary(${G.area})">🐾 Bestiary</button></span>
+        </h3>
         <div class="wildlife">
           ${creaturesForLevel(G.area).map(cr => `<div class="creature-chip" title="${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%">${esc(cr.name)}</div>`).join('')}
         </div>
@@ -969,16 +1021,15 @@ UI.renderAdventure = function (el) {
                 <button class="btn btn-tiny ${ADV.speedMs === 40 ? 'active' : ''}" onclick="setAdvSpeed(40)">MAX</button>
               </span>
             </div>
-            <p class="hint">Your hero fights until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this level's progress — retreat while you still can to keep it!</p>
           </div>` : `
-          <button class="btn btn-primary btn-big" onclick="startAdventure()">⚔️ ADVENTURE!</button>
-          <p class="hint">Your hero fights round by round until the level boss falls or they drop to 0 HP. ⚠️ Falling in battle resets this level's progress (loot, gold and XP are kept) — retreating manually keeps your progress. Potions found are drunk on the spot.</p>`}
+          <button class="btn btn-primary btn-big" onclick="startAdventure()">⚔️ ADVENTURE!</button>`}
       </div>
       <div class="panel">
         <h3>⚔️ Battle Arena
           <span class="filters">
             <button class="btn btn-tiny" onclick="UI.showCombatOptions()">⚙️ Combat Options</button>
             <button class="btn btn-tiny" onclick="UI.showAutoUseSettings()">🤖 Auto-Use</button>
+            <button class="btn btn-tiny" onclick="UI.showCombatHelp()">❓ Help</button>
           </span>
         </h3>
         <div id="player-controls">${UI.controlsHtml()}</div>
@@ -992,6 +1043,59 @@ UI.renderAdventure = function (el) {
       </div>
     </div>`;
   UI.scrollLog();
+};
+
+// Quick modal summary of a quest — location, story-so-far and objective —
+// opened by clicking the quest name/location on the Adventure panel
+// without navigating away or restarting the quest-start screen.
+UI.showQuestInfo = function (level) {
+  const info = areaInfo(level);
+  const cleared = !!G.bossKilled[level];
+  UI.modal(`
+    <h3>🧭 ${esc(info.quest.name)}</h3>
+    <div class="item-sub">📖 ${esc(info.chapter.title)} · 🗺️ ${esc(info.location)}</div>
+    ${info.quest.intro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+    <p class="quest-objective">🎯 Objective: ${esc(info.quest.objective)}</p>
+    ${cleared ? `
+      ${info.quest.outro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+      ${info.quest.setup ? `<p class="quest-setup">→ ${esc(info.quest.setup)}</p>` : ''}
+    ` : ''}
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+};
+
+// Adventure-page settings — currently just pack size ("Enemies at once").
+UI.showAdventureSettings = function () {
+  UI.modal(`
+    <h3>⚙️ Adventure Settings</h3>
+    <div class="settings-section" style="border-top:none;margin-top:0;padding-top:0">
+      <h4>⚔️ Enemies at once</h4>
+      <div class="pack-row">
+        ${[1, 2, 3, 4, 5, 6].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" data-packsize="${n}">${n}</button>`).join('')}
+      </div>
+      <p class="hint">More enemies fought at once means faster progress, but more danger.</p>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+  document.querySelectorAll('[data-packsize]').forEach(b => b.onclick = () => { setPackSize(Number(b.dataset.packsize)); UI.showAdventureSettings(); });
+};
+
+UI.showAdventureHelp = function () {
+  UI.modal(`
+    <h3>❓ Adventure Help</h3>
+    <p class="prelude-text">Each Quest is tied to one Location. Fight through its creatures to fill the progress bar — every 11th kill is a 🔷 Rare, every 111th a 🟣 Epic, and the 1,111th is the quest's named boss. Slaying the boss completes the quest and unlocks the next.</p>
+    <p class="prelude-text">Tap the quest name or location to re-read its story and objective. Use 🐾 Bestiary to see every creature this quest can throw at you, including rare/elite versions, the wandering elf, and the boss.</p>
+    <p class="prelude-text">⚔️ ADVENTURE! starts the fight — your hero battles round by round until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this quest's kill progress (loot, gold and XP earned are kept); retreating manually keeps your progress. Potions found along the way are drunk on the spot.</p>
+    <p class="prelude-text">While adventuring you can Pause, Retreat, or change playback Speed at any time. ⚙️ Settings controls how many enemies you fight at once — more enemies means faster progress but more danger.</p>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+};
+
+UI.showCombatHelp = function () {
+  UI.modal(`
+    <h3>❓ Combat Arena Help</h3>
+    <p class="prelude-text"><b>Attack gauge</b> — the bar under your HP/Mana on the hero card. Every round, every fighter's gauge fills by their Speed; whoever reaches 100 first acts. Faster heroes and enemies attack more often.</p>
+    <p class="prelude-text"><b>Potions &amp; skills</b> — the icon row above the arena. Click one to use it, or press its keyboard shortcut badge (Q/W for potions, 1-9/0 for skills, desktop only). A faded number over an icon means it's on cooldown; the caption underneath shows stock left (potions) or mana cost (skills).</p>
+    <p class="prelude-text"><b>Layout</b> — left: your hero card (portrait, HP/Mana/gauge bars) plus a small box above it previewing your next action, and a grid of active buff/debuff icons to its right. Middle: the last thing that happened. Right: the enemy pack you're fighting.</p>
+    <p class="prelude-text">Use ⚙️ Combat Options to decide what happens the instant a Rare/Epic/Miniboss/Abnormal encounter appears (pause, slow down, or continue normally), and 🤖 Auto-Use to automate potions and skills during combat.</p>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
 // What will actually happen on the hero's next action: the manually
@@ -1059,6 +1163,82 @@ UI.actionBoxHtml = function () {
 };
 
 const TIER_UI_LABEL = { normal: 'Normal', miniboss: 'Miniboss', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+
+// ------------------------------------------------------------
+// Bestiary — a paged "book" of everything a quest can throw at you:
+// its local threats (and their Rare/Epic/Miniboss versions, computed
+// with the same formulas makeCreature uses), the wandering Sneaky Elf,
+// and the quest's named boss.
+// ------------------------------------------------------------
+UI.bestiaryPages = function (level) {
+  const info = areaInfo(level);
+  const pages = [];
+  pages.push({ kind: 'intro', info });
+  for (const cr of creaturesForLevel(level)) pages.push({ kind: 'threat', cr, level, info });
+  pages.push({ kind: 'elf', level });
+  pages.push({ kind: 'boss', info, level });
+  return pages;
+};
+
+UI.bestiaryTierRow = function (base, level, tier) {
+  const conf = TIER_CONF[tier];
+  const hp = Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp));
+  const dmg = Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg));
+  const tierIcon = { normal: '⚪', rare: '🔷', epic: '🟣', miniboss: '🩷', legendary: '🔶' }[tier];
+  return `<div class="bestiary-tier-row"><span>${tierIcon} ${TIER_UI_LABEL[tier]}</span><span>❤️ ~${hp.toLocaleString()} HP</span><span>⚔️ ~${dmg.toLocaleString()} dmg</span></div>`;
+};
+
+UI.showBestiary = function (level, pageIdx) {
+  const pages = UI.bestiaryPages(level);
+  const i = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
+  const page = pages[i];
+  const info = areaInfo(level);
+  let body;
+  if (page.kind === 'intro') {
+    body = `
+      <h3>🐾 Bestiary — ${esc(info.location)}</h3>
+      <p class="prelude-text">This quest's 1,111 creatures follow a fixed pattern: every 11th kill is a 🔷 Rare, every 111th a 🟣 Epic, and the 1,111th is the quest's boss. From partway through the chapter, normal encounters also have a small chance to be a wandering 🩷 Miniboss instead. Rare/Epic/Miniboss encounters are one of this quest's own local threats, just renamed and much stronger.</p>
+      <p class="prelude-text">Flip through this book for stats on every local threat, the wandering Sneaky Elf, and this quest's named boss.</p>`;
+  } else if (page.kind === 'threat') {
+    const cr = page.cr;
+    const tiers = ['normal', 'rare', 'epic'];
+    if (minibossPossible(level)) tiers.push('miniboss');
+    body = `
+      <h3>${esc(cr.name)}</h3>
+      <div class="item-sub">${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%</div>
+      <p class="hint">Stats shown are approximate, at your current quest's level.</p>
+      <div class="bestiary-tiers">${tiers.map(t => UI.bestiaryTierRow(cr, level, t)).join('')}</div>`;
+  } else if (page.kind === 'elf') {
+    body = `
+      <h3>🧝 Sneaky Elf</h3>
+      <div class="item-sub">A rare bonus encounter (${(ELF_CHANCE * 100).toFixed(0)}% chance instead of a normal fight) — doesn't count toward the quest's 1,111 kills.</div>
+      <p class="prelude-text">He never attacks and flees after at most 5 hits. Every 25% of his HP you knock off shakes an item loose from his bag: mostly Magical, sometimes Rare, rarely Epic. If you manage to kill him outright before he flees, he drops something even better: usually Rare, sometimes Epic, very rarely Legendary.</p>`;
+  } else {
+    const boss = info.quest.boss;
+    const isChapterBoss = isChapterEndLevel(level);
+    body = `
+      <h3 style="${isChapterBoss ? 'color:#8b1a2b' : ''}">${isChapterBoss ? '🩸' : '🔶'} ${esc(boss.name)}${isChapterBoss ? ' — Chapter Boss' : ' — Quest Boss'}</h3>
+      <div class="item-sub">${esc(boss.attack)} (${boss.atkType}) — res ⚔️${boss.res.phys}% ✨${boss.res.magic}% ☠️${boss.res.poison}%</div>
+      <div class="bestiary-tiers">${UI.bestiaryTierRow(boss, level, 'legendary')}</div>
+      ${boss.specialties && boss.specialties.length ? `<div class="bestiary-specialties">${boss.specialties.map(id => {
+        const s = DATA.SPECIALTIES[id];
+        return s ? `<div class="affix" style="color:${s.color}">${s.icon} <b>${esc(s.name)}</b> — ${esc(s.desc)}</div>` : '';
+      }).join('')}</div>` : ''}
+      <p class="prelude-text">The 1,111th kill of this quest. Slay it to complete the quest and unlock the next.</p>`;
+  }
+  UI.modal(`
+    <div class="bestiary-page">${body}</div>
+    <div class="prelude-nav">
+      <div class="prelude-nav-side">
+        <button class="btn btn-tiny" ${i === 0 ? 'disabled' : ''} onclick="UI.showBestiary(${level},${i - 1})">◀ Prev</button>
+      </div>
+      <div class="prelude-nav-side">
+        <button class="btn btn-tiny" ${i === pages.length - 1 ? 'disabled' : ''} onclick="UI.showBestiary(${level},${i + 1})">Next ▶</button>
+        <span class="prelude-page-indicator">Page ${i + 1}/${pages.length}</span>
+      </div>
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+};
 
 UI.showCombatOptions = function () {
   const m = G.settings.encounterMode;
@@ -1264,12 +1444,14 @@ UI.showResults = function (run, level) {
   const isBoss = run.outcome === 'boss';
   UI.modal(`
     <h3>${outcomeTxt}</h3>
-    <div class="item-sub">${chapter.icon} ${esc(chapter.title)} · Quest ${info.questNum}: ${esc(info.quest.name)} — 📍 ${esc(info.location)}</div>
+    <div class="item-sub">📖 ${esc(chapter.title)} · 🧭 Quest ${info.questNum}: ${esc(info.quest.name)} — 🗺️ ${esc(info.location)}</div>
     ${run.outcome === 'defeated' && run.killedByHit ? `
       <h4>☠️ Killing blow</h4>
       <p class="hint">${run.killedByHit.icon} ${esc(run.killedByHit.label)} — ${run.killedByHit.amount.toLocaleString()} damage</p>` : ''}
     ${run.outcome === 'defeated' && run.killedBy && run.killedBy.length ? `
-      <h4>💀 The pack that got you</h4>
+      <h4>💀 The pack that got you
+        <button class="btn btn-tiny" onclick="UI.closeModal();UI.showBestiary(${level})">🐾 View in Bestiary</button>
+      </h4>
       <div class="killedby-cards">
         ${run.killedBy.map(e => `
           <div class="enemy-card ${e.alive ? '' : 'dead'} ${enemyCardClass(e)}">
