@@ -128,8 +128,8 @@ UI.showQuestStart = function (level) {
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
         <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
-        <h2 class="prelude-title part-intro-header">🧭 Quest ${info.questNum}: ${esc(info.quest.name)}</h2>
-        <div class="quest-location-tag">🗺️ Location: ${esc(info.location)}</div>
+        <h2 class="prelude-title part-intro-header">🧭 ${esc(info.quest.name)}</h2>
+        <div class="quest-location-tag">🗺️ ${esc(info.location)}</div>
         ${info.quest.intro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
         <p class="quest-objective">🎯 Objective: ${esc(info.quest.objective)}</p>
         <button class="btn btn-primary btn-big" id="quest-start-btn">▶ Start</button>
