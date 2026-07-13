@@ -11,6 +11,7 @@ let invFilter = 'all';     // all | usable
 let invType = 'all';       // all | rune | <slot>
 let invSort = 'rarity';    // rarity | type | value | name
 let journalPage = null;    // 'prologue' | chapter number | 'epilogue' — null defaults to the current chapter on next render
+let pendingNewSlot = 0;    // which save slot a freshly-picked class goes into
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -35,8 +36,7 @@ UI.versionFooterHtml = function () {
 // Screens
 // ------------------------------------------------------------
 UI.init = function () {
-  const save = peekSave();
-  if (save) UI.showTitle(save);
+  if (hasAnySave()) UI.showTitle();
   else UI.showPrelude();
 };
 
@@ -74,30 +74,93 @@ UI.showPrelude = function (pageIdx) {
   $('#prelude-next-btn').onclick = () => last ? UI.showClassSelect() : UI.showPrelude(i + 1);
 };
 
-// Title screen when a saved hero exists: Continue or start over.
-UI.showTitle = function (save) {
-  const c = save.char;
-  const cls = DATA.CLASSES[c.cls];
+// Title screen: up to MAX_SLOTS heroes, each its own slot card — Continue,
+// Export (downloads a .json) or Delete on a populated slot; New Character
+// on an empty one. Also offers Import to load a previously exported file
+// into whichever slot is free.
+UI.slotCardHtml = function (save, i) {
+  const c = save.char, cls = DATA.CLASSES[c.cls];
+  return `<div class="slot-card">
+    <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
+      <small>Level ${c.level} ${cls.name} · 🧭 Quest ${save.unlocked}/100 unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
+    </div>
+    <div class="slot-actions">
+      <button class="btn btn-primary" id="continue-btn-${i}">▶ Continue</button>
+      <button class="btn btn-tiny btn-sq" id="export-btn-${i}" title="Export character">📤</button>
+      <button class="btn btn-tiny btn-sq danger" id="delete-btn-${i}" title="Delete character">🗑️</button>
+    </div>
+  </div>`;
+};
+UI.emptySlotCardHtml = function (i) {
+  return `<div class="slot-card empty"><button class="btn btn-primary btn-big" id="new-btn-${i}">✚ New Character</button></div>`;
+};
+UI.showTitle = function () {
+  const slots = loadSlots();
   $('#app').innerHTML = `
     <div class="class-select">
       <h1>⚔️ KHARUN LANDS</h1>
-      <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser.</p>
-      <div class="title-box">
-        <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
-          <small>Level ${c.level} ${cls.name} · 🧭 Quest ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
-        </div>
-        <button class="btn btn-primary btn-big" id="continue-btn">▶ Continue</button>
-        <button class="btn" id="newchar-btn">✚ New Character (deletes this hero)</button>
+      <p class="subtitle">Choose a hero to continue, or start a new one. Progress is saved automatically in this browser.</p>
+      <div class="slot-grid">
+        ${slots.map((s, i) => s ? UI.slotCardHtml(s, i) : UI.emptySlotCardHtml(i)).join('')}
+      </div>
+      <div class="title-actions">
+        <button class="btn" id="import-btn">📥 Import Character</button>
+        <input type="file" id="import-file" accept="application/json" style="display:none">
       </div>
       ${UI.versionFooterHtml()}
     </div>`;
-  $('#continue-btn').onclick = () => { loadGame(); UI.showGame(); };
-  $('#newchar-btn').onclick = () => {
-    if (confirm(`Delete ${c.name} (Lv ${c.level} ${cls.name}) and start a new hero?`)) {
-      localStorage.removeItem(SAVE_KEY);
-      UI.showPrelude();
+  slots.forEach((save, i) => {
+    if (save) {
+      const c = save.char, cls = DATA.CLASSES[c.cls];
+      $(`#continue-btn-${i}`).onclick = () => { loadGame(i); UI.showGame(); };
+      $(`#export-btn-${i}`).onclick = () => UI.exportSlot(i);
+      $(`#delete-btn-${i}`).onclick = () => {
+        if (confirm(`Delete ${c.name} (Lv ${c.level} ${cls.name}) permanently? This can't be undone unless you exported them first.`)) {
+          deleteSlot(i);
+          UI.showTitle();
+        }
+      };
+    } else {
+      $(`#new-btn-${i}`).onclick = () => { pendingNewSlot = i; UI.showClassSelect(); };
     }
+  });
+  $('#import-btn').onclick = () => $('#import-file').click();
+  $('#import-file').onchange = e => UI.importCharacterFile(e.target.files[0]);
+};
+
+// Downloads one slot's save as a .json file the player can keep or move
+// to another browser/device.
+UI.exportSlot = function (i) {
+  const save = loadSlots()[i];
+  if (!save) return;
+  const blob = new Blob([JSON.stringify(save, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const safeName = (save.char.name || 'hero').replace(/[^a-z0-9]+/gi, '_').toLowerCase();
+  a.href = url; a.download = `kharun-lands-${safeName}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+};
+
+// Reads a previously exported .json file and drops it into the first free
+// slot. Refuses if the file isn't a recognizable character save, or if
+// every slot is already taken.
+UI.importCharacterFile = function (file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try { parsed = JSON.parse(reader.result); } catch (e) { UI.toast('❌ Not a valid character file'); return; }
+    if (!parsed || !parsed.char || !parsed.char.cls || !DATA.CLASSES[parsed.char.cls]) { UI.toast('❌ Not a valid character file'); return; }
+    const slots = loadSlots();
+    const emptyIdx = slots.findIndex(s => !s);
+    if (emptyIdx === -1) { UI.toast('❌ All 5 character slots are full — delete one first'); return; }
+    slots[emptyIdx] = parsed;
+    saveSlots(slots);
+    UI.toast(`✅ Imported ${parsed.char.name} into slot ${emptyIdx + 1}`);
+    UI.showTitle();
   };
+  reader.readAsText(file);
 };
 
 // Full-screen chapter opening, shown when a hero first enters a chapter.
@@ -271,7 +334,7 @@ UI.showClassSelect = function () {
     </div>`;
   app.querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
-      newGame(card.dataset.cls);
+      newGame(card.dataset.cls, pendingNewSlot);
       UI.showChapterIntro(1);
     };
   });
@@ -381,9 +444,9 @@ UI.renderTopbar = function () {
       <span class="gold">🪙 ${G.gold.toLocaleString()}</span>
       ${c.statPoints ? `<span class="pts">+${c.statPoints} stat</span>` : ''}
       ${c.skillPoints ? `<span class="pts">+${c.skillPoints} skill</span>` : ''}
-      <button class="btn btn-tiny" onclick="saveGame();UI.toast('💾 Game saved')" title="The game also auto-saves constantly">💾 Save</button>
-      <button class="btn btn-tiny" onclick="if(confirm('Delete this hero and start over?'))resetGame()">↺ Reset</button>
-      <button class="btn btn-tiny" onclick="UI.showGameHelp()">❓ Help</button>
+      <button class="btn btn-tiny btn-sq" onclick="saveGame();UI.toast('💾 Game saved')" title="Save — the game also auto-saves constantly">💾</button>
+      <button class="btn btn-tiny btn-sq" onclick="if(confirm('Delete this hero and start over?'))resetGame()" title="Reset — delete this hero and start over">↺</button>
+      <button class="btn btn-tiny btn-sq" onclick="UI.showGameHelp()" title="Help">❓</button>
     </div>`;
 };
 
@@ -396,7 +459,8 @@ UI.showGameHelp = function () {
     <p class="prelude-text"><b>🧍 Character</b> — your stats, skills, and inventory/equipment.</p>
     <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
     <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
-    <p class="prelude-text">💾 Save writes your progress immediately (the game also auto-saves constantly). ↺ Reset permanently deletes your current hero and starts over.</p>
+    <p class="prelude-text">💾 Save writes your progress immediately (the game also auto-saves constantly). ↺ Reset permanently deletes your current hero and returns you to the title screen.</p>
+    <p class="prelude-text">You can keep up to 5 heroes at once — the title screen lets you Continue, 📤 Export (download as a file) or 🗑️ Delete any of them, and start a new one in any empty slot. 📥 Import loads a previously exported character file back into a free slot.</p>
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
@@ -996,8 +1060,9 @@ UI.renderAdventure = function (el) {
       <div class="panel">
         <h3>📖 ${esc(chapter.title)}
           <span class="filters">
-            <button class="btn btn-tiny" onclick="UI.showAdventureSettings()">⚙️ Settings</button>
-            <button class="btn btn-tiny" onclick="UI.showAdventureHelp()">❓ Help</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showAdventureSettings()" title="Adventure Settings">⚙️</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showBestiary(${G.area})" title="Bestiary">🐾</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showAdventureHelp()" title="Help">❓</button>
           </span>
         </h3>
         <div class="area-picker">
@@ -1012,12 +1077,6 @@ UI.renderAdventure = function (el) {
         <div class="bar progress-bar" title="Quest progress">
           <div style="width:${kills / CREATURES_PER_LEVEL * 100}%"></div>
           <span>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared${G.bossKilled[G.area] ? ' · 🏆 quest complete' : ''}</span>
-        </div>
-        <h3>Local threats <small>(this quest's creatures)</small>
-          <span class="filters"><button class="btn btn-tiny" onclick="UI.showBestiary(${G.area})">🐾 Bestiary</button></span>
-        </h3>
-        <div class="wildlife">
-          ${creaturesForLevel(G.area).map(cr => `<div class="creature-chip" title="${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%">${esc(cr.name)}</div>`).join('')}
         </div>
         ${ADV ? `
           <div class="adv-status">
@@ -1037,9 +1096,9 @@ UI.renderAdventure = function (el) {
       <div class="panel">
         <h3>⚔️ Battle Arena
           <span class="filters">
-            <button class="btn btn-tiny" onclick="UI.showCombatOptions()">⚙️ Combat Options</button>
-            <button class="btn btn-tiny" onclick="UI.showAutoUseSettings()">🤖 Auto-Use</button>
-            <button class="btn btn-tiny" onclick="UI.showCombatHelp()">❓ Help</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showCombatOptions()" title="Combat Options">⚙️</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showAutoUseSettings()" title="Auto-Use">🤖</button>
+            <button class="btn btn-tiny btn-sq" onclick="UI.showCombatHelp()" title="Help">❓</button>
           </span>
         </h3>
         <div id="player-controls">${UI.controlsHtml()}</div>
@@ -1262,14 +1321,14 @@ UI.showCombatOptions = function () {
     <p class="hint">Choose what happens the moment each type of encounter appears. "Miniboss" is the Miniboss tier itself; "Abnormal" is any regular creature that independently rolled a specialty (Vampiric, Explosive, etc.), whatever its rarity.</p>
     <div class="settings-list">
       ${tiers.map(([id, label]) => `
-        <div class="settings-subrow">
-          <b style="min-width:90px">${label}:</b>
-          ${modeOptions.map(([v, l]) => `<label><input type="radio" name="mode-${id}" value="${v}" data-mode-tier="${id}" ${m[id] === v ? 'checked' : ''}> ${l}</label>`).join('')}
+        <div class="settings-card">
+          <b>${label}</b>
+          <select data-mode-tier="${id}">${modeOptions.map(([v, l]) => `<option value="${v}" ${m[id] === v ? 'selected' : ''}>${l}</option>`).join('')}</select>
         </div>`).join('')}
     </div>
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
   document.querySelectorAll('[data-mode-tier]').forEach(r => r.onchange = () => {
-    if (r.checked) { G.settings.encounterMode[r.dataset.modeTier] = r.value; saveGame(); }
+    G.settings.encounterMode[r.dataset.modeTier] = r.value; saveGame();
   });
 };
 

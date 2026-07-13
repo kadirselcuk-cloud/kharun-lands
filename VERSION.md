@@ -14,6 +14,35 @@ game at runtime.
 
 ---
 
+## 1.2.0 (minor)
+
+Multi-character save slots (a real architecture/gameplay change), bundled
+with the Adventure/Bestiary/mobile polish requested alongside it.
+
+- Save system reworked from one `localStorage` key to a `SLOTS_KEY` array
+  of `MAX_SLOTS` (5) slots (`game.js`: `loadSlots`/`saveSlots`/`loadGame(i)`
+  /`newGame(cls, slotIdx)`/`deleteSlot(i)`). `activeSlot` (module var)
+  tracks which slot the in-memory `G` belongs to; `saveGame()` writes to
+  `slots[activeSlot]`. A legacy single-save (`SAVE_KEY`) is migrated into
+  slot 0 the first time `loadSlots()` runs, then removed.
+- `UI.showTitle()` (ui.js) is now a slot grid: populated slots show
+  Continue/Export/Delete, empty slots show New Character. `pendingNewSlot`
+  records which empty slot a freshly-picked class should land in.
+- Export downloads a slot's save as `.json` (Blob + temporary `<a
+  download>`). Import reads a `.json` file, validates it has a recognizable
+  `char.cls`, and drops it into the first empty slot — refuses if none are
+  free or the file doesn't look like a character save.
+- Adventure page: removed the "Local threats" creature-chip list entirely
+  (fully superseded by the Bestiary, which got a parchment/book-page
+  visual treatment); moved the Bestiary button next to Settings/Help.
+- Settings/Help/Bestiary/Combat Options/Auto-Use/Save/Reset buttons are
+  now icon-only squares (`.btn-sq`, 30×30) with the label moved to a
+  `title` hover tooltip instead of visible text.
+- Combat Options: replaced 5 rows of 3 stacked radio buttons with one
+  per-tier dropdown card (`.settings-card`) — the radio-list version
+  wasn't actually comfortable to use on a phone even though it technically
+  didn't overflow. Auto-Use's checkboxes/selects got larger touch targets.
+
 ## 1.1.1 (fix)
 
 - Quest-start screen (`UI.showQuestStart`) dropped its "Quest N:"/"Location:"

@@ -3,7 +3,10 @@
 // ============================================================
 'use strict';
 
-const SAVE_KEY = 'kharun-lands-save-v1';
+const SAVE_KEY = 'kharun-lands-save-v1';         // legacy single-save key, migrated into slot 0 on first load
+const SLOTS_KEY = 'kharun-lands-slots-v1';
+const MAX_SLOTS = 5;
+let activeSlot = null;   // index (0..MAX_SLOTS-1) of the slot G was loaded from / is being saved to
 const MAX_LEVEL_AREA = 100;
 const CREATURES_PER_LEVEL = 1111;
 const MAX_RANK = 5;
@@ -63,7 +66,8 @@ function ensureSettings() {
   }
 }
 
-function newGame(clsId) {
+function newGame(clsId, slotIdx) {
+  activeSlot = slotIdx;
   const cls = DATA.CLASSES[clsId];
   G = {
     v: 1,
@@ -122,15 +126,42 @@ function giveStarterGear(clsId) {
   G.char.equip.armor = armor;
 }
 
-function saveGame() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(G)); } catch (e) { /* full/blocked */ } }
-function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; } }
-function peekSave() {
-  try { const g = JSON.parse(localStorage.getItem(SAVE_KEY)); return g && g.char ? g : null; } catch (e) { return null; }
+// ------------------------------------------------------------
+// Save slots — up to MAX_SLOTS concurrent heroes. Slot array is stored
+// as one JSON blob (an array of length MAX_SLOTS, empty entries null).
+// A pre-multi-slot save under the old SAVE_KEY is migrated into slot 0
+// the first time loadSlots() runs.
+// ------------------------------------------------------------
+function loadSlots() {
+  let slots;
+  try { slots = JSON.parse(localStorage.getItem(SLOTS_KEY)); } catch (e) { slots = null; }
+  if (!Array.isArray(slots)) slots = new Array(MAX_SLOTS).fill(null);
+  while (slots.length < MAX_SLOTS) slots.push(null);
+  if (slots.length > MAX_SLOTS) slots = slots.slice(0, MAX_SLOTS);
+  // one-time migration of the legacy single-save slot
+  if (slots.every(s => !s)) {
+    try {
+      const legacy = JSON.parse(localStorage.getItem(SAVE_KEY));
+      if (legacy && legacy.char) { slots[0] = legacy; saveSlots(slots); localStorage.removeItem(SAVE_KEY); }
+    } catch (e) { /* no legacy save */ }
+  }
+  return slots;
 }
-function loadGame() {
-  const g = peekSave();
-  if (!g) return false;
+function saveSlots(slots) { try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots)); } catch (e) { /* full/blocked */ } }
+
+function saveGame() {
+  if (activeSlot === null) return;
+  const slots = loadSlots();
+  slots[activeSlot] = G;
+  saveSlots(slots);
+}
+function hasAnySave() { return loadSlots().some(s => !!s); }
+function loadGame(slotIdx) {
+  const slots = loadSlots();
+  const g = slots[slotIdx];
+  if (!g || !g.char) return false;
   G = g;
+  activeSlot = slotIdx;
   ensureSettings();
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
@@ -146,7 +177,19 @@ function loadGame() {
   }
   return true;
 }
-function resetGame() { localStorage.removeItem(SAVE_KEY); location.reload(); }
+// Deletes only the active slot's hero — other slots are untouched.
+function resetGame() {
+  const slots = loadSlots();
+  if (activeSlot !== null) slots[activeSlot] = null;
+  saveSlots(slots);
+  activeSlot = null;
+  location.reload();
+}
+function deleteSlot(slotIdx) {
+  const slots = loadSlots();
+  slots[slotIdx] = null;
+  saveSlots(slots);
+}
 
 // ------------------------------------------------------------
 // Derived stats

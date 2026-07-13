@@ -5,12 +5,20 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.1.1';
+DATA.VERSION = '1.2.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.2.0', notes: [
+    'Up to 5 heroes at once: the title screen is now a slot grid — Continue, 📤 Export (download as a file) or 🗑️ Delete any saved hero, and start a new one in any empty slot.',
+    '📥 Import loads a previously exported character file into a free slot — handy for backing up a hero or moving them to another browser/device.',
+    'Adventure page: "Local threats" moved entirely into the Bestiary, which now has a parchment/book-page look.',
+    'Bestiary button now sits next to Settings/Help on the Adventure page instead of its own row.',
+    'Settings/Help/Bestiary/Combat Options/Auto-Use buttons (Adventure page, Battle Arena, top bar) are now icon-only square buttons with a hover tooltip instead of icon+label.',
+    'Combat Options is now a per-tier dropdown card instead of stacked radio buttons — much easier to use on mobile; Auto-Use\'s checkboxes and selects also got bigger touch targets.',
+  ] },
   { v: '1.1.1', notes: [
     'Quest-start screen no longer shows "Quest N:"/"Location:" labels, just the quest name and location (icons kept) — matching the same cleanup already done in the Journal and quest-end screens.',
   ] },

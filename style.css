@@ -42,6 +42,10 @@ small { color: var(--dim); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.15); color: #fff; }
 .btn-tiny { padding: 2px 8px; font-size: .75rem; }
 .btn-tiny.active { border-color: var(--accent); color: var(--accent); }
+.btn-sq {
+  width: 30px; height: 30px; padding: 0; display: inline-flex;
+  align-items: center; justify-content: center; font-size: 1rem; flex: none;
+}
 .btn-small { padding: 4px 10px; font-size: .8rem; }
 .btn-big { width: 100%; padding: 14px; font-size: 1.15rem; margin-top: 12px; }
 .btn.danger { border-color: #7a3b3b; }
@@ -257,18 +261,26 @@ small { color: var(--dim); }
 .area-sub { font-size: .78rem; color: var(--dim); }
 .area-clickable { cursor: pointer; }
 .area-clickable:hover { color: var(--accent); text-decoration: underline; }
-.pattern-hint { font-size: .84rem; margin: 4px 0; }
-.wildlife { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
-.creature-chip {
-  background: var(--panel2); border: 1px solid var(--border); border-radius: 12px;
-  font-size: .76rem; padding: 3px 10px; color: #b9bdcc; cursor: help;
-}
 .adv-status { margin-top: 12px; }
-.bestiary-page { min-height: 160px; }
+/* Bestiary — styled as a parchment book page, sitting inside the normal
+   dark modal chrome (heading/nav/close stay in the modal's own style). */
+.bestiary-page {
+  min-height: 160px; font-family: Georgia, 'Times New Roman', serif;
+  color: #3a2f1f; background: linear-gradient(180deg, #ecdfc0, #e2d0a0);
+  border: 1px solid #8a6d3d; border-radius: 3px; padding: 18px 20px;
+  box-shadow: inset 0 0 26px rgba(90,61,31,.2);
+}
+.bestiary-page h3 {
+  color: #5a3d1f; border-bottom: 1px solid rgba(90,61,31,.35);
+  padding-bottom: 6px; margin-bottom: 8px;
+}
+.bestiary-page .item-sub, .bestiary-page .hint { color: #6b5a3d; }
+.bestiary-page .prelude-text { color: #4a3d28; }
 .bestiary-tiers { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; }
 .bestiary-tier-row {
-  display: flex; justify-content: space-between; gap: 10px; background: var(--panel2);
-  border: 1px solid var(--border); border-radius: 6px; padding: 5px 10px; font-size: .84rem;
+  display: flex; justify-content: space-between; gap: 10px;
+  background: rgba(255,255,255,.3); border: 1px solid rgba(90,61,31,.35);
+  border-radius: 6px; padding: 5px 10px; font-size: .84rem; color: #3a2f1f;
 }
 .bestiary-specialties { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
 .adv-buttons { display: flex; align-items: center; gap: 12px; margin-top: 10px; flex-wrap: wrap; }
@@ -332,14 +344,26 @@ small { color: var(--dim); }
 .settings-subrow select { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 5px; padding: 3px 6px; }
 .settings-subrow label { display: flex; align-items: center; gap: 4px; padding: 3px 0; cursor: pointer; }
 .tier-checks { display: flex; gap: 10px; flex-wrap: wrap; font-size: .78rem; color: var(--dim); }
-.tier-checks label { display: flex; align-items: center; gap: 3px; cursor: pointer; padding: 3px 0; }
+.tier-checks label { display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 6px 0; min-height: 30px; }
+.tier-checks input, .settings-subrow input { width: 17px; height: 17px; flex: none; }
 .settings-section select {
   background: var(--panel2); color: var(--text); border: 1px solid var(--border);
   border-radius: 5px; padding: 5px 8px; font-size: .86rem; max-width: 100%;
 }
+.settings-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px;
+}
+.settings-card select {
+  background: var(--panel); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: 7px 8px; font-size: .86rem; flex: 1; max-width: 190px;
+}
 @media (max-width: 480px) {
   .settings-subrow { flex-direction: column; align-items: flex-start; gap: 4px; }
-  .settings-section select { width: 100%; }
+  .settings-section select { width: 100%; padding: 9px 8px; font-size: .92rem; }
+  .settings-card { flex-direction: column; align-items: stretch; gap: 8px; }
+  .settings-card select { max-width: 100%; padding: 9px 8px; font-size: .92rem; }
 }
 
 /* results */
@@ -358,12 +382,20 @@ small { color: var(--dim); }
 .loot-row:hover { border-color: var(--accent); }
 .loot-row small { margin-left: auto; }
 
-/* title screen */
-.title-box {
-  max-width: 420px; margin: 0 auto; background: var(--panel); border: 1px solid var(--border);
-  border-radius: 12px; padding: 26px; display: flex; flex-direction: column; gap: 12px; text-align: center;
+/* title screen — up to MAX_SLOTS hero slot cards */
+.slot-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px; max-width: 900px; margin: 20px auto 0;
 }
-.title-hero { font-size: 1.3rem; line-height: 1.6; }
+.slot-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 20px; display: flex; flex-direction: column; gap: 12px; text-align: center;
+}
+.slot-card.empty { align-items: center; justify-content: center; min-height: 120px; }
+.title-hero { font-size: 1.15rem; line-height: 1.6; }
+.slot-actions { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+.slot-actions .btn-primary { flex: 1; min-width: 100px; }
+.title-actions { display: flex; justify-content: center; margin-top: 18px; }
 
 /* toast */
 #toast {
