@@ -5,11 +5,21 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.5.0';
+DATA.VERSION = '0.6.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.6.0', notes: [
+    'Battle Arena: fixed the hero\'s HP/Mana/attack-gauge bars, which were rendering as an invisible sliver instead of a real bar.',
+    'Battle Arena: potions and skills are now one row of square icon buttons above the arena instead of two separate rows below it. Each button shows its cooldown as a faded number over the icon, a caption underneath (stock count for potions, mana cost for skills), and a keyboard shortcut badge on desktop (Q/W for potions, 1-9/0 for skills).',
+    'The topbar no longer stays pinned while scrolling — HP/Mana are already shown in the battle arena.',
+    'Results screen: falling in battle now shows the specific hit that killed you and full stat cards (HP, damage, resistances, specialties) for every creature in that final encounter, not just names.',
+    'Combat Options: "Abnormal" (any creature that independently rolled a specialty like Vampiric/Explosive) and "Miniboss" (the tier itself) are now separate, independently configurable options — they used to incorrectly share one setting.',
+    'Rebalanced Explosive and Reflective, which could deal absurd damage at higher levels by scaling off the creature\'s own HP or your own damage output. Both now scale off the dungeon level\'s difficulty instead, multiplied by 1.5x/1.75x/2x for Rare/Epic/Legendary (Miniboss included in the 2x).',
+    'Leveling curve overhauled again: Level 1 costs 100 XP, Level 2 costs 200 XP, and every level after that costs 60% of the sum of the previous two levels\' requirements, plus 1000.',
+    'Starting the next part or chapter from the boss-victory screen now switches the Adventure tab to that level, instead of leaving you on whichever level you\'d last selected.',
+  ] },
   { v: '0.5.0', notes: [
     'Creatures with a specialty (Vampiric, Explosive, etc.) now give +20% XP per specialty when killed, and roll one extra independent item-drop chance per specialty on top of their normal loot roll — a creature with 2 specialties can drop up to 3 items.',
   ] },
@@ -330,7 +340,7 @@ DATA.SPECIALTIES = {
   frozen:     { name: 'Frozen',       icon: '❄️', color: '#6cd4ff', desc: '25% chance per attack to slow your attack gauge.' },
   burning:    { name: 'Burning',      icon: '🔥', color: '#ff8b3d', desc: '25% chance per attack to ignite you over time.' },
   evasive:    { name: 'Evasive',      icon: '💨', color: '#b9bdcc', desc: '25% chance to fully evade your attacks.' },
-  reflective: { name: 'Reflective',   icon: '🪞', color: '#4ecdc4', desc: 'Reflects 20% of the damage you deal back at you.' },
+  reflective: { name: 'Reflective',   icon: '🪞', color: '#4ecdc4', desc: 'Its ward sends damage back at you, scaled to this level\'s danger.' },
   enraged:    { name: 'Enraged',      icon: '😡', color: '#ff4d4d', desc: 'Attacks faster and harder as its HP drops.' },
   berserk:    { name: 'Berserk',      icon: '🪓', color: '#d94f4f', desc: 'Deals more damage but takes more as its HP drops.' },
   cursed:     { name: 'Cursed',       icon: '🕯️', color: '#7a5cff', desc: 'Attacks weaken your damage output for a few rounds.' },

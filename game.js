@@ -32,7 +32,7 @@ function defaultSettings() {
     packSize: 1, advSpeed: 1200, lastAdvLevel: null,
     autoSell: { normal: false, magical: false, rare: false, epic: false, legendary: false, unusable: false, all: false },
     // per-encounter-tier behavior when a new pack of that tier spawns
-    encounterMode: { legendary: 'speed1x', epic: 'speed1x', rare: 'continue', miniboss: 'continue' },
+    encounterMode: { legendary: 'speed1x', epic: 'speed1x', rare: 'continue', miniboss: 'continue', abnormal: 'continue' },
     autoUse: {
       hpPotion: 'off', manaPotion: 'off',      // 'off' | 100 | 50 | 25 (HP/mana % threshold)
       heal: 'off',                              // 'off' | 100 | 50 | 25
@@ -51,6 +51,7 @@ function ensureSettings() {
   for (const k of ['packSize', 'advSpeed', 'lastAdvLevel']) if (G.settings[k] === undefined) G.settings[k] = def[k];
   if (!G.settings.autoSell) G.settings.autoSell = def.autoSell;
   if (!G.settings.encounterMode) G.settings.encounterMode = def.encounterMode;
+  else for (const k of Object.keys(def.encounterMode)) if (G.settings.encounterMode[k] === undefined) G.settings.encounterMode[k] = def.encounterMode[k];
   if (!G.settings.autoUse) G.settings.autoUse = def.autoUse;
   else {
     const au = G.settings.autoUse;
@@ -266,13 +267,14 @@ function derive() {
 // ------------------------------------------------------------
 // XP / leveling
 // ------------------------------------------------------------
-// Level 1 = 100 XP, Level 2 = 300 XP. Level N (N>=3) = 150% of level
-// (N-1)'s requirement, plus 150*N.
-const XP_LEVEL_CACHE = [undefined, 100, 300];
+// Level 1 = 100 XP, Level 2 = 200 XP. Level N (N>=3) = 60% of the sum of
+// the two preceding levels' requirements, plus a flat 1000 — e.g.
+// L3 = (100+200)*0.6 + 1000 = 1180.
+const XP_LEVEL_CACHE = [undefined, 100, 200];
 function xpForLevel(lvl) {
   if (XP_LEVEL_CACHE[lvl] !== undefined) return XP_LEVEL_CACHE[lvl];
   for (let l = XP_LEVEL_CACHE.length; l <= lvl; l++) {
-    XP_LEVEL_CACHE[l] = Math.round(XP_LEVEL_CACHE[l - 1] * 1.5 + 150 * l);
+    XP_LEVEL_CACHE[l] = Math.round((XP_LEVEL_CACHE[l - 1] + XP_LEVEL_CACHE[l - 2]) * 0.6 + 1000);
   }
   return XP_LEVEL_CACHE[lvl];
 }
@@ -867,6 +869,17 @@ const TIER_CONF = {
   legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 100 },
 };
 
+// A single scalar for "how tough is this dungeon level", deliberately
+// independent of any specific creature's rolled maxHp/dmg (which vary by
+// species/RNG/tier) and of the player's own damage output. Ward-style
+// specialties (Explosive, Reflective) key off this instead, so their
+// damage scales with the level the player is on rather than snowballing
+// with player gear, a lucky enemy roll, or that specific enemy's tier HP.
+function levelDifficulty(level) { return 11.7 * enemyDmgScale(level); }
+// Explosive/Reflective ward damage still scales up for tougher company —
+// applied on top of levelDifficulty, not blended with TIER_CONF.dmg.
+const WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 };
+
 // From the 5th level of each biome onward, a normal encounter has a
 // very small chance to be replaced by a wandering mini boss.
 const MINIBOSS_CHANCE = 0.015;
@@ -1280,9 +1293,10 @@ function playerHit(fight, enemy, skill, r) {
   ADV.run.dmgDealt += dmg;
   if (d.lifesteal) G.char.hp = Math.min(d.maxHp, G.char.hp + Math.max(1, Math.round(dmg * (d.lifesteal / 100))));
   if (hasAffix(enemy, 'reflective')) {
-    const reflect = Math.max(1, Math.round(dmg * 0.20));
+    const reflect = Math.max(1, Math.round(levelDifficulty(enemy.level) * (WARD_TIER_MULT[enemy.tier] || 1)));
     G.char.hp -= reflect;
     ADV.run.dmgTaken += reflect;
+    fight.lastHit = { icon: '🪞', label: `${enemy.name.split(' — ')[0]}'s reflective ward`, amount: reflect };
     log('enemy', `🪞 ${enemy.name.split(' — ')[0]}'s reflective ward sends ${reflect} damage back at you!`);
   }
   if (enemy.tier === 'elf') fight.elfHits = (fight.elfHits || 0) + 1;
@@ -1306,6 +1320,7 @@ function enemyHit(fight, enemy) {
   dmg = Math.max(1, Math.round(dmg));
   G.char.hp -= dmg;
   ADV.run.dmgTaken += dmg;
+  fight.lastHit = { icon: '🩸', label: `${enemy.name.split(' — ')[0]}'s ${enemy.attack}`, amount: dmg };
   if (hasAffix(enemy, 'vampiric')) enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.max(1, Math.round(dmg * 0.25)));
   if (hasAffix(enemy, 'poisonous')) {
     fight.playerDots.poison = { icon: '☠️', label: `${enemy.name.split(' — ')[0]}'s poison`, dmg: Math.max(1, Math.round(enemy.dmg * 0.12)), rounds: 3 };
@@ -1478,8 +1493,10 @@ function resumeAdventure() {
   UI.refresh();
 }
 
-// "Abnormal" is this game's player-facing name for the Miniboss tier.
-const TIER_DISPLAY_NAME = { miniboss: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+// "Miniboss" is the tier itself; "Abnormal" is any creature (of any tier)
+// that independently rolled a specialty (Vampiric, Explosive, etc.) —
+// they're tracked as separate, independently configurable encounter kinds.
+const TIER_DISPLAY_NAME = { miniboss: 'Miniboss', abnormal: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
 
 // Combat Options: Pause / 1x Speed / Continue Normally per encounter
 // tier, applied right after that tier's pack spawns.
@@ -1520,6 +1537,20 @@ function retreat(reason) {
     run.progressLost = G.progress[ADV.level] || 0;
     G.progress[ADV.level] = 0;
     if (run.progressLost) log('sys', `☠️ Defeat wipes your progress here — ${run.progressLost} kills lost. Level ${ADV.level} restarts from the beginning.`);
+    // Snapshot the final encounter before ADV/fight get torn down below, so
+    // the results modal can show which pack the player fell to (full specs,
+    // same fields the live battle arena's enemy cards show) and what the
+    // actual killing blow was (fight.lastHit, kept up to date at every
+    // player-HP-loss site: enemy basic attacks, DOTs, Explosive, Reflective).
+    if (ADV.fight) {
+      run.killedBy = ADV.fight.enemies.map(e => ({
+        name: e.name, tier: e.tier, species: e.species, level: e.level,
+        alive: e.hp > 0, affixes: e.affixes || [],
+        hp: Math.max(0, Math.round(e.hp)), maxHp: e.maxHp,
+        dmg: e.dmg, spd: e.spd, attack: e.attack, atkType: e.atkType, res: e.res,
+      }));
+      run.killedByHit = ADV.fight.lastHit || null;
+    }
   }
   questEvent('gold', run.gold);   // gold-earning quests tally on return
   const d = derive();
@@ -1583,9 +1614,10 @@ function adventureTick() {
     // the battle grid's fixed 6-cell capacity exactly — see TIER_CELLS
     // in ui.js). The player's pack-size setting only scales pure-Normal
     // encounters below; these ranges are fixed regardless of that setting.
-    // encounterKind: which of the four configurable tiers (if any) this
+    // encounterKind: which of the five configurable kinds (if any) this
     // pack counts as, for the Combat Options pause/speed behavior below.
-    // Stays null for plain Normal packs, which aren't configurable.
+    // Stays null for plain Normal packs (with no specialty), which aren't
+    // configurable.
     let enemies, encounterKind = null;
     if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
       const miniboss = makeCreature(level, 'miniboss');
@@ -1600,10 +1632,10 @@ function adventureTick() {
       const packMax = Math.max(1, Math.min(G.settings.packSize, normalsUntilSpecial(kills)));
       enemies = Array.from({ length: packMax }, () => makeCreature(level, 'normal'));
       log('encounter', `⚔️ ${enemies.length > 1 ? enemies.length + ' creatures block your path' : 'A creature blocks your path'}: ${enemies.map(e => e.name).join(', ')}`);
-      // "Abnormal" isn't just the Miniboss tier — any creature carrying
-      // a specialty (e.g. a plain Normal with Explosive) counts too, and
-      // reuses the same "miniboss" Combat Options / Auto-Use slot.
-      if (enemies.some(e => e.affixes && e.affixes.length)) encounterKind = 'miniboss';
+      // "Abnormal" is separate from the Miniboss tier: any creature that
+      // independently rolled a specialty (e.g. a plain Normal with
+      // Explosive) counts, with its own Combat Options slot.
+      if (enemies.some(e => e.affixes && e.affixes.length)) encounterKind = 'abnormal';
     } else if (tier === 'rare') {
       const rare = makeCreature(level, 'rare');
       const count = rint(1, 3);
@@ -1661,6 +1693,7 @@ function adventureTick() {
       const dot = f.playerDots[key];
       G.char.hp = Math.max(0, G.char.hp - dot.dmg);
       ADV.run.dmgTaken += dot.dmg;
+      f.lastHit = { icon: dot.icon, label: dot.label, amount: dot.dmg };
       log('enemy', `${dot.icon} ${dot.label} deals ${dot.dmg} damage`);
       if (--dot.rounds <= 0) delete f.playerDots[key];
     }
@@ -1727,9 +1760,10 @@ function adventureTick() {
   // resolve deaths
   for (const e of f.enemies) if (e.hp <= 0 && !e.dead) {
     if (hasAffix(e, 'explosive')) {
-      const boom = Math.max(1, Math.round(e.maxHp * 0.08));
+      const boom = Math.max(1, Math.round(levelDifficulty(e.level) * (WARD_TIER_MULT[e.tier] || 1)));
       G.char.hp = Math.max(0, G.char.hp - boom);
       ADV.run.dmgTaken += boom;
+      f.lastHit = { icon: '💥', label: `${e.name.split(' — ')[0]}'s explosion`, amount: boom };
       log('enemy', `💥 ${e.name.split(' — ')[0]} explodes on death for ${boom} damage!`);
     }
     handleKill(e, run);

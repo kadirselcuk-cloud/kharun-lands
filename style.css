@@ -114,11 +114,12 @@ small { color: var(--dim); }
 }
 .quest-reward-box .reward-item { font-weight: 600; }
 
-/* topbar */
+/* topbar — HP/Mana are also shown in the battle arena's hero card, so this
+   doesn't need to stay pinned in view while scrolling. */
 #topbar {
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
-  padding: 10px 14px; margin-bottom: 10px; position: sticky; top: 8px; z-index: 5;
+  padding: 10px 14px; margin-bottom: 10px;
 }
 .tb-left, .tb-mid, .tb-right { display: flex; align-items: center; gap: 10px; }
 .tb-mid { flex: 1; min-width: 260px; }
@@ -335,6 +336,10 @@ small { color: var(--dim); }
   padding: 12px; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
   text-align: center; max-width: 280px; width: 100%;
 }
+/* .bar's flex:1 targets the main axis, which is vertical here since
+   .hero-card is a column flex container — without this override the bars
+   collapse to a sliver instead of keeping their own height. */
+.hero-card .bar { flex: none; }
 .hero-icon { font-size: 2.4rem; }
 .hero-name { font-weight: 700; }
 .hero-sub { font-size: .74rem; color: var(--dim); }
@@ -347,10 +352,12 @@ small { color: var(--dim); }
   box-shadow: 0 0 8px rgba(108,203,143,.15);
 }
 
-/* buffs/debuffs grid: 4 rows tall, a new column every 4 effects */
+/* buffs/debuffs grid: fixed-size placeholder for up to 8 effects (2 cols x 4 rows),
+   sized identically whether 0 or 8 are active so the hero card never shifts. */
 .effects-grid {
-  flex: 0 0 auto; display: grid; grid-template-rows: repeat(4, 1fr); grid-auto-flow: column;
-  gap: 4px; align-self: center;
+  flex: 0 0 60px; width: 60px; height: 124px;
+  display: grid; grid-template-columns: repeat(2, 28px); grid-template-rows: repeat(4, 1fr);
+  grid-auto-flow: column; gap: 4px; align-self: center;
 }
 .effect-icon {
   position: relative; width: 28px; height: 28px; font-size: .95rem;
@@ -373,14 +380,38 @@ small { color: var(--dim); }
 .action-icon { font-size: 1.9rem; }
 .action-txt { font-size: .72rem; color: #b9bdcc; line-height: 1.35; word-break: break-word; }
 
-/* manual controls */
+/* manual controls: a full-width row of square icon buttons, sized by a
+   fixed column count rather than a fixed pixel size so they always tile
+   edge-to-edge — 12 across (2 potions + up to 10 skills, matching the Q/W
+   + 1-9/0 shortcuts) on desktop, 6 across (wrapping to 2 rows) on mobile.
+   Cooldown shows as a faded number overlaid on the icon; count/cost shows
+   as a caption underneath. */
 #player-controls { margin-bottom: 10px; }
-.ctl-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 6px; }
-.pot-btn { font-size: .8rem; }
-.skill-btn { font-size: .78rem; padding: 5px 10px; }
-.skill-btn.queued { border-color: #6c9bff; color: #6c9bff; box-shadow: 0 0 6px rgba(108,155,255,.3); }
+.ctl-row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; margin-bottom: 6px; }
+@media (max-width: 860px) { .ctl-row { grid-template-columns: repeat(6, 1fr); } }
+.icon-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; }
+.icon-btn {
+  position: relative; width: 100%; aspect-ratio: 1; padding: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 1.3rem;
+}
+.icon-btn-cd {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 1.05rem; font-weight: 800; color: #fff; opacity: .55; text-shadow: 0 0 3px #000;
+}
+.icon-btn-caption {
+  font-size: .64rem; color: var(--dim); text-align: center; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.icon-btn.queued { border-color: #6c9bff; color: #6c9bff; box-shadow: 0 0 6px rgba(108,155,255,.3); }
 .btn.on-cd { opacity: .5; }
-.cd-num { background: #0a0b10; border-radius: 8px; padding: 0 6px; color: var(--accent); font-size: .72rem; }
+/* keyboard-shortcut badge, bottom-right corner of the square — desktop
+   (mouse + keyboard) only, since touch devices have no keys to press. */
+.icon-btn-key {
+  position: absolute; right: 2px; bottom: 1px; font-size: .56rem; font-weight: 700;
+  color: var(--dim); background: rgba(10,11,16,.75); border-radius: 3px; padding: 0 2px;
+  line-height: 1.3; pointer-events: none;
+}
+@media (max-width: 860px) { .icon-btn-key { display: none; } }
 
 /* enemy panel — fixed 2x3 battle grid: normals/rares one cell each,
    epics fill a row (3 cells), legendaries fill the whole grid (6 cells) */
@@ -455,6 +486,12 @@ small { color: var(--dim); }
 .results-grid-2 { grid-template-columns: repeat(2, 1fr); }
 .drop-chips { margin: 4px 0 8px; font-size: .82rem; }
 .drop-chip { font-weight: 600; }
+
+/* results modal: the final encounter's pack, on defeat — reuses the live
+   battle arena's .enemy-card styling, just in a simple 2-column grid
+   instead of the arena's fixed-6-cell layout (no live-shift concerns in a
+   static summary, so no placeholders/fixed row height needed here). */
+.killedby-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 4px 0 10px; }
 
 /* stat comparison colors */
 .cmp-better { color: #6ccb8f !important; }

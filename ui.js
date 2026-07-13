@@ -114,6 +114,10 @@ UI.showPartIntro = function (level) {
 UI.afterBossVictory = function (clearedLevel) {
   const nextLevel = clearedLevel + 1;
   if (nextLevel > MAX_LEVEL_AREA) { UI.showGame(); return; }
+  // Jump the Adventure tab to the part/chapter the player is about to
+  // start, same convention as the manual ◀/▶ level pickers.
+  G.area = Math.min(nextLevel, G.unlocked);
+  saveGame();
   if ((nextLevel - 1) % 10 === 0) UI.showChapterIntro(chapterNumOf(nextLevel));
   else UI.showPartIntro(nextLevel);
 };
@@ -840,12 +844,12 @@ UI.renderAdventure = function (el) {
             <button class="btn btn-tiny" onclick="UI.showAutoUseSettings()">🤖 Auto-Use</button>
           </span>
         </h3>
+        <div id="player-controls">${UI.controlsHtml()}</div>
         <div class="battle-arena">
           <div id="player-card">${UI.playerCardHtml()}</div>
           <div id="action-box">${UI.actionBoxHtml()}</div>
           <div id="enemy-panel" class="arena-enemies">${UI.enemyPanelHtml()}</div>
         </div>
-        <div id="player-controls">${UI.controlsHtml()}</div>
         <h3>📖 Battle Log</h3>
         <div id="battle-log" class="battle-log">${UI.logHtml()}</div>
       </div>
@@ -877,7 +881,9 @@ UI.playerEffects = function () {
     const dot = f.playerDots[k];
     out.push({ icon: dot.icon, rounds: dot.rounds, label: dot.label });
   }
-  return out;
+  // The effects-grid box is a fixed size for at most 8 icons — cap here so
+  // an unexpected 9th effect can't grow the grid and shift the hero card.
+  return out.slice(0, 8);
 };
 
 // Left side of the arena: next-action box, the hero, and active effects.
@@ -915,15 +921,15 @@ UI.actionBoxHtml = function () {
   </div>`;
 };
 
-const TIER_UI_LABEL = { normal: 'Normal', miniboss: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+const TIER_UI_LABEL = { normal: 'Normal', miniboss: 'Miniboss', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
 
 UI.showCombatOptions = function () {
   const m = G.settings.encounterMode;
-  const tiers = [['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['miniboss', 'Abnormal']];
+  const tiers = [['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['miniboss', 'Miniboss'], ['abnormal', 'Abnormal']];
   const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
   UI.modal(`
     <h3>⚙️ Combat Options</h3>
-    <p class="hint">Choose what happens the moment each type of encounter appears. "Abnormal" covers Mini Bosses and also any regular creature that rolled a specialty (Vampiric, Explosive, etc.), whatever its rarity.</p>
+    <p class="hint">Choose what happens the moment each type of encounter appears. "Miniboss" is the Miniboss tier itself; "Abnormal" is any regular creature that independently rolled a specialty (Vampiric, Explosive, etc.), whatever its rarity.</p>
     <div class="settings-list">
       ${tiers.map(([id, label]) => `
         <div class="settings-subrow">
@@ -966,36 +972,61 @@ UI.showAutoUseSettings = function () {
   });
 };
 
-// Under the arena: manual potions and activatable skills.
+// Skills currently available to activate (owned, non-passive, non-basic),
+// in the fixed order used both for the control row and for the 1-9/0
+// keyboard shortcuts, so the Nth button always matches the Nth key.
+UI.activeSkills = function () {
+  if (!G || !G.char) return [];
+  return Object.values(DATA.SKILLS[G.char.cls]).filter(s => !s.passive && s.cat !== 'basic' && (G.char.skills[s.id] || 0) > 0);
+};
+
+const SKILL_SHORTCUTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
+
+// Above the arena: manual potions and activatable skills as one row of
+// square icon buttons — potions are just two more actions here, not a
+// separate category. Cooldown replaces the icon with a faded number
+// overlay while the button is disabled/faded, same as before; count/cost
+// sits in a caption underneath so the button itself stays square. Each
+// button shows its keyboard shortcut (Q/W for potions, 1-9/0 for skills)
+// as a corner badge, hidden on touch-sized screens in CSS.
 UI.controlsHtml = function () {
+  if (!ADV) return '';
   const potCap = potionCapacity();
-  if (!ADV) return `<p class="hint">🧪 Potions stored: ❤️ ${G.potions.hp}/${potCap} · 🔵 ${G.potions.mana}/${potCap}${G.char.equip.belt ? ` (${esc(G.char.equip.belt.name)} equipped)` : ' — no belt equipped, base capacity only'} — usable during adventures.</p>`;
-  const c = G.char;
-  const potBtn = (kind, icon, label) => {
+  const potBtn = (kind, icon, label, key) => {
     const cd = ADV.potCd[kind] || 0;
     const n = G.potions[kind] || 0;
-    return `<button class="btn pot-btn ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || n <= 0 || ADV.paused ? 'disabled' : ''} onclick="drinkPotion('${kind}')">
-      ${icon} ${label} ×${n}/${potCap}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ''}</button>`;
+    return `<div class="icon-btn-wrap">
+      <button class="btn icon-btn pot-btn ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || n <= 0 || ADV.paused ? 'disabled' : ''}
+        title="${label} potion (${key}) — ${n}/${potCap} available${cd > 0 ? `, ${cd} rounds left on cooldown` : ''}" onclick="drinkPotion('${kind}')">
+        ${icon}${cd > 0 ? `<span class="icon-btn-cd">${cd}</span>` : ''}<span class="icon-btn-key">${key}</span></button>
+      <div class="icon-btn-caption">${n}/${potCap}</div>
+    </div>`;
   };
-  const actives = Object.values(DATA.SKILLS[c.cls]).filter(s => !s.passive && s.cat !== 'basic' && (c.skills[s.id] || 0) > 0);
-  const skillBtn = s => {
+  const actives = UI.activeSkills();
+  const skillBtn = (s, key) => {
     const cd = ADV.fight ? (ADV.fight.cds[s.id] || 0) : 0;
     const cost = skillCost(s);
     const noMana = G.char.mana < cost;
     const queued = ADV.queued === s.id;
-    return `<button class="btn skill-btn ${queued ? 'queued' : ''} ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || noMana || ADV.paused ? 'disabled' : ''}
-      title="${esc(s.desc(Math.max(1, effectiveRank(s.id))))} — ${cost} mana${s.cd ? `, ${s.cd} round cd` : ''}"
-      onclick="queueSkill('${s.id}')">${s.icon} ${esc(s.name)}${cd > 0 ? ` <span class="cd-num">${cd}</span>` : ` <small>${cost}</small>`}</button>`;
+    return `<div class="icon-btn-wrap">
+      <button class="btn icon-btn skill-btn ${queued ? 'queued' : ''} ${cd > 0 ? 'on-cd' : ''}" ${cd > 0 || noMana || ADV.paused ? 'disabled' : ''}
+        title="${esc(s.name)}${key ? ` (${key})` : ''} — ${esc(s.desc(Math.max(1, effectiveRank(s.id))))} — ${cost} mana${s.cd ? `, ${s.cd} round cd` : ''}"
+        onclick="queueSkill('${s.id}')">${s.icon}${cd > 0 ? `<span class="icon-btn-cd">${cd}</span>` : ''}${key ? `<span class="icon-btn-key">${key}</span>` : ''}</button>
+      <div class="icon-btn-caption">${cost} MP</div>
+    </div>`;
   };
   return `
-    <div class="ctl-row">${potBtn('hp', '❤️', 'Health')} ${potBtn('mana', '🔵', 'Mana')}
-      <small class="hint-inline">potions: ${POTION_CD}-tick cooldown · skills: click to cast on your next swing</small></div>
-    ${actives.length ? `<div class="ctl-row skill-row-ctl">${actives.map(skillBtn).join('')}</div>` : ''}`;
+    <div class="ctl-row">
+      ${potBtn('hp', '❤️', 'Health', 'Q')} ${potBtn('mana', '🔵', 'Mana', 'W')}
+      ${actives.map((s, i) => skillBtn(s, SKILL_SHORTCUTS[i] || '')).join('')}
+    </div>
+    <small class="hint-inline">potions: ${POTION_CD}-tick cooldown · skills: click to cast on your next swing</small>`;
 };
 
 // Detailed cards for every enemy in the current fight.
 // grid cells each tier occupies in the 2x3 (mobile-friendly) battle grid
 const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary: 4 };
+const TIER_COLOR = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d', elf: '#8fd96c' };
 
 UI.enemyPanelHtml = function () {
   if (!ADV) return `<p class="hint">No fight in progress.</p>`;
@@ -1006,12 +1037,11 @@ UI.enemyPanelHtml = function () {
   const f = ADV.fight;
   const used = f.enemies.reduce((s, e) => s + (TIER_CELLS[e.tier] || 1), 0);
   const placeholders = Math.max(0, 6 - used);
-  const tierColor = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d', elf: '#8fd96c' };
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
     ${f.enemies.map(e => `
       <div class="enemy-card ${e.hp <= 0 ? 'dead' : ''} tierb-${e.tier}">
-        <div class="enemy-name" style="color:${tierColor[e.tier]}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
+        <div class="enemy-name" style="color:${TIER_COLOR[e.tier]}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
         <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}
           ${(e.affixes || []).map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
         </div>
@@ -1089,6 +1119,27 @@ UI.showResults = function (run, level) {
   UI.modal(`
     <h3>${outcomeTxt}</h3>
     <div class="item-sub">${info.type.icon} ${esc(chapter.title)} · ${esc(info.biome)} — Level ${level}</div>
+    ${run.outcome === 'defeated' && run.killedByHit ? `
+      <h4>☠️ Killing blow</h4>
+      <p class="hint">${run.killedByHit.icon} ${esc(run.killedByHit.label)} — ${run.killedByHit.amount.toLocaleString()} damage</p>` : ''}
+    ${run.outcome === 'defeated' && run.killedBy && run.killedBy.length ? `
+      <h4>💀 The pack that got you</h4>
+      <div class="killedby-cards">
+        ${run.killedBy.map(e => `
+          <div class="enemy-card ${e.alive ? '' : 'dead'} tierb-${e.tier}">
+            <div class="enemy-name" style="color:${TIER_COLOR[e.tier] || TIER_COLOR.normal}">${e.alive ? '' : '☠️ '}${esc(e.name)}</div>
+            <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}
+              ${e.affixes.map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
+            </div>
+            <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${e.hp.toLocaleString()}/${e.maxHp.toLocaleString()}</span></div>
+            <div class="enemy-stats">
+              <span title="damage">🗡️ ${e.dmg.toLocaleString()}</span>
+              <span title="speed — gauge gained per round">⚡ ${e.spd}</span>
+              <span title="attack">${esc(e.attack)} (${e.atkType})</span>
+            </div>
+            <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
+          </div>`).join('')}
+      </div>` : ''}
     ${isBoss ? `<p class="part-end-story">${esc(partStory(level, 'end'))}</p>` : ''}
     ${isBoss && run.partReward ? `
       <h4>🎁 Quest Reward</h4>
@@ -1153,5 +1204,38 @@ UI.modal = function (innerHtml) {
   root.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this)UI.closeModal()"><div class="modal">${innerHtml}</div></div>`;
 };
 UI.closeModal = function () { $('#modal-root').innerHTML = ''; };
+
+// ------------------------------------------------------------
+// Keyboard shortcuts: Q/W for the two potions, 1-9/0 for the currently
+// active skills (same order as UI.activeSkills / the control row). Mirrors
+// each button's own disabled logic so a shortcut can't fire an action the
+// matching click would have refused.
+// ------------------------------------------------------------
+window.addEventListener('keydown', e => {
+  if (activeTab !== 'adventure' || !ADV || ADV.paused) return;
+  const modalRoot = $('#modal-root');
+  if (modalRoot && modalRoot.innerHTML.trim()) return;
+  const tag = (document.activeElement && document.activeElement.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  const key = e.key.toLowerCase();
+  if (key === 'q') {
+    if ((ADV.potCd.hp || 0) <= 0 && (G.potions.hp || 0) > 0) { e.preventDefault(); drinkPotion('hp'); }
+    return;
+  }
+  if (key === 'w') {
+    if ((ADV.potCd.mana || 0) <= 0 && (G.potions.mana || 0) > 0) { e.preventDefault(); drinkPotion('mana'); }
+    return;
+  }
+  const idx = SKILL_SHORTCUTS.indexOf(e.key);
+  if (idx === -1) return;
+  const skill = UI.activeSkills()[idx];
+  if (!skill) return;
+  const cd = ADV.fight ? (ADV.fight.cds[skill.id] || 0) : 0;
+  if (cd > 0 || G.char.mana < skillCost(skill)) return;
+  e.preventDefault();
+  queueSkill(skill.id);
+});
 
 window.addEventListener('DOMContentLoaded', UI.init);
