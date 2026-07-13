@@ -5,11 +5,17 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.6.0';
+DATA.VERSION = '0.7.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.7.0', notes: [
+    'Battle Arena action bar: on mobile, the icon buttons no longer stretch oversized when only a few are active — capped to a consistent size, matching desktop.',
+    '"Enemies at once" now goes up to 6.',
+    'Mini Boss encounter chance doubled (1.5% → 3%) on the 10th part of each chapter (the boss level).',
+    'The Sneaky Elf (the bag-carrying bonus encounter) has +100% HP.',
+  ] },
   { v: '0.6.0', notes: [
     'Battle Arena: fixed the hero\'s HP/Mana/attack-gauge bars, which were rendering as an invisible sliver instead of a real bar.',
     'Battle Arena: potions and skills are now one row of square icon buttons above the arena instead of two separate rows below it. Each button shows its cooldown as a faded number over the icon, a caption underneath (stock count for potions, mana cost for skills), and a keyboard shortcut badge on desktop (Q/W for potions, 1-9/0 for skills).',

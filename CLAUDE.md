@@ -101,8 +101,10 @@ Row order, left to right: `.next-action-box` → `.hero-card` → `.effects-grid
 These used to share one settings slot (`encounterMode.miniboss`, labeled
 "Abnormal" in the UI) — split into two independent slots on request:
 - `miniboss` — the actual Miniboss tier spawning (`encounterKind =
-  'miniboss'` when `minibossPossible(level) && chance(MINIBOSS_CHANCE)`
-  rolls true for a Normal-tier pack, game.js ~1601-1609).
+  'miniboss'` when `minibossPossible(level) && chance(minibossChance(level))`
+  rolls true for a Normal-tier pack, game.js ~1601-1609). `minibossChance`
+  (not a flat constant anymore) returns 3% on a chapter's 10th part
+  (`level % 10 === 0`, the boss level) and 1.5% on parts 5-9.
 - `abnormal` — any creature of *any* tier that independently rolled a
   specialty affix (Vampiric, Explosive, etc.) — currently only reachable
   from a plain Normal-tier pack, since Rare/Epic/Legendary packs already
@@ -162,3 +164,31 @@ up when this was removed.
 - A level number *is* the part number — no separate mapping. `chapterNumOf(level) = floor((level-1)/10)+1`, and within a chapter, part index = `(level-1)%10`. `isChapterEndLevel(level)` (game.js) = `level % 10 === 0` (boss level, i.e. last part of a chapter).
 - `UI.afterBossVictory(clearedLevel)` (ui.js, called from the boss-victory results modal's Continue button) routes to `UI.showChapterIntro`/`UI.showPartIntro` for `nextLevel = clearedLevel + 1`. It now also sets `G.area = Math.min(nextLevel, G.unlocked)` + `saveGame()` before routing, so the Adventure tab actually reflects the part/chapter the player is about to start — previously `G.area` was never touched here, so starting the next part left the Adventure tab on whatever level it happened to be on. The `Math.min(..., G.unlocked)` mirrors the ◀/▶ level-picker's own bound (`ui.js` `UI.renderAdventure`) — `G.unlocked` should already be `>= nextLevel` by this point (bumped on boss kill in game.js), so it's a defensive clamp, not expected to bind in practice.
 - Verified via direct `UI.afterBossVictory(level)` calls in the browser console: part-boundary and chapter-boundary clears both jump `G.area` correctly, clearing the final level (100) leaves `G.area` untouched (no level 101 to route to), and the `G.unlocked` clamp works when set artificially low.
+
+## Mobile icon-button sizing (`.icon-btn-wrap` in style.css)
+
+`.ctl-row`'s grid always creates a fixed number of equal-width columns
+(12 desktop, 6 mobile) regardless of how many buttons are actually
+present — a 6-column track on a narrow phone can stretch even 2-3 real
+buttons well past their intended size, since column width doesn't shrink
+to fit fewer children. Fixed with a **mobile-only** (`@media (max-width:
+860px)`) cap: `.icon-btn-wrap { max-width: 42px; margin: 0 auto; }`,
+which shrinks the button back down and centers it within its (now
+oversized) grid column. Desktop is untouched — don't add a `max-width` to
+the base `.icon-btn-wrap` rule, only inside that media query, or it'll
+also affect the already-correct desktop sizing.
+
+## Pack size ("Enemies at once") cap
+
+Raised from 5 to 6 in two places that both need to move together:
+`setPackSize(n)`'s clamp in game.js (`Math.min(6, n)`) and the button
+list in `UI.renderAdventure` (ui.js, `[1,2,3,4,5,6].map(...)`). 6 happens
+to exactly fill the battle arena's fixed 6-cell grid (`TIER_CELLS.normal
+= 1` each) with no placeholder cells needed for a pure-Normal pack.
+
+## Sneaky Elf HP (`makeElf` in game.js)
+
+`hp = round(39 * 10 * enemyHpScale(level))` — was `39 * 5` ("5x a normal
+monster"); doubled to `39 * 10` per a direct "+100% HP" request. Comment
+updated to say 10x rather than describe it as "5x, doubled" so a future
+read of the code isn't left doing that arithmetic again.

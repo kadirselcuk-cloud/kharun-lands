@@ -388,7 +388,15 @@ small { color: var(--dim); }
    as a caption underneath. */
 #player-controls { margin-bottom: 10px; }
 .ctl-row { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px; margin-bottom: 6px; }
-@media (max-width: 860px) { .ctl-row { grid-template-columns: repeat(6, 1fr); } }
+@media (max-width: 860px) {
+  .ctl-row { grid-template-columns: repeat(6, 1fr); }
+  /* On mobile, 6 equal-width columns can stretch each button well past
+     desktop's size (especially with only a few buttons active early on,
+     since a 6-column track sizes columns the same regardless of how many
+     are filled) — cap the button itself so the icon doesn't look tiny
+     inside an oversized square, and center it in its column. */
+  .icon-btn-wrap { max-width: 42px; margin: 0 auto; }
+}
 .icon-btn-wrap { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 100%; }
 .icon-btn {
   position: relative; width: 100%; aspect-ratio: 1; padding: 0;

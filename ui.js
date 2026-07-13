@@ -813,7 +813,7 @@ UI.renderAdventure = function (el) {
         <div class="pattern-hint hint">Every 11th kill is a 🔷 Rare · every 111th a 🟣 Epic · the 1,111th is the 🔶 Legendary Boss. Slay the boss to unlock the next level.</div>
         <div class="pack-row">
           <span>⚔️ Enemies at once:</span>
-          ${[1, 2, 3, 4, 5].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" onclick="setPackSize(${n})">${n}</button>`).join('')}
+          ${[1, 2, 3, 4, 5, 6].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" onclick="setPackSize(${n})">${n}</button>`).join('')}
           <small class="hint-inline">more enemies = faster progress, more danger</small>
         </div>
         <h3>Local wildlife <small>(unique roster for this level)</small></h3>

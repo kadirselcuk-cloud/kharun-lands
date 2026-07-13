@@ -880,9 +880,10 @@ function levelDifficulty(level) { return 11.7 * enemyDmgScale(level); }
 // applied on top of levelDifficulty, not blended with TIER_CONF.dmg.
 const WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 };
 
-// From the 5th level of each biome onward, a normal encounter has a
-// very small chance to be replaced by a wandering mini boss.
-const MINIBOSS_CHANCE = 0.015;
+// From the 5th part of each chapter onward, a normal encounter has a
+// very small chance to be replaced by a wandering mini boss — doubled on
+// the 10th part (the chapter's boss level) to 3%.
+function minibossChance(level) { return (level % 10 === 0) ? 0.03 : 0.015; }
 function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
 
 // The bag-carrying elf (a nod to Golden Axe): a rare bonus encounter.
@@ -893,7 +894,7 @@ function minibossPossible(level) { return ((level - 1) % 10) >= 4; }
 // level's 1111 creatures.
 const ELF_CHANCE = 0.01;
 function makeElf(level) {
-  const hp = Math.round(39 * 5 * enemyHpScale(level));   // 5x a normal monster
+  const hp = Math.round(39 * 10 * enemyHpScale(level));   // 10x a normal monster (5x, +100%)
   return {
     tier: 'elf', level, species: 'Bag Carrier', name: 'Sneaky Elf',
     attack: 'Frantic Dodging', atkType: 'phys', res: { phys: 0, magic: 0, poison: 0 },
@@ -1518,7 +1519,7 @@ function applyEncounterMode(tier) {
 }
 
 function setPackSize(n) {
-  G.settings.packSize = Math.max(1, Math.min(5, n));
+  G.settings.packSize = Math.max(1, Math.min(6, n));
   saveGame(); UI.refresh();
 }
 
@@ -1619,7 +1620,7 @@ function adventureTick() {
     // Stays null for plain Normal packs (with no specialty), which aren't
     // configurable.
     let enemies, encounterKind = null;
-    if (tier === 'normal' && minibossPossible(level) && chance(MINIBOSS_CHANCE)) {
+    if (tier === 'normal' && minibossPossible(level) && chance(minibossChance(level))) {
       const miniboss = makeCreature(level, 'miniboss');
       const escort = Math.random() < 0.20
         ? [makeCreature(level, 'epic')]
