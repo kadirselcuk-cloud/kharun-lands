@@ -10,6 +10,7 @@ let activeCitySub = 'shop';        // shop | tavern
 let invFilter = 'all';     // all | usable
 let invType = 'all';       // all | rune | <slot>
 let invSort = 'rarity';    // rarity | type | value | name
+let journalPage = null;    // 'prologue' | chapter number | 'epilogue' — null defaults to the current chapter on next render
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -727,16 +728,41 @@ UI.renderTavern = function (el) {
 };
 
 // ------------------------------------------------------------
-// Journal tab: Prologue + Chapter/Part progress as nested
-// open-close (<details>) menus. Current = gold, past = faded +
-// strikethrough, not-yet-reached = dim and locked.
+// Journal tab: one page at a time (Prologue / a chapter / Epilogue),
+// stepped through with ◀/▶ next to the title — same picker pattern as
+// the Adventure tab's level picker (.area-picker/.area-info). Parts
+// within the selected chapter stay nested open-close (<details>) menus,
+// same as before. Only pages the player has actually reached are ever
+// navigable — Epilogue only appears once the final chapter is cleared.
 // ------------------------------------------------------------
+// Ordered list of navigable pages: 'prologue', then every reached
+// chapter number, then 'epilogue' once the whole game (level 100) is
+// cleared — there's no story written for it yet, but the page exists.
+UI.journalPages = function () {
+  const frontier = Math.min(G.unlocked || 1, MAX_LEVEL_AREA);
+  const curChapterNum = chapterNumOf(frontier);
+  const epilogueUnlocked = !!G.bossKilled[MAX_LEVEL_AREA];
+  return ['prologue', ...Array.from({ length: curChapterNum }, (_, i) => i + 1), ...(epilogueUnlocked ? ['epilogue'] : [])];
+};
+
+UI.setJournalPage = function (delta) {
+  const pages = UI.journalPages();
+  let idx = pages.indexOf(journalPage);
+  if (idx === -1) idx = pages.length - 1;
+  idx = Math.max(0, Math.min(pages.length - 1, idx + delta));
+  journalPage = pages[idx];
+  UI.refresh();
+};
+
 UI.renderJournal = function (el) {
+  const pages = UI.journalPages();
+  if (journalPage === null || !pages.includes(journalPage)) journalPage = pages[pages.length - 1];
+  const idx = pages.indexOf(journalPage);
+
   const frontier = Math.min(G.unlocked || 1, MAX_LEVEL_AREA);
   const curChapterNum = chapterNumOf(frontier);
 
-  // Only parts reached so far (past or current) are rendered at all —
-  // unstarted parts aren't listed, same as unreached chapters.
+  // Only parts reached so far (past or current) are rendered at all.
   const partEntry = (bt, chapterIdx, partIdx) => {
     const level = chapterIdx * 10 + partIdx + 1;
     const locName = bt.biomes[partIdx];
@@ -753,35 +779,38 @@ UI.renderJournal = function (el) {
     </details>`;
   };
 
-  // Only chapters reached so far (past or current) are shown at all —
-  // unreached chapters aren't listed, not even locked.
-  const chapterEntry = (bt, i) => {
-    const chapterNum = i + 1;
+  let pageTitle, pageBody;
+  if (journalPage === 'prologue') {
+    pageTitle = `📜 Prologue: ${esc(DATA.PRELUDE.title)}`;
+    pageBody = DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('');
+  } else if (journalPage === 'epilogue') {
+    pageTitle = `📖 Epilogue: ${esc(DATA.EPILOGUE.title)}`;
+    pageBody = DATA.EPILOGUE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('');
+  } else {
+    const chapterNum = journalPage, i = chapterNum - 1;
+    const bt = DATA.BIOME_TYPES[i];
     const ch = chapterData(chapterNum * 10 - 9);
     const state = chapterNum < curChapterNum ? 'past' : 'current';
     // past chapters: every part is cleared. current chapter: only up
     // through the frontier part (the rest haven't started yet).
     const visiblePartCount = state === 'past' ? 10 : ((frontier - 1) % 10) + 1;
     const parts = Array.from({ length: visiblePartCount }, (_, p) => partEntry(bt, i, p)).join('');
-    return `<details class="journal-entry journal-chapter ${state}" ${state === 'current' ? 'open' : ''}>
-      <summary>${bt.icon} ${esc(ch.title)}</summary>
-      <div class="journal-body">
-        ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
-        ${ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
-        <div class="journal-parts">${parts}</div>
-      </div>
-    </details>`;
-  };
+    pageTitle = `${bt.icon} ${esc(ch.title)}`;
+    pageBody = `
+      ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
+      ${ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
+      <div class="journal-parts">${parts}</div>`;
+  }
 
-  const visibleChapters = DATA.BIOME_TYPES.slice(0, curChapterNum);
   el.innerHTML = `
     <div class="panel">
       <h3>📔 Journal</h3>
-      <details class="journal-entry journal-prologue">
-        <summary>📜 Prologue: ${esc(DATA.PRELUDE.title)}</summary>
-        <div class="journal-body">${DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}</div>
-      </details>
-      ${visibleChapters.map(chapterEntry).join('')}
+      <div class="area-picker">
+        <button class="btn" ${idx <= 0 ? 'disabled' : ''} onclick="UI.setJournalPage(-1)">◀</button>
+        <div class="area-info"><div class="area-name">${pageTitle}</div></div>
+        <button class="btn" ${idx >= pages.length - 1 ? 'disabled' : ''} onclick="UI.setJournalPage(1)">▶</button>
+      </div>
+      <div class="journal-body journal-page-body">${pageBody}</div>
     </div>`;
 };
 

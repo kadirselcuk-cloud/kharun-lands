@@ -217,3 +217,48 @@ read of the code isn't left doing that arithmetic again.
   it in `G.char.equip.ring1` (not left sitting in inventory), removes it
   from `G.shop.stock`, and deducts gold; with `G.gold = 0`, the call is a
   no-op (item stays in shop stock, nothing equipped).
+
+## Journal tab: single-page navigation (`UI.renderJournal` etc. in ui.js)
+
+Was a flat list of every reached chapter's `<details>`, each nested with
+its own reached parts as `<details>` — no navigation, just scroll.
+Redesigned per explicit user answers (asked because the request was
+ambiguous on 3 points):
+- **"Quests" in the request meant the existing Part entries** (e.g. "Part
+  3: Green Plains"), not the Tavern's actual quest system — those two are
+  and remain unrelated. Parts still render as nested open-close
+  `<details>` under whichever chapter page is selected, unchanged from
+  before.
+- Top of the tab is now **one page at a time** — Prologue, a chapter, or
+  Epilogue — stepped through with ◀/▶ (`UI.setJournalPage(delta)`),
+  reusing the Adventure tab's `.area-picker`/`.area-info` CSS classes
+  as-is (same visual pattern, no new picker CSS needed). Selection lives
+  in the module-level `journalPage` var (ui.js, near `activeTab`) —
+  ephemeral UI state, not saved to `G`.
+- **Epilogue is hidden until Chapter 10 is cleared**
+  (`G.bossKilled[MAX_LEVEL_AREA]`) — per explicit answer, not shown as a
+  locked/greyed entry beforehand. `UI.journalPages()` is the single source
+  of truth for the ordered, currently-navigable page list (`['prologue',
+  ...reached chapter numbers, ...maybe 'epilogue']`) — both the render
+  function and the arrow-click handler call it, so they can't drift.
+- **Arrows are bounded to reached pages only** (per explicit answer) — you
+  can't preview an unreached chapter by pressing ▶ past your progress.
+- `DATA.EPILOGUE` (data.js, same shape as `DATA.PRELUDE`: `{title,
+  paragraphs}`) is a deliberately minimal placeholder ("hasn't been
+  written yet") — no invented lore. Only Chapter 1 has real story content
+  so far; keep additions literal and confirm new lore with the user before
+  writing it, same as the existing chapter placeholders do.
+- Watch for `ch.title` already containing "Chapter N: " (only Chapter 1 is
+  authored so far, e.g. `'Chapter 1: Harvestgate'`) — don't prepend
+  "Chapter N:" again when building the page title, or it doubles up.
+- `.journal-body` has a 30px left-indent tuned for sitting under a
+  `<details>` chevron; the new top-level page body isn't nested in one, so
+  it uses an added `.journal-page-body` modifier to pull that indent back
+  in (relies on source order over `.journal-body`, not higher specificity
+  — both are single-class selectors).
+- Verified in the browser console: default page on first render is the
+  furthest-reached page (prologue → current chapter → epilogue once
+  unlocked); ◀/▶ clamp correctly at both ends; `UI.journalPages()`
+  correctly excludes/includes `'epilogue'` before/after
+  `G.bossKilled[100]`; Part `<details>` still list correctly under a
+  selected chapter.

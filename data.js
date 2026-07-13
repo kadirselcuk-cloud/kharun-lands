@@ -5,11 +5,14 @@
 
 const DATA = {};
 
-DATA.VERSION = '0.8.0';
+DATA.VERSION = '0.9.0';
 
 // Changelog — newest first. Each user-requested change bumps the
 // minor version (0.1.0, 0.2.0, 0.3.0, ...).
 DATA.CHANGELOG = [
+  { v: '0.9.0', notes: [
+    'Journal: redesigned as one page at a time (Prologue / a chapter / Epilogue) navigated with ◀/▶, instead of one long scrolling list. Parts within a chapter are still open-close menus. Epilogue only appears once Chapter 10 is cleared (story not written yet).',
+  ] },
   { v: '0.8.0', notes: [
     'Shop: added "Buy & Equip" next to Buy on any usable item — for rings this is "Buy & Equip Left"/"Buy & Equip Right", for one-handed weapons "Buy & Equip Main Hand"/"Buy & Equip Off Hand".',
   ] },
@@ -97,6 +100,15 @@ DATA.PRELUDE = {
     'Twenty years ago, three such heroes reached the first trial, outside a farming town called Harvestgate, and never came back. The monument they left behind still stands. So does the contract.',
     'No one has dared finish it in twenty years — until three strangers, each running from something of their own, were handed the dead heroes\' names, their gear, and their unfinished road.',
     'Whether they were chosen, or simply the last three left standing when the world needed a warrior, a mage, and a rogue, is a question none of them have thought to ask yet.',
+  ],
+};
+
+// Journal epilogue page — only reachable once Chapter 10 (level 100) is
+// cleared. Placeholder until that ending gets written.
+DATA.EPILOGUE = {
+  title: 'To Be Continued',
+  paragraphs: [
+    'This part of Kharun\'s story hasn\'t been written yet — check back in a future update.',
   ],
 };
 
