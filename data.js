@@ -5,12 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.2.0';
+DATA.VERSION = '1.2.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.2.1', notes: [
+    'Unspent stat/skill points no longer show as a ⬆ icon badge next to the Character tab — the tab text now gently pulses (breathing highlight) instead.',
+    'Replaced the Character tab\'s 🧍 icon with 🛡️.',
+  ] },
   { v: '1.2.0', notes: [
     'Up to 5 heroes at once: the title screen is now a slot grid — Continue, 📤 Export (download as a file) or 🗑️ Delete any saved hero, and start a new one in any empty slot.',
     '📥 Import loads a previously exported character file into a free slot — handy for backing up a hero or moving them to another browser/device.',

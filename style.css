@@ -630,7 +630,13 @@ small { color: var(--dim); }
   color: var(--accent); border-radius: 10px; padding: 10px 16px; margin-bottom: 10px;
   font-size: .95rem; text-align: center;
 }
-.lvlup-badge { color: var(--accent); font-weight: 800; }
+/* Notable-but-passive tab state (unspent points, etc.) — a slow breathing
+   highlight on the tab's own text instead of an added icon/badge. */
+@keyframes tab-breathe {
+  0%, 100% { color: inherit; text-shadow: none; }
+  50% { color: var(--accent); text-shadow: 0 0 8px rgba(224,169,76,.55); }
+}
+.tab-notify { animation: tab-breathe 2.6s ease-in-out infinite; }
 .level-panel { margin-bottom: 12px; }
 .xp-bar-big { max-width: none; height: 22px; }
 .xp-bar-big > span { font-size: .78rem; }

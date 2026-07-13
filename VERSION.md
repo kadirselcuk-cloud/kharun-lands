@@ -14,6 +14,16 @@ game at runtime.
 
 ---
 
+## 1.2.1 (fix)
+
+- Unspent stat/skill points (Character tab + its Character/Skills subtabs)
+  no longer show an appended ⬆ icon badge — instead a `.tab-notify` CSS
+  class applies a slow `tab-breathe` keyframe animation (color/text-shadow
+  oscillating toward `--accent`) directly to the tab's own text. Reusable
+  for any future "something to look at, no icon" tab state.
+- Character tab's icon changed from 🧍 to 🛡️ (also updated in the game
+  help modal's tab-list line).
+
 ## 1.2.0 (minor)
 
 Multi-character save slots (a real architecture/gameplay change), bundled

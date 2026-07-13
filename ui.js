@@ -345,7 +345,7 @@ UI.showGame = function () {
     <div id="topbar"></div>
     <div id="tabs" class="tabs">
       <button data-tab="adventure">🗺️ Adventure</button>
-      <button data-tab="character">🧍 Character</button>
+      <button data-tab="character">🛡️ Character</button>
       <button data-tab="city">🏙️ City</button>
       <button data-tab="journal">📔 Journal</button>
     </div>
@@ -370,9 +370,13 @@ UI.refresh = function () {
   if (!G) return;
   UI.renderTopbar();
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-  // level-up badge: lights up if either stat or skill points are unspent
+  // unspent stat/skill points: no added icon, just a slow breathing
+  // highlight on the tab's own text so it doesn't clutter the tab bar.
   const charTab = document.querySelector('#tabs button[data-tab="character"]');
-  if (charTab) charTab.innerHTML = `🧍 Character${(G.char.statPoints || G.char.skillPoints) ? ' <span class="lvlup-badge">⬆</span>' : ''}`;
+  if (charTab) {
+    charTab.innerHTML = `🛡️ Character`;
+    charTab.classList.toggle('tab-notify', !!(G.char.statPoints || G.char.skillPoints));
+  }
   const el = $('#tab-content');
   if (!el) return;
   if (activeTab === 'character') UI.renderCharacterHub(el);
@@ -387,8 +391,8 @@ UI.refresh = function () {
 UI.renderCharacterHub = function (el) {
   el.innerHTML = `
     <div class="subtabs">
-      <button data-sub="character" class="${activeCharSub === 'character' ? 'active' : ''}">🧍 Character${G.char.statPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}</button>
-      <button data-sub="skills" class="${activeCharSub === 'skills' ? 'active' : ''}">📜 Skills${G.char.skillPoints ? ' <span class="lvlup-badge">⬆</span>' : ''}</button>
+      <button data-sub="character" class="${activeCharSub === 'character' ? 'active' : ''} ${G.char.statPoints ? 'tab-notify' : ''}">🛡️ Character</button>
+      <button data-sub="skills" class="${activeCharSub === 'skills' ? 'active' : ''} ${G.char.skillPoints ? 'tab-notify' : ''}">📜 Skills</button>
       <button data-sub="inventory" class="${activeCharSub === 'inventory' ? 'active' : ''}">🎒 Inventory</button>
     </div>
     <div id="char-sub-content"></div>`;
@@ -456,7 +460,7 @@ UI.showGameHelp = function () {
     <p class="prelude-text">Play through a ten-chapter story as Kharun (Warrior), Pars (Rogue), or Minnie (Mage). Every Quest is tied to one Location and ends with a named boss — beat it to unlock the next Quest, and beat a chapter's 10th Quest to unlock the next Chapter.</p>
     <p class="prelude-text"><b>📖 Chapters</b> group ten Quests each around one region of the story. <b>🧭 Quests</b> are individual objectives with their own intro, creatures and boss. <b>🗺️ Locations</b> are where a Quest physically takes place.</p>
     <p class="prelude-text"><b>🗺️ Adventure</b> — fight through your current Quest's creatures. Has its own ❓ Help and ⚔️ Combat Arena ❓ Help for details on the gauge, potions and skills.</p>
-    <p class="prelude-text"><b>🧍 Character</b> — your stats, skills, and inventory/equipment.</p>
+    <p class="prelude-text"><b>🛡️ Character</b> — your stats, skills, and inventory/equipment.</p>
     <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
     <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
     <p class="prelude-text">💾 Save writes your progress immediately (the game also auto-saves constantly). ↺ Reset permanently deletes your current hero and returns you to the title screen.</p>
