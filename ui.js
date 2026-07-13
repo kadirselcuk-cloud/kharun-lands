@@ -24,19 +24,30 @@ UI.init = function () {
   else UI.showPrelude();
 };
 
-// One-time lore screen shown before a hero is chosen.
-UI.showPrelude = function () {
+// One-time lore prologue shown before a hero is chosen — paged, one
+// context-block of the story at a time, stepped through with Continue.
+UI.showPrelude = function (pageIdx) {
+  const pages = DATA.PRELUDE.pages;
+  const i = Math.max(0, Math.min(pages.length - 1, pageIdx || 0));
+  const page = pages[i];
+  const last = i === pages.length - 1;
   $('#app').innerHTML = `
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
-        <h2 class="prelude-title">${esc(DATA.PRELUDE.title)}</h2>
-        ${DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
-        <button class="btn btn-primary btn-big" id="begin-btn">📜 Take Up the Contract</button>
+        <div class="part-intro-chapter-tag">Prologue: ${esc(DATA.PRELUDE.title)} · Page ${i + 1} of ${pages.length}</div>
+        <h2 class="prelude-title">${esc(page.title)}</h2>
+        ${page.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        <div class="prelude-nav">
+          ${i > 0 ? `<button class="btn" id="prelude-back-btn">◀ Back</button>` : ''}
+          <button class="btn btn-primary btn-big" id="prelude-next-btn">${last ? '⚔️ Choose Your Hero' : '▶ Continue'}</button>
+        </div>
       </div>
       <p class="subtitle version-tag">v${DATA.VERSION}</p>
     </div>`;
-  $('#begin-btn').onclick = () => UI.showClassSelect();
+  const back = $('#prelude-back-btn');
+  if (back) back.onclick = () => UI.showPrelude(i - 1);
+  $('#prelude-next-btn').onclick = () => last ? UI.showClassSelect() : UI.showPrelude(i + 1);
 };
 
 // Title screen when a saved hero exists: Continue or start over.
@@ -49,7 +60,7 @@ UI.showTitle = function (save) {
       <p class="subtitle">A hero awaits. Your progress is saved automatically in this browser. <span class="version-tag">v${DATA.VERSION}</span></p>
       <div class="title-box">
         <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
-          <small>Level ${c.level} ${cls.name} · Area ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
+          <small>Level ${c.level} ${cls.name} · Quest ${save.unlocked}/${100} unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
         </div>
         <button class="btn btn-primary btn-big" id="continue-btn">▶ Continue</button>
         <button class="btn" id="newchar-btn">✚ New Character (deletes this hero)</button>
@@ -64,63 +75,121 @@ UI.showTitle = function (save) {
   };
 };
 
-// Shown once, full-screen, the first time a hero enters a chapter —
-// currently only used for Chapter 1, right after character creation.
+// Full-screen chapter opening, shown when a hero first enters a chapter.
+// Continues into that chapter's first quest-start screen.
 UI.showChapterIntro = function (chapterNum) {
   const startLevel = (chapterNum - 1) * 10 + 1;
   const ch = chapterData(startLevel);
-  const icon = DATA.BIOME_TYPES[chapterNum - 1].icon;
-  const partName = areaInfo(startLevel).biome;
-  const partBeginning = partStory(startLevel, 'beginning');
   $('#app').innerHTML = `
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
-        <h2 class="prelude-title">${icon} ${esc(ch.title)}</h2>
+        <h2 class="prelude-title">${ch.icon} ${esc(ch.title)}</h2>
         ${ch.headline ? `<p class="chapter-headline-big">${esc(ch.headline)}</p>` : ''}
         ${ch.story.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
-        <h3 class="part-intro-header">${esc(partName)}</h3>
-        <p class="prelude-text">${esc(partBeginning)}</p>
-        <button class="btn btn-primary btn-big" id="chapter-start-btn">▶ Start</button>
+        <button class="btn btn-primary btn-big" id="chapter-start-btn">▶ Continue</button>
       </div>
     </div>`;
-  $('#chapter-start-btn').onclick = () => UI.showGame();
+  $('#chapter-start-btn').onclick = () => UI.showQuestStart(startLevel);
 };
 
-// Mid-chapter transition: just the next Part's header + beginning
-// story, shown after a boss-victory Continue click (when the next
-// level doesn't start a new chapter — that case uses the full
-// showChapterIntro instead).
-UI.showPartIntro = function (level) {
-  const locName = areaInfo(level).biome;
-  const beginning = partStory(level, 'beginning');
-  const chapter = chapterData(level);
+// Quest-start screen: the quest's opening story + objective, with a
+// Start button that switches to the Adventure tab at the quest location.
+UI.showQuestStart = function (level) {
+  const info = areaInfo(level);
   $('#app').innerHTML = `
     <div class="class-select prelude-screen">
       <h1>⚔️ KHARUN LANDS</h1>
       <div class="prelude-box">
-        <div class="part-intro-chapter-tag">${esc(chapter.title)}</div>
-        <h2 class="prelude-title part-intro-header">${esc(locName)}</h2>
-        <p class="prelude-text">${esc(beginning)}</p>
-        <button class="btn btn-primary btn-big" id="part-start-btn">▶ Start</button>
+        <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
+        <h2 class="prelude-title part-intro-header">Quest ${info.questNum}: ${esc(info.quest.name)}</h2>
+        <div class="quest-location-tag">📍 Location: ${esc(info.location)}</div>
+        ${info.quest.intro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        <p class="quest-objective">🎯 Objective: ${esc(info.quest.objective)}</p>
+        <button class="btn btn-primary btn-big" id="quest-start-btn">▶ Start</button>
       </div>
     </div>`;
-  $('#part-start-btn').onclick = () => UI.showGame();
+  $('#quest-start-btn').onclick = () => {
+    G.area = Math.min(level, G.unlocked);
+    activeTab = 'adventure';
+    saveGame();
+    UI.showGame();
+  };
 };
 
-// Called after the boss-victory modal's Continue button. Routes to a
-// full chapter intro if the next level starts a new chapter, a plain
-// part intro otherwise, or straight back into the game if there's no
-// next level (level 100 cleared).
+// Quest-end screen: the story sentences after the objective, revealed
+// only once the quest boss falls, plus the "Sets up Quest N" hook as its
+// own final paragraph. Continues to the next quest's start — or to the
+// chapter ending when this was the chapter's 10th quest.
+UI.showQuestEnd = function (level) {
+  const info = areaInfo(level);
+  const chapterDone = isChapterEndLevel(level);
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <div class="part-intro-chapter-tag">${esc(info.chapter.title)}</div>
+        <h2 class="prelude-title part-intro-header">Quest ${info.questNum}: ${esc(info.quest.name)} — Complete</h2>
+        <div class="quest-location-tag">📍 ${esc(info.location)}</div>
+        ${info.quest.outro.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        ${info.quest.setup ? `<p class="quest-setup">→ ${esc(info.quest.setup)}</p>` : ''}
+        <button class="btn btn-primary btn-big" id="quest-end-btn">▶ Continue</button>
+      </div>
+    </div>`;
+  $('#quest-end-btn').onclick = () => {
+    if (chapterDone) UI.showChapterEnd(chapterNumOf(level));
+    else UI.showQuestStart(level + 1);
+  };
+};
+
+// Chapter-ending screen, shown after the 10th quest's ending. Continues
+// into the next chapter's opening — or the Epilogue after Chapter 10.
+UI.showChapterEnd = function (chapterNum) {
+  const ch = DATA.CHAPTERS[chapterNum - 1];
+  const lastChapter = chapterNum >= DATA.CHAPTERS.length;
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <div class="part-intro-chapter-tag">Chapter Ending</div>
+        <h2 class="prelude-title">${ch.icon} ${esc(ch.title)}</h2>
+        ${(ch.ending || []).map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}
+        <button class="btn btn-primary btn-big" id="chapter-end-btn">${lastChapter ? '📖 Epilogue' : '▶ Continue'}</button>
+      </div>
+    </div>`;
+  $('#chapter-end-btn').onclick = () => lastChapter ? UI.showEpilogue() : UI.showChapterIntro(chapterNum + 1);
+};
+
+// The Epilogue — shown once after Chapter 10's ending (and afterwards
+// readable any time from the Journal).
+UI.showEpilogue = function () {
+  $('#app').innerHTML = `
+    <div class="class-select prelude-screen">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <div class="prelude-box">
+        <h2 class="prelude-title">📖 Epilogue: ${esc(DATA.EPILOGUE.title)}</h2>
+        ${DATA.EPILOGUE.sections.map(s => `
+          <h3 class="part-intro-header">${esc(s.h)}</h3>
+          ${s.paragraphs.map(p => `<p class="prelude-text">${esc(p)}</p>`).join('')}`).join('')}
+        <p class="prelude-text epilogue-end">— END —</p>
+        <button class="btn btn-primary btn-big" id="epilogue-btn">▶ Return to the Kharun Lands</button>
+      </div>
+    </div>`;
+  $('#epilogue-btn').onclick = () => UI.showGame();
+};
+
+// Called after the boss-victory modal's Continue button: first the
+// cleared quest's ending screen, which then chains onward (next quest
+// start, chapter ending, next chapter intro, or the epilogue).
 UI.afterBossVictory = function (clearedLevel) {
   const nextLevel = clearedLevel + 1;
-  if (nextLevel > MAX_LEVEL_AREA) { UI.showGame(); return; }
-  // Jump the Adventure tab to the part/chapter the player is about to
-  // start, same convention as the manual ◀/▶ level pickers.
-  G.area = Math.min(nextLevel, G.unlocked);
-  saveGame();
-  if ((nextLevel - 1) % 10 === 0) UI.showChapterIntro(chapterNumOf(nextLevel));
-  else UI.showPartIntro(nextLevel);
+  if (nextLevel <= MAX_LEVEL_AREA) {
+    // Jump the Adventure tab to the quest the player is about to start,
+    // same convention as the manual ◀/▶ level pickers.
+    G.area = Math.min(nextLevel, G.unlocked);
+    saveGame();
+  }
+  UI.showQuestEnd(clearedLevel);
 };
 
 UI.showClassSelect = function () {
@@ -626,7 +695,7 @@ UI.showItem = function (uid, context, slot) {
 UI.renderShop = function (el) {
   if (!G.shop || !G.shop.stock) genShopStock();
   const stock = G.shop.stock;
-  const shopName = DATA.BIOME_TYPES[chapterNumOf(G.area) - 1].shopName;
+  const shopName = DATA.CHAPTERS[chapterNumOf(G.area) - 1].shopName;
   el.innerHTML = `
     <div class="panel">
       <h3>🛒 ${esc(shopName)}
@@ -762,44 +831,62 @@ UI.renderJournal = function (el) {
   const frontier = Math.min(G.unlocked || 1, MAX_LEVEL_AREA);
   const curChapterNum = chapterNumOf(frontier);
 
-  // Only parts reached so far (past or current) are rendered at all.
-  const partEntry = (bt, chapterIdx, partIdx) => {
-    const level = chapterIdx * 10 + partIdx + 1;
-    const locName = bt.biomes[partIdx];
+  // Only quests reached so far (past or current) are rendered at all.
+  // A quest entry shows its Location, its intro, and the objective while
+  // in progress; the outro + "Sets up Quest N" hook appear only once the
+  // quest is cleared.
+  const questEntry = (ch, chapterIdx, questIdx) => {
+    const level = chapterIdx * 10 + questIdx + 1;
+    const q = ch.quests[questIdx];
     const cleared = !!G.bossKilled[level];
     const state = cleared ? 'past' : 'current';
     const kills = G.progress[level] || 0;
-    const beginning = `<p class="prelude-text journal-story-text">${esc(partStory(level, 'beginning'))}</p>`;
+    const intro = q.intro.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('');
+    const objective = `<p class="quest-objective">🎯 Objective: ${esc(q.objective)}</p>`;
     const body = cleared
-      ? `${beginning}<p class="prelude-text journal-story-text">${esc(partStory(level, 'end'))}</p><p class="hint">🏆 Cleared — this ground can still be walked again, but its tale here is told.</p>`
-      : `${beginning}<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
+      ? `${intro}${objective}
+         ${q.outro.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
+         ${q.setup ? `<p class="quest-setup">→ ${esc(q.setup)}</p>` : ''}
+         <p class="hint">🏆 Quest complete — this ground can still be walked again, but its tale here is told.</p>`
+      : `${intro}${objective}<p>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared so far.</p>`;
     return `<details class="journal-entry journal-part ${state}" ${state === 'current' ? 'open' : ''}>
-      <summary>Part ${partIdx + 1}: ${esc(locName)}</summary>
-      <div class="journal-body">${body}</div>
+      <summary>Quest ${questIdx + 1}: ${esc(q.name)}</summary>
+      <div class="journal-body">
+        <div class="quest-location-tag">📍 Location: ${esc(q.location)}</div>
+        ${body}
+      </div>
     </details>`;
   };
 
   let pageTitle, pageBody;
   if (journalPage === 'prologue') {
     pageTitle = `📜 Prologue: ${esc(DATA.PRELUDE.title)}`;
-    pageBody = DATA.PRELUDE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('');
+    pageBody = DATA.PRELUDE.pages.map(pg => `
+      <h4 class="journal-section-head">${esc(pg.title)}</h4>
+      ${pg.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}`).join('');
   } else if (journalPage === 'epilogue') {
     pageTitle = `📖 Epilogue: ${esc(DATA.EPILOGUE.title)}`;
-    pageBody = DATA.EPILOGUE.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('');
+    pageBody = DATA.EPILOGUE.sections.map(s => `
+      <h4 class="journal-section-head">${esc(s.h)}</h4>
+      ${s.paragraphs.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}`).join('') +
+      '<p class="prelude-text journal-story-text epilogue-end">— END —</p>';
   } else {
     const chapterNum = journalPage, i = chapterNum - 1;
-    const bt = DATA.BIOME_TYPES[i];
-    const ch = chapterData(chapterNum * 10 - 9);
+    const ch = DATA.CHAPTERS[i];
     const state = chapterNum < curChapterNum ? 'past' : 'current';
-    // past chapters: every part is cleared. current chapter: only up
-    // through the frontier part (the rest haven't started yet).
-    const visiblePartCount = state === 'past' ? 10 : ((frontier - 1) % 10) + 1;
-    const parts = Array.from({ length: visiblePartCount }, (_, p) => partEntry(bt, i, p)).join('');
-    pageTitle = `${bt.icon} ${esc(ch.title)}`;
+    // past chapters: every quest is cleared. current chapter: only up
+    // through the frontier quest (the rest haven't started yet).
+    const visibleQuestCount = state === 'past' ? 10 : ((frontier - 1) % 10) + 1;
+    const quests = Array.from({ length: visibleQuestCount }, (_, q) => questEntry(ch, i, q)).join('');
+    const chapterCleared = !!G.bossKilled[chapterNum * 10];
+    pageTitle = `${ch.icon} ${esc(ch.title)}`;
     pageBody = `
       ${ch.headline ? `<p class="chapter-headline">${esc(ch.headline)}</p>` : ''}
       ${ch.story.map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}
-      <div class="journal-parts">${parts}</div>`;
+      <div class="journal-parts">${quests}</div>
+      ${chapterCleared ? `
+        <h4 class="journal-section-head">Chapter Ending</h4>
+        ${(ch.ending || []).map(p => `<p class="prelude-text journal-story-text">${esc(p)}</p>`).join('')}` : ''}`;
   }
 
   el.innerHTML = `
@@ -833,9 +920,13 @@ UI.pickSocketTarget = function (runeUid) {
 // ------------------------------------------------------------
 UI.renderAdventure = function (el) {
   const info = areaInfo(G.area);
-  const chapter = chapterData(G.area);
+  const chapter = info.chapter;
   const kills = G.progress[G.area] || 0;
   const nextTier = nextCreatureTier(kills);
+  const isChapterBossLevel = isChapterEndLevel(G.area);
+  const bossLabel = isChapterBossLevel
+    ? `<span class="chapterboss-txt">🩸 CHAPTER BOSS: ${esc(info.quest.boss.name)}</span>`
+    : `🔶 QUEST BOSS: ${esc(info.quest.boss.name)}`;
   el.innerHTML = `
     <div class="two-col">
       <div class="panel">
@@ -844,23 +935,25 @@ UI.renderAdventure = function (el) {
         <div class="area-picker">
           <button class="btn" ${G.area <= 1 || ADV ? 'disabled' : ''} onclick="G.area--;saveGame();UI.refresh()">◀</button>
           <div class="area-info">
-            <div class="area-name">${info.type.icon} ${esc(info.biome)}</div>
-            <div class="area-sub">Level ${G.area} / ${MAX_LEVEL_AREA} ${G.bossKilled[G.area] ? '· 🏆 boss defeated' : ''}</div>
+            <div class="area-sub">Quest ${info.questNum}: ${esc(info.quest.name)}</div>
+            <div class="area-name">${chapter.icon} 📍 ${esc(info.location)}</div>
+            <div class="area-sub">Level ${G.area} / ${MAX_LEVEL_AREA} ${G.bossKilled[G.area] ? '· 🏆 quest complete' : ''}</div>
           </div>
           <button class="btn" ${G.area >= G.unlocked || ADV ? 'disabled' : ''} onclick="G.area++;saveGame();UI.refresh()">▶</button>
         </div>
-        <div class="bar progress-bar" title="Level progress">
+        <div class="quest-objective adv-objective">🎯 ${esc(info.quest.objective)}</div>
+        <div class="bar progress-bar" title="Quest progress">
           <div style="width:${kills / CREATURES_PER_LEVEL * 100}%"></div>
           <span>${Math.floor(kills / CREATURES_PER_LEVEL * 100)}% cleared</span>
         </div>
-        <div class="pattern-hint">Next up: <b>${nextTier ? { normal: 'Normal creature', rare: '🔷 Rare creature', epic: '🟣 Epic creature', legendary: '🔶 LEGENDARY BOSS' }[nextTier] : 'Level cleared!'}</b></div>
-        <div class="pattern-hint hint">Every 11th kill is a 🔷 Rare · every 111th a 🟣 Epic · the 1,111th is the 🔶 Legendary Boss. Slay the boss to unlock the next level.</div>
+        <div class="pattern-hint">Next up: <b>${nextTier ? { normal: 'Normal creature', rare: '🔷 Rare creature', epic: '🟣 Epic creature', legendary: bossLabel }[nextTier] : 'Quest cleared!'}</b></div>
+        <div class="pattern-hint hint">Every 11th kill is a 🔷 Rare · every 111th a 🟣 Epic · the 1,111th is the quest\'s boss: <b>${esc(info.quest.boss.name)}</b>. Slay it to complete the quest.</div>
         <div class="pack-row">
           <span>⚔️ Enemies at once:</span>
           ${[1, 2, 3, 4, 5, 6].map(n => `<button class="btn btn-tiny ${G.settings.packSize === n ? 'active' : ''}" onclick="setPackSize(${n})">${n}</button>`).join('')}
           <small class="hint-inline">more enemies = faster progress, more danger</small>
         </div>
-        <h3>Local wildlife <small>(unique roster for this level)</small></h3>
+        <h3>Local threats <small>(this quest's creatures)</small></h3>
         <div class="wildlife">
           ${creaturesForLevel(G.area).map(cr => `<div class="creature-chip" title="${esc(cr.attack)} (${cr.atkType}) — res ⚔️${cr.res.phys}% ✨${cr.res.magic}% ☠️${cr.res.poison}%">${esc(cr.name)}</div>`).join('')}
         </div>
@@ -1070,7 +1163,16 @@ UI.controlsHtml = function () {
 // Detailed cards for every enemy in the current fight.
 // grid cells each tier occupies in the 2x3 (mobile-friendly) battle grid
 const TIER_CELLS = { normal: 1, rare: 1, miniboss: 2, elf: 2, epic: 2, legendary: 4 };
-const TIER_COLOR = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#4ecdc4', legendary: '#ff8b3d', elf: '#8fd96c' };
+// Miniboss: light pinkish red. Legendary (quest boss): standard orange.
+// A chapter's 10th-quest boss overrides to a darker blood-red.
+const TIER_COLOR = { normal: '#c8c8c8', rare: '#6c9bff', epic: '#c77dff', miniboss: '#ff6b7a', legendary: '#ff8b3d', elf: '#8fd96c' };
+const CHAPTER_BOSS_COLOR = '#d1202c';
+function enemyColor(e) { return e.isChapterBoss ? CHAPTER_BOSS_COLOR : (TIER_COLOR[e.tier] || TIER_COLOR.normal); }
+function enemyCardClass(e) { return `tierb-${e.tier}${e.isChapterBoss ? ' tierb-chapterboss' : ''}`; }
+function enemyTierLabel(e) {
+  if (e.tier === 'legendary') return e.isChapterBoss ? 'Chapter Boss' : 'Quest Boss';
+  return `${cap(e.tier)} ${e.species}`;
+}
 
 UI.enemyPanelHtml = function () {
   if (!ADV) return `<p class="hint">No fight in progress.</p>`;
@@ -1084,9 +1186,9 @@ UI.enemyPanelHtml = function () {
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
     ${f.enemies.map(e => `
-      <div class="enemy-card ${e.hp <= 0 ? 'dead' : ''} tierb-${e.tier}">
-        <div class="enemy-name" style="color:${TIER_COLOR[e.tier]}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
-        <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}
+      <div class="enemy-card ${e.hp <= 0 ? 'dead' : ''} ${enemyCardClass(e)}">
+        <div class="enemy-name" style="color:${enemyColor(e)}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
+        <div class="enemy-sub">${e.tier !== 'normal' ? `${esc(enemyTierLabel(e))} · ` : ''}Lv ${e.level}
           ${(e.affixes || []).map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
         </div>
         <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${Math.max(0, Math.round(e.hp))}/${e.maxHp}</span></div>
@@ -1141,7 +1243,7 @@ UI.scrollLog = function () {
 // ------------------------------------------------------------
 UI.showResults = function (run, level) {
   const info = areaInfo(level);
-  const chapter = chapterData(level);
+  const chapter = info.chapter;
   const k = run.kills;
   const totalKills = k.normal + k.rare + k.epic + (k.miniboss || 0) + k.legendary;
   const outcomeTxt = {
@@ -1162,7 +1264,7 @@ UI.showResults = function (run, level) {
   const isBoss = run.outcome === 'boss';
   UI.modal(`
     <h3>${outcomeTxt}</h3>
-    <div class="item-sub">${info.type.icon} ${esc(chapter.title)} · ${esc(info.biome)} — Level ${level}</div>
+    <div class="item-sub">${chapter.icon} ${esc(chapter.title)} · Quest ${info.questNum}: ${esc(info.quest.name)} — 📍 ${esc(info.location)}</div>
     ${run.outcome === 'defeated' && run.killedByHit ? `
       <h4>☠️ Killing blow</h4>
       <p class="hint">${run.killedByHit.icon} ${esc(run.killedByHit.label)} — ${run.killedByHit.amount.toLocaleString()} damage</p>` : ''}
@@ -1170,9 +1272,9 @@ UI.showResults = function (run, level) {
       <h4>💀 The pack that got you</h4>
       <div class="killedby-cards">
         ${run.killedBy.map(e => `
-          <div class="enemy-card ${e.alive ? '' : 'dead'} tierb-${e.tier}">
-            <div class="enemy-name" style="color:${TIER_COLOR[e.tier] || TIER_COLOR.normal}">${e.alive ? '' : '☠️ '}${esc(e.name)}</div>
-            <div class="enemy-sub">${e.tier !== 'normal' ? `${cap(e.tier)} ${esc(e.species)} · ` : ''}Lv ${e.level}
+          <div class="enemy-card ${e.alive ? '' : 'dead'} ${enemyCardClass(e)}">
+            <div class="enemy-name" style="color:${enemyColor(e)}">${e.alive ? '' : '☠️ '}${esc(e.name)}</div>
+            <div class="enemy-sub">${e.tier !== 'normal' ? `${esc(enemyTierLabel(e))} · ` : ''}Lv ${e.level}
               ${e.affixes.map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
             </div>
             <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${e.hp.toLocaleString()}/${e.maxHp.toLocaleString()}</span></div>
@@ -1184,7 +1286,7 @@ UI.showResults = function (run, level) {
             <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
           </div>`).join('')}
       </div>` : ''}
-    ${isBoss ? `<p class="part-end-story">${esc(partStory(level, 'end'))}</p>` : ''}
+    ${isBoss ? `<p class="part-end-story">🏆 ${esc(info.quest.boss.name)} has fallen — Quest ${info.questNum}: ${esc(info.quest.name)} is complete! Hit Continue to see how the story unfolds.</p>` : ''}
     ${isBoss && run.partReward ? `
       <h4>🎁 Quest Reward</h4>
       <div class="quest-reward-box">

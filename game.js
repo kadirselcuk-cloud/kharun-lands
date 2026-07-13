@@ -783,38 +783,25 @@ function restockShop() {
 }
 
 // ------------------------------------------------------------
-// Areas / creatures
+// Chapters / quests / creatures
 // ------------------------------------------------------------
-function areaInfo(level) {
-  const t = DATA.BIOME_TYPES[Math.floor((level - 1) / 10)];
-  return { level, type: t, biome: t.biomes[(level - 1) % 10] };
-}
-
-// The 10 biome types double as the game's 10 story chapters (levels
-// 1-10 = Chapter 1, 11-20 = Chapter 2, etc). Chapters without a
-// custom title yet fall back to their biome type name.
+// A level IS a quest: levels 1-10 = Chapter 1 Quests 1-10, level 100 =
+// Chapter 10 Quest 10. Every quest is tied 1:1 to a Location and ends
+// with a Legendary boss named after the story's creature for that quest.
 function chapterNumOf(level) { return Math.floor((level - 1) / 10) + 1; }
-function chapterData(level) {
-  const n = chapterNumOf(level);
-  const ch = (DATA.CHAPTERS && DATA.CHAPTERS[n - 1]) || {};
-  const title = ch.title || `Chapter ${n}: ${DATA.BIOME_TYPES[n - 1].type}`;
-  return { num: n, title, headline: ch.headline || '', story: ch.story || [] };
+function questNumOf(level) { return ((level - 1) % 10) + 1; }
+function chapterOf(level) { return DATA.CHAPTERS[chapterNumOf(level) - 1]; }
+function questOf(level) { return chapterOf(level).quests[(level - 1) % 10]; }
+
+function areaInfo(level) {
+  const ch = chapterOf(level);
+  const q = questOf(level);
+  return { level, chapter: ch, quest: q, questNum: questNumOf(level), location: q.location };
 }
 
-// A Part is one individual level's own story beat: 'beginning' (shown
-// when a hero first arrives) and 'end' (shown on that level's boss
-// victory). Falls back to generic location-flavored text for levels
-// that don't have authored content yet.
-function partStory(level, kind) {
-  const chapterIdx = Math.floor((level - 1) / 10);
-  const partIdx = (level - 1) % 10;
-  const locName = DATA.BIOME_TYPES[chapterIdx].biomes[partIdx];
-  const ch = DATA.CHAPTERS && DATA.CHAPTERS[chapterIdx];
-  const part = ch && ch.parts && ch.parts[partIdx];
-  if (part && part[kind]) return part[kind];
-  return kind === 'beginning'
-    ? `The road leads on to ${locName}. Whatever's waiting there hasn't been named yet.`
-    : `${locName} falls quiet behind them — one more stretch of road, walked and done.`;
+function chapterData(level) {
+  const ch = chapterOf(level);
+  return { num: ch.num, title: ch.title, headline: ch.headline || '', story: ch.story || [], ending: ch.ending || [], icon: ch.icon };
 }
 
 // Guaranteed reward for clearing a level's story (on top of whatever
@@ -848,22 +835,16 @@ function normalsUntilSpecial(kills) {
   return n;
 }
 
-// Each of a biome type's 10 levels gets a UNIQUE roster of 3 of its 5
-// creatures — C(5,3) = 10 combinations, one per level, no repeats.
-const CREATURE_COMBOS = [
-  [0, 1, 2], [0, 3, 4], [1, 2, 3], [0, 1, 4], [2, 3, 4],
-  [0, 1, 3], [1, 2, 4], [0, 2, 3], [1, 3, 4], [0, 2, 4],
-];
+// Every quest carries its own roster of 3 story-fitting creatures.
 function creaturesForLevel(level) {
-  const info = areaInfo(level);
-  const combo = CREATURE_COMBOS[(level - 1) % 10];
-  return combo.map(i => info.type.creatures[i]);
+  return questOf(level).creatures;
 }
 
-function rareName(t) { return `${pick(t.rareA)} ${pick(t.rareB)}`; }
-function bossName(t) {
+function rareName(ch) { return `${pick(ch.rareA)} ${pick(ch.rareB)}`; }
+// Epic/Miniboss names: generated syllable name + a chapter-themed title.
+function bossName(ch) {
   const name = pick(DATA.NAME_SYL_A) + pick(DATA.NAME_SYL_B) + pick(DATA.NAME_SYL_C);
-  return `${name} — ${pick(t.bossTitles)}`;
+  return `${name} — ${pick(ch.eliteTitles)}`;
 }
 
 // Monsters gain +50% HP and +20% damage for every level, compounding.
@@ -955,7 +936,10 @@ function applyAffixStatMods(c) {
 
 function makeCreature(level, tier, opts) {
   const info = areaInfo(level);
-  const base = pick(creaturesForLevel(level));
+  // The quest's Legendary boss is the story's named creature for that
+  // quest — fixed name, stats and hand-picked specialties from data.js.
+  const isQuestBoss = tier === 'legendary';
+  const base = isQuestBoss ? info.quest.boss : pick(creaturesForLevel(level));
   const conf = TIER_CONF[tier];
   const c = {
     tier, level,
@@ -969,12 +953,14 @@ function makeCreature(level, tier, opts) {
   };
   c.hp = c.maxHp;
   if (tier === 'normal') c.name = base.name;
-  else if (tier === 'rare') { c.name = rareName(info.type); }
-  else { c.name = bossName(info.type); }
+  else if (tier === 'rare') { c.name = rareName(info.chapter); }
+  else if (isQuestBoss) { c.name = base.name; c.isChapterBoss = isChapterEndLevel(level); }
+  else { c.name = bossName(info.chapter); }
   if (tier !== 'normal') {
     for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
-  c.affixes = rollSpecialties(tier, opts && opts.isChapterBoss);
+  // Quest bosses use their story-picked specialties; everything else rolls.
+  c.affixes = isQuestBoss ? (base.specialties || []).slice() : rollSpecialties(tier, opts && opts.isChapterBoss);
   applyAffixStatMods(c);
   return c;
 }
@@ -1471,7 +1457,7 @@ function startAdventure() {
   };
   G.totals.adventures++;
   const info = areaInfo(level);
-  log('sys', `⚔️ Venturing into ${info.biome} (Level ${level} — ${chapterData(level).title})...`);
+  log('sys', `⚔️ Quest ${info.questNum}: ${info.quest.name} — setting out for ${info.location} (${info.chapter.title})...`);
   UI.refresh();
   advTimer = setInterval(adventureTick, ADV.speedMs);
 }
@@ -1555,6 +1541,7 @@ function retreat(reason) {
     if (ADV.fight) {
       run.killedBy = ADV.fight.enemies.map(e => ({
         name: e.name, tier: e.tier, species: e.species, level: e.level,
+        isChapterBoss: !!e.isChapterBoss,
         alive: e.hp > 0, affixes: e.affixes || [],
         hp: Math.max(0, Math.round(e.hp)), maxHp: e.maxHp,
         dmg: e.dmg, spd: e.spd, attack: e.attack, atkType: e.atkType, res: e.res,
@@ -1670,8 +1657,8 @@ function adventureTick() {
       escort.isEscort = true;
       enemies = [boss, escort];
       encounterKind = 'legendary';
-      const label = isChapterBoss ? '👑🔶 CHAPTER BOSS' : '🔶 LEGENDARY BOSS';
-      log('encounter', `${label}: ${boss.name} (${boss.species}, Lv ${level}) appears, backed by an Epic guardian!`, { tier: 'legendary' });
+      const label = isChapterBoss ? '👑🩸 CHAPTER BOSS' : '🔶 QUEST BOSS';
+      log('encounter', `${label}: ${boss.name} (Lv ${level}) appears, backed by an Epic guardian!`, { tier: 'legendary' });
     }
     ADV.fight = {
       enemies, cds: {}, buffs: [], enemyDmgDown: 0, enemyResDown: 0,
@@ -1790,12 +1777,12 @@ function adventureTick() {
         G.unlocked = level + 1;
         const nextInfo = areaInfo(level + 1);
         const enteringNewChapter = chapterNumOf(level + 1) !== chapterNumOf(level);
-        log('sys', `🗺️ Level ${level + 1} unlocked: ${nextInfo.biome}${enteringNewChapter ? ` — ${chapterData(level + 1).title} begins!` : '!'}`);
+        log('sys', `🗺️ Quest ${nextInfo.questNum} unlocked: ${nextInfo.quest.name} — ${nextInfo.location}${enteringNewChapter ? ` (${chapterData(level + 1).title} begins!)` : '!'}`);
       }
       run.bossDefeated = true;
       grantPartClearReward(level, run);
       G.progress[level] = 0;   // cleared areas can be run again from the start
-      log('sys', `♻️ ${areaInfo(level).biome} can be adventured again from the beginning.`);
+      log('sys', `♻️ ${areaInfo(level).location} can be adventured again from the beginning.`);
       retreat('boss');
       return;
     }
