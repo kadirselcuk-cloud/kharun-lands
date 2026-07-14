@@ -359,6 +359,12 @@ function derive(buffBonus) {
   d.doubleStrike = Math.min(40, d.doubleStrike);
   d.procOffense = Math.min(30, d.procOffense);
   d.procSupport = Math.min(30, d.procSupport);
+  // dmgPct/execute were the only two combat-relevant percentage stats
+  // with no ceiling at all (every sibling stat above has one) — capped
+  // generously so normal itemization/passive investment never binds,
+  // only truly maxed-out stacking across every possible source does.
+  d.dmgPct = Math.min(1.5, d.dmgPct);
+  d.execute = Math.min(75, d.execute);
   // base damage: weapon + main stat scaling; the class's main stat
   // additionally grants +1% damage per point
   const main = { warrior: d.str, rogue: d.dex, mage: d.int }[c.cls];
@@ -462,8 +468,18 @@ function clampVitals() {
 // ------------------------------------------------------------
 // Items
 // ------------------------------------------------------------
-// Items grow +25% per level, matching monster scaling (see bigScale).
-function itemScale(ilvl) { return bigScale(ilvl); }
+// Armor scaling — deliberately NOT bigScale (1.25^level). Armor feeds a
+// diminishing-returns mitigation formula (see enemyHit) whose denominator
+// grows linearly with enemy level; pairing that with exponentially-growing
+// armor made armorRed asymptote to ~100% by roughly level 35 (physical
+// damage taken trending to the Math.max(1,...) floor regardless of build).
+// dmgFlatScale (linear, already used for the +Weapon Damage affix for the
+// same "old curve let this explode" reason) keeps armor growing at the
+// same rate as the formula's own denominator, so a full armor set now
+// converges to a stable, gear-weight-differentiated mitigation percentage
+// (roughly 55% light / 66% medium / 76% heavy at endgame) instead of
+// runaway immunity — see enemyHit's added 75% hard cap for the safety net.
+function itemScale(ilvl) { return dmgFlatScale(ilvl); }
 
 // All skill mana costs are tripled — mana is a scarce resource.
 // Mage spells get a 30% discount on that.
@@ -1556,7 +1572,10 @@ function enemyHit(fight, enemy) {
   let dmg = raw * (1 - d.res[resKey] / 100);
   if (enemy.atkType === 'phys') {
     const armor = d.armor * (1 - (fight.corrosiveDebuff ? fight.corrosiveDebuff.armorDown : 0));
-    const armorRed = armor / (armor + 40 + 8 * enemy.level);
+    // Capped at 75%, matching resistance/DR — with linear armor scaling
+    // (see itemScale) this rarely binds, but stacking every possible
+    // +Armor affix across 6 slots could still push past it without a floor.
+    const armorRed = Math.min(0.75, armor / (armor + 40 + 8 * enemy.level));
     dmg *= (1 - armorRed);
   }
   let buffDr = 0;

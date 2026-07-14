@@ -1721,38 +1721,41 @@ mage: mkSkills([
   { id: 'm_pass2', cat: 'passive2', name: 'Spellweaver', icon: '🌟', minLvl: 10, req: 'm_pass1',
     desc: r => `Passive: +${3.5 * r}% damage, +${2 * r}% Max HP, +${1.5 * r}% all resistances.`,
     passive: r => ({ dmgPct: 0.035 * r, hpPct: 0.02 * r, resAll: 1.5 * r }) },
+  // Cooldowns cut ~35-45% and mana costs brought down to Warrior/Rogue's
+  // baseline (was a flat ~15-20% mage-only premium) — a deliberate class
+  // identity shift toward "cast often" rather than "wait for a big hit".
   { id: 'm_atk1', cat: 'attack', name: 'Fireball', icon: '🔥', minLvl: 2,
     desc: r => `Hurl fire for ${160 + 17 * r}% damage.`,
-    mult: r => 1.6 + 0.17 * r, cost: () => 12, cd: 2, magic: true },
+    mult: r => 1.6 + 0.17 * r, cost: () => 10, cd: 1, magic: true },
   { id: 'm_atk2', cat: 'attack2', name: 'Pyroblast', icon: '☄️', minLvl: 8, req: 'm_atk1',
     desc: r => `${280 + 27.5 * r}% damage — ignores half the enemy's magic resistance.`,
-    mult: r => 2.8 + 0.275 * r, cost: () => 26, cd: 4, magic: true, pierce: 0.5 },
+    mult: r => 2.8 + 0.275 * r, cost: () => 22, cd: 3, magic: true, pierce: 0.5 },
   { id: 'm_aoe1', cat: 'aoe', name: 'Frost Nova', icon: '❄️', minLvl: 5,
     desc: r => `Freeze ALL enemies for ${95 + 10 * r}% damage.`,
-    mult: r => 0.95 + 0.1 * r, cost: () => 18, cd: 3, aoe: true, magic: true },
+    mult: r => 0.95 + 0.1 * r, cost: () => 16, cd: 2, aoe: true, magic: true },
   { id: 'm_aoe2', cat: 'aoe2', name: 'Meteor Storm', icon: '🌠', minLvl: 12, req: 'm_aoe1',
     desc: r => `Rain destruction: ${175 + 18 * r}% damage to ALL enemies.`,
-    mult: r => 1.75 + 0.18 * r, cost: () => 36, cd: 5, aoe: true, magic: true },
+    mult: r => 1.75 + 0.18 * r, cost: () => 32, cd: 3, aoe: true, magic: true },
   { id: 'm_heal', cat: 'heal', name: 'Healing Light', icon: '💚', minLvl: 3,
     desc: r => `Mend wounds: recover ${16 + 3 * r}% of Max HP.`,
-    healPct: r => 0.16 + 0.03 * r, cost: () => 16, cd: 4 },
+    healPct: r => 0.16 + 0.03 * r, cost: () => 14, cd: 3 },
   { id: 'm_buff', cat: 'buff', name: 'Arcane Power', icon: '🔮', minLvl: 4,
     desc: r => `+${14 + 3.5 * r}% damage, +${1 * r} Intelligence and a +${2 * r}% Damage Reduction ward for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, dr: 0.02 * r, rounds: 5 }), cost: () => 18, cd: 6 },
+    buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, dr: 0.02 * r, rounds: 5 }), cost: () => 15, cd: 4 },
   { id: 'm_debuff', cat: 'debuff', name: 'Curse of Weakness', icon: '🕯️', minLvl: 6,
     desc: r => `Enemies deal ${12 + 2.5 * r}% less damage and lose ${2.5 * r}% resistances for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.12 + 0.025 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 14, cd: 5 },
+    debuff: r => ({ dmgDown: 0.12 + 0.025 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 12, cd: 3 },
   { id: 'm_ult', cat: 'ult', name: 'Elemental Fury', icon: '🌩️', minLvl: 15,
     desc: r => `ULTIMATE: ${340 + 32.5 * r}% damage to ALL enemies and +${20 + 4 * r}% damage for 4 rounds.`,
-    mult: r => 3.4 + 0.325 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.04 * r, rounds: 4 }), cost: () => 45, cd: 10 },
+    mult: r => 3.4 + 0.325 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.04 * r, rounds: 4 }), cost: () => 40, cd: 6 },
   { id: 'm_ult2', cat: 'ult2', name: 'Apocalypse', icon: '☀️', minLvl: 25, req: 'm_ult',
     desc: r => `ULTIMATE: ${460 + 45 * r}% damage to ALL enemies, ignoring half their magic resistance.`,
-    mult: r => 4.6 + 0.45 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 65, cd: 12 },
+    mult: r => 4.6 + 0.45 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 60, cd: 8 },
 
   // ===== Advanced Class — Sorcerer -> Archmage (Magic Damage) =====
   { id: 'm_p_sorcerer_active', cat: 'attack2', path: 'sorcerer', name: 'Disintegrate', icon: '☄️💀', minLvl: 25, req: 'm_atk2', magic: true,
     desc: r => `Unleash pure arcane force for ${340 + 34 * r}% magic damage, ignoring 60% of the enemy's magic resistance.`,
-    mult: r => 3.4 + 0.34 * r, pierce: 0.6, cost: () => 30, cd: 4 },
+    mult: r => 3.4 + 0.34 * r, pierce: 0.6, cost: () => 24, cd: 3 },
   { id: 'm_p_sorcerer_pass1', cat: 'passive3', path: 'sorcerer', name: 'Spell Mastery', icon: '📖', minLvl: 25,
     desc: r => `Passive: +${2 * r}% damage, +${3 * r}% Max Mana.`,
     passive: r => ({ dmgPct: 0.02 * r, manaPct: 0.03 * r }) },
@@ -1761,12 +1764,12 @@ mage: mkSkills([
     passive: r => ({ dmgPct: 0.03 * r, critStrike: 1.5 * r }) },
   { id: 'm_p_sorcerer_ult', cat: 'ult', path: 'sorcerer', name: 'Cataclysm', icon: '🌋✨', minLvl: 50, req: 'm_ult', magic: true,
     desc: r => `ULTIMATE: Rain pure destruction on ALL enemies for ${380 + 38 * r}% magic damage, ignoring 40% of their resistance.`,
-    mult: r => 3.8 + 0.38 * r, aoe: true, pierce: 0.4, cost: () => 55, cd: 11 },
+    mult: r => 3.8 + 0.38 * r, aoe: true, pierce: 0.4, cost: () => 48, cd: 7 },
 
   // ===== Advanced Class — Radiant -> Archon (Protection, Healing, CC, AOE) =====
   { id: 'm_p_radiant_active', cat: 'debuff', path: 'radiant', name: 'Radiant Ward', icon: '✨🛡️', minLvl: 25, req: 'm_debuff', magic: true,
     desc: r => `Radiant light damages ALL enemies for ${160 + 16 * r}% magic damage and weakens them (-${Math.round((0.12 + 0.02 * r) * 100)}% damage, -${2 * r}% resistances) while shielding you with +${Math.round((0.02 + 0.015 * r) * 100)}% Damage Reduction, all for 5 rounds.`,
-    mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: 5 }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: 5 }), cost: () => 26, cd: 5 },
+    mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: 5 }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: 5 }), cost: () => 20, cd: 3 },
   { id: 'm_p_radiant_pass1', cat: 'passive3', path: 'radiant', name: 'Sacred Vigil', icon: '🕯️', minLvl: 25,
     desc: r => `Passive: +${2 * r}% Max HP, +${1 * r}% Damage Reduction, +${(0.3 * r).toFixed(1)} HP Regen.`,
     passive: r => ({ hpPct: 0.02 * r, dr: 0.01 * r, hpRegen: 0.3 * r }) },
@@ -1775,7 +1778,7 @@ mage: mkSkills([
     passive: r => ({ dmgPct: 0.02 * r, resAll: 1.5 * r, manaRegen: 0.3 * r }) },
   { id: 'm_p_radiant_ult', cat: 'ult', path: 'radiant', name: 'Radiant Nova', icon: '🌟💥', minLvl: 50, req: 'm_ult', magic: true,
     desc: r => `ULTIMATE: Unleash a nova of radiant energy on ALL enemies for ${300 + 30 * r}% magic damage and shield yourself with +${Math.round((0.05 + 0.025 * r) * 100)}% Damage Reduction for 5 rounds.`,
-    mult: r => 3.0 + 0.3 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.025 * r, rounds: 5 }), cost: () => 55, cd: 11 },
+    mult: r => 3.0 + 0.3 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.025 * r, rounds: 5 }), cost: () => 48, cd: 7 },
 ]),
 };
 
@@ -1868,7 +1871,11 @@ DATA.WEAPON_BASES = [
   { id: 'handcrossbow', name: 'Hand Crossbow', icon: '🏹', iconSize: 0.85, hands: 1, classes: ['rogue'], dmg: [4, 6], atkSpd: 0.75 },
   { id: 'longsword', name: 'Longsword', icon: '🗡️', iconSize: 1.15, hands: 1, classes: ['warrior', 'rogue'], dmg: [4, 7], atkSpd: 1.0 },
   { id: 'scimitar', name: 'Scimitar', icon: '🗡️', hands: 1, classes: ['rogue'], dmg: [4, 7], atkSpd: 0.8 },
-  { id: 'dagger', name: 'Dagger', icon: '🗡️', iconSize: 0.85, hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.5 },
+  // atkSpd was 0.5 (double the attack frequency of the 1.0 baseline, and
+  // 3x a Warrior's 1.5 greatsword) — the single biggest driver of Rogue
+  // outperforming the other classes, independent of any stat or gear
+  // difference. Brought in line with the rest of the fast-weapon tier.
+  { id: 'dagger', name: 'Dagger', icon: '🗡️', iconSize: 0.85, hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.6 },
   { id: 'throwingknives', name: 'Throwing Knives', icon: '🥷', hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.6 },
   { id: 'bow', name: 'Hunting Bow', icon: '🏹', hands: 2, classes: ['rogue'], dmg: [8, 13], atkSpd: 1.0 },
   { id: 'twinblade', name: 'Twinblade', icon: '⚔️', hands: 2, classes: ['rogue'], dmg: [8, 13], atkSpd: 1.15 },
@@ -1940,7 +1947,8 @@ DATA.AFFIXES = [
   { id: 'dmgFlat', w: 10, slots: ['weapon', 'gloves', 'armor'], roll: i => Math.round((2 + rint(0, 3)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
   { id: 'dmgPct', w: 8, slots: ['weapon', 'gloves', 'armor'], roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
   // Armor: any armor-wearing slot (+jewelry), not weapon.
-  { id: 'armor', w: 9, slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => Math.round((3 + rint(0, 3)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Armor` },
+  // dmgFlatScale (linear), not bigScale — see itemScale() in game.js for why.
+  { id: 'armor', w: 9, slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => Math.round((3 + rint(0, 3)) * dmgFlatScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Armor` },
   // Damage Reduction: armor only (+jewelry) per direct request.
   { id: 'dr', w: 4, slots: ['armor'], roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
   // Resistances: bumped up and gated to rare+ per direct request, and
