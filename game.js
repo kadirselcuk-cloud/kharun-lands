@@ -1218,6 +1218,23 @@ function shouldAutoSell(it) {
   return !!s[it.rarity];
 }
 
+// Auto-sell only fires on freshly dropped items (dropItem), so toggling an
+// Inventory Settings checkbox on wouldn't otherwise touch items already
+// sitting in the inventory from before it was enabled. Called right after
+// a settings change to sweep those up immediately, same rules as a manual
+// bulk-sell.
+function sweepAutoSell() {
+  const sold = G.inventory.filter(i => i.type === 'item' && shouldAutoSell(i));
+  if (!sold.length) return { count: 0, gold: 0 };
+  let gold = 0;
+  for (const it of sold) gold += it.value;
+  const uids = new Set(sold.map(i => i.uid));
+  G.inventory = G.inventory.filter(i => !uids.has(i.uid));
+  G.gold += gold;
+  saveGame(); UI.refresh();
+  return { count: sold.length, gold };
+}
+
 function dropItem(lvl, rarity, run) {
   const it = makeItem(lvl, rarity, G.char.cls);
   if (rarity !== 'normal') questEvent('item_magic');

@@ -691,6 +691,10 @@ UI.showInventorySettings = function () {
   document.querySelectorAll('[data-autosell]').forEach(cb => cb.onchange = () => {
     G.settings.autoSell[cb.dataset.autosell] = cb.checked;
     saveGame();
+    if (cb.checked) {
+      const r = sweepAutoSell();
+      if (r.count) UI.toast(`Auto-sold ${r.count} matching item${r.count > 1 ? 's' : ''} for 🪙 ${r.gold.toLocaleString()}`);
+    }
   });
 };
 
