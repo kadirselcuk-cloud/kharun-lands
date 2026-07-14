@@ -1059,9 +1059,15 @@ function bossName(ch) {
   return `${name} — ${pick(ch.eliteTitles)}`;
 }
 
-// Monsters gain +50% HP and +20% damage for every level, compounding.
-function enemyHpScale(level) { return Math.pow(1.5, Math.max(0, level - 1)); }
-function enemyDmgScale(level) { return Math.pow(1.2, Math.max(0, level - 1)); }
+// Mostly-linear growth (scales with level itself) plus a small 5%
+// compounding kicker per level — replaces the old pure-exponential
+// 1.5^level/1.2^level curve, which stayed too weak through the opening
+// chapters and only got dangerous very late. Deliberately NOT mirrored in
+// weapon/armor/gear scaling (still steeply exponential) — monsters fall
+// further behind player power at high level as a direct result; an
+// accepted tradeoff for making the early game feel appropriately tough.
+function enemyHpScale(level) { const l = Math.max(1, level); return l * Math.pow(1.05, l - 1); }
+function enemyDmgScale(level) { const l = Math.max(1, level); return l * Math.pow(1.05, l - 1); }
 
 // gold was 1/5/20/45/100 — a roughly geometric (2-5x per step) jump between
 // tiers that made total gold earned feel like it exploded as tougher/rarer
