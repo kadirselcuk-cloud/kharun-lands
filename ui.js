@@ -477,6 +477,7 @@ UI.showGameHelp = function () {
     <p class="prelude-text"><b>📖 Chapters</b> group ten Quests each around one region of the story. <b>🧭 Quests</b> are individual objectives with their own intro, creatures and boss. <b>🗺️ Locations</b> are where a Quest physically takes place.</p>
     <p class="prelude-text"><b>🗺️ Adventure</b> — fight through your current Quest's creatures. Has its own ❓ Help and ⚔️ Combat Arena ❓ Help for details on the gauge, potions and skills.</p>
     <p class="prelude-text"><b>🛡️ Character</b> — your stats, skills, and inventory/equipment.</p>
+    <p class="prelude-text">Leveling up grants +3 stat points and +1 skill point. The number shown next to each Main Stat already includes gear bonuses; spending a point raises your base value by 1. <b>Strength</b> drives Max HP & HP Regen, <b>Dexterity</b> drives Speed, Evasion & attack rate, and <b>Intelligence</b> drives Max Mana & Mana Regen — whichever is your class's main stat also adds +1% damage per point. <b>Speed</b> is how much your attack gauge fills each round; you act once it reaches 100. <b>Attack Interval</b> is your weapon's swing speed factor — lower is faster. <b>Potion Capacity</b> is 2 by default and increases with an equipped belt. Each class can only equip certain armor weights (Light/Medium/Heavy); a two-handed weapon fills both weapon slots, or you can dual-wield two one-handers, or pair one with a shield/off-hand.</p>
     <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
     <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
     <p class="prelude-text">Your progress auto-saves constantly — there's no manual save needed. To delete a hero, go to the title screen and use 🗑️ Delete on their slot.</p>
@@ -489,12 +490,11 @@ UI.showGameHelp = function () {
 // ------------------------------------------------------------
 UI.renderCharacter = function (el) {
   const c = G.char, d = derive(), cls = DATA.CLASSES[c.cls];
-  const statRow = (key, label, cssCls, effect) => `
+  const statRow = (key, label, cssCls) => `
     <div class="stat-row">
       <span class="${cssCls}">${label}</span>
-      <b>${d[key]}</b> <small>(base ${c.stats[key]})</small>
+      <b>${d[key]}</b>
       ${c.statPoints > 0 ? `<button class="btn btn-tiny" onclick="spendStat('${key}')">+</button>` : ''}
-      <small class="effect">${effect}</small>
     </div>`;
   const xpNeed = xpForLevel(c.level);
   el.innerHTML = `
@@ -502,33 +502,33 @@ UI.renderCharacter = function (el) {
       <div class="lvlup-banner">⬆ LEVEL UP! You have <b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b> to spend below.</div>` : ''}
     <div class="panel level-panel">
       <h3>📈 Level ${c.level} ${cls.name}</h3>
-      <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()} — next level grants +3 stat points, +1 skill point</span></div>
+      <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()}</span></div>
     </div>
     <div class="two-col">
       <div class="panel">
         <h3>Main Stats ${c.statPoints ? `<span class="pts">(${c.statPoints} points to spend)</span>` : ''}</h3>
-        ${statRow('str', cls.mainStat === 'str' ? '⭐ Strength' : 'Strength', 'stat-str', `drives HP & HP Regen${cls.mainStat === 'str' ? ' · MAIN: +1% dmg/point' : ''}`)}
-        ${statRow('dex', cls.mainStat === 'dex' ? '⭐ Dexterity' : 'Dexterity', 'stat-dex', `drives Speed, Evasion & attack rate${cls.mainStat === 'dex' ? ' · MAIN: +1% dmg/point' : ''}`)}
-        ${statRow('int', cls.mainStat === 'int' ? '⭐ Intelligence' : 'Intelligence', 'stat-int', `drives Mana & Mana Regen${cls.mainStat === 'int' ? ' · MAIN: +1% dmg/point' : ''}`)}
+        ${statRow('str', cls.mainStat === 'str' ? '⭐ Strength' : 'Strength', 'stat-str')}
+        ${statRow('dex', cls.mainStat === 'dex' ? '⭐ Dexterity' : 'Dexterity', 'stat-dex')}
+        ${statRow('int', cls.mainStat === 'int' ? '⭐ Intelligence' : 'Intelligence', 'stat-int')}
         <h3>Important Stats</h3>
         <div class="stat-row"><span>❤️ Max HP</span><b>${d.maxHp}</b></div>
-        <div class="stat-row"><span>⚡ Speed</span><b>${d.speed}</b><small class="effect">gauge/round — act at 100</small></div>
+        <div class="stat-row"><span>⚡ Speed</span><b>${d.speed}</b></div>
         <div class="stat-row"><span>🔵 Max Mana</span><b>${d.maxMana}</b></div>
         <h3>Sub Stats</h3>
         <div class="stat-row"><span>💗 HP Regen</span><b>${d.hpRegen}</b></div>
         <div class="stat-row"><span>💨 Evasion</span><b>${d.evasion}%</b></div>
         <div class="stat-row"><span>💧 Mana Regen</span><b>${d.manaRegen}</b></div>
-        <div class="stat-row"><span>👝 Potion Capacity</span><b>${potionCapacity()}</b><small class="effect">${G.char.equip.belt ? esc(G.char.equip.belt.name) : 'no belt equipped — base 2'}</small></div>
+        <div class="stat-row"><span>👝 Potion Capacity</span><b>${potionCapacity()}</b></div>
         <h3>Combat</h3>
         <div class="stat-row"><span>🗡️ Damage</span><b>${d.baseDmgMin.toLocaleString()}–${d.baseDmgMax.toLocaleString()}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
-        <div class="stat-row"><span>⏱️ Attack Interval</span><b>${d.atkInterval}</b><small class="effect">weapon ×${d.atkFactor} — lower = faster swings</small></div>
+        <div class="stat-row"><span>⏱️ Attack Interval</span><b>${d.atkInterval}</b></div>
         <div class="stat-row"><span>🛡️ Armor</span><b>${d.armor}</b></div>
         <div class="stat-row"><span>🌫️ Damage Reduction</span><b>${Math.round(d.dr * 100)}%</b></div>
         <div class="stat-row"><span>Resistances</span><b>⚔️${d.res.phys}% ✨${d.res.magic}% ☠️${d.res.poison}%</b></div>
         <div class="stat-row"><span>Total kills</span><b>${c.kills.toLocaleString()}</b></div>
       </div>
       <div class="panel">
-        <h3>Equipment <small>(${cls.name}: ${cls.armorWeights.map(cap).join('/')} armor)</small></h3>
+        <h3>Equipment</h3>
         <div class="equip-grid">
           ${DATA.SLOTS.map(slot => {
             const it = c.equip[slot];
@@ -540,7 +540,6 @@ UI.renderCharacter = function (el) {
             </div>`;
           }).join('')}
         </div>
-        <p class="hint">💡 A two-handed weapon fills both hands. You may also dual-wield two one-handers, or pair a weapon with a shield/off-hand.</p>
       </div>
     </div>`;
 };
