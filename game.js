@@ -175,8 +175,14 @@ function loadGame(slotIdx) {
   // under the new schema, so just reroll the board (and drop whatever
   // quest was active; nothing was owed on it since rewards weren't
   // claimable-on-demand before this).
-  if (!G.tavern || (G.tavern.active && !G.tavern.active.rewardSpec) || (G.tavern.board || []).some(q => !q.rewardSpec)) {
-    G.tavern = { board: [], active: null };
+  // Older saves also had a single `active` quest object (or null) instead
+  // of the current up-to-2 array — normalize the shape before the
+  // rewardSpec staleness check below reads it as an array.
+  if (G.tavern && !Array.isArray(G.tavern.active)) {
+    G.tavern.active = G.tavern.active ? [G.tavern.active] : [];
+  }
+  if (!G.tavern || G.tavern.active.some(q => !q.rewardSpec) || (G.tavern.board || []).some(q => !q.rewardSpec)) {
+    G.tavern = { board: [], active: [] };
     genTavernBoard();
   }
   return true;
@@ -855,18 +861,21 @@ function buyAndEquip(uid, slot) {
 function restockCost() { return 200 + G.unlocked * 100; }
 
 // ------------------------------------------------------------
-// Tavern — 3 random quests on the board, one active at a time.
+// Tavern — 6 random quests on the board, up to 2 active at once.
 // The board refreshes with new rumors every time you return home.
 // ------------------------------------------------------------
 // Reward gold/xp scale off the CURRENT chapter & part (area level) —
 // computed fresh whenever a quest becomes ready to claim, not baked in
 // at the moment it was picked up off the board. "mult" is per-quest
-// flavor (how generous that quest type is relative to the others).
+// flavor (how generous that quest type is relative to the others). Base
+// coefficients bumped ~30% (10->13, 8->11 etc.) — a direct "make quests
+// more rewarding" request, applied once here so it scales every quest
+// type uniformly instead of hand-tuning each one's mult.
 function questRewardAmounts(goldMult, xpMult) {
   const u = Math.max(1, G.area);
   return {
-    gold: goldMult ? Math.round(goldMult * (10 + u * 12) * (0.8 + Math.random() * 0.4)) : 0,
-    xp: xpMult ? Math.round(xpMult * (8 + u * 6) * (0.85 + Math.random() * 0.3)) : 0,
+    gold: goldMult ? Math.round(goldMult * (13 + u * 15) * (0.8 + Math.random() * 0.4)) : 0,
+    xp: xpMult ? Math.round(xpMult * (11 + u * 8) * (0.85 + Math.random() * 0.3)) : 0,
   };
 }
 // Same formula with the random jitter fixed at its midpoint — a stable
@@ -875,14 +884,14 @@ function questRewardAmounts(goldMult, xpMult) {
 function questRewardPreview(goldMult, xpMult) {
   const u = Math.max(1, G.area);
   return {
-    gold: goldMult ? Math.round(goldMult * (10 + u * 12)) : 0,
-    xp: xpMult ? Math.round(xpMult * (8 + u * 6)) : 0,
+    gold: goldMult ? Math.round(goldMult * (13 + u * 15)) : 0,
+    xp: xpMult ? Math.round(xpMult * (11 + u * 8)) : 0,
   };
 }
 
 function genQuest() {
   const u = Math.max(1, G.area);
-  const goldR = n => Math.round(n * (10 + u * 12) * (0.8 + Math.random() * 0.4));
+  const goldR = n => Math.round(n * (13 + u * 15) * (0.8 + Math.random() * 0.4));
   const makers = [
     () => { const n = rint(30, 60); return { type: 'kill_normal', icon: '🗡️', name: 'The Culling', desc: `The village elder begs for relief: slay ${n} common creatures.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3 } }; },
     () => { const n = rint(4, 8); return { type: 'kill_rare', icon: '📜', name: 'Bounty Board', desc: `Wanted posters flutter in the wind: bring down ${n} RARE creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
@@ -892,6 +901,9 @@ function genQuest() {
     () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, rewardSpec: { goldMult: 0, xpMult: 7, item: 'epic' } }; },
     () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, rewardSpec: { goldMult: 10, xpMult: 10, item: 'epic' } }; },
     () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, rewardSpec: { goldMult: 6, xpMult: 6, item: 'rare' } }; },
+    () => { const n = rint(40, 80); return { type: 'kill_any', icon: '🛡️', name: 'Clear the Roads', desc: `A caravan master needs the roads swept clear: fell ${n} creatures of any kind blocking the way.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4 } }; },
+    () => { const n = rint(10, 18); return { type: 'item_any', icon: '🎒', name: 'Pack Rat', desc: `A quartermaster is buying anything shiny: bring back ${n} items of any kind found on adventure.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3, item: 'magical' } }; },
+    () => { const n = rint(2, 4); return { type: 'level_clear', icon: '🗺️', name: 'Trailblazer', desc: `A cartographer wants fresh ground broken: clear ${n} Quests to help fill in the map.`, target: n, rewardSpec: { goldMult: 7, xpMult: 8, item: 'epic' } }; },
   ];
   return Object.assign(pick(makers)(), { progress: 0, ready: false });
 }
@@ -900,45 +912,48 @@ function genTavernBoard() {
   const board = [];
   const seen = new Set();
   let guard = 0;
-  while (board.length < 3 && guard++ < 40) {
+  while (board.length < 6 && guard++ < 80) {
     const q = genQuest();
     if (seen.has(q.type)) continue;
     seen.add(q.type);
     board.push(q);
   }
-  if (!G.tavern) G.tavern = { board, active: null };
+  if (!G.tavern) G.tavern = { board, active: [] };
   else G.tavern.board = board;
 }
 
 function acceptQuest(idx) {
-  if (!G.tavern || G.tavern.active) return;
+  if (!G.tavern) return;
+  if (!G.tavern.active) G.tavern.active = [];
+  if (G.tavern.active.length >= 2) return;
   const q = G.tavern.board[idx];
   if (!q) return;
-  G.tavern.active = q;
+  G.tavern.active.push(q);
   G.tavern.board.splice(idx, 1);
   saveGame(); UI.refresh();
   UI.toast(`Quest accepted: ${q.name}`);
 }
 
-function abandonQuest() {
-  if (!G.tavern || !G.tavern.active) return;
-  G.tavern.active = null;
+function abandonQuest(idx) {
+  if (!G.tavern || !G.tavern.active || !G.tavern.active[idx]) return;
+  G.tavern.active.splice(idx, 1);
   genTavernBoard();
   saveGame(); UI.refresh();
 }
 
 function questEvent(kind, amt) {
-  const q = G.tavern && G.tavern.active;
-  if (!q || q.type !== kind || q.ready) return;
-  q.progress = (q.progress || 0) + (amt || 1);
-  if (q.progress >= q.target) markQuestReady();
+  if (!G.tavern || !G.tavern.active) return;
+  for (const q of G.tavern.active) {
+    if (q.type !== kind || q.ready) continue;
+    q.progress = (q.progress || 0) + (amt || 1);
+    if (q.progress >= q.target) markQuestReady(q);
+  }
 }
 
 // The task is done, but the reward isn't granted automatically anymore —
 // lock in gold/XP against the CURRENT chapter & part (area level) right
 // now, and let the player claim it manually from the tavern.
-function markQuestReady() {
-  const q = G.tavern.active;
+function markQuestReady(q) {
   q.ready = true;
   q.finalReward = questRewardAmounts(q.rewardSpec.goldMult, q.rewardSpec.xpMult);
   q.finalReward.item = q.rewardSpec.item || null;
@@ -947,9 +962,9 @@ function markQuestReady() {
   UI.toast(`🍺 Quest ready: "${q.name}" — claim your reward at the tavern!`);
 }
 
-function claimQuestReward() {
-  if (!G.tavern || !G.tavern.active || !G.tavern.active.ready) return;
-  const q = G.tavern.active;
+function claimQuestReward(idx) {
+  if (!G.tavern || !G.tavern.active || !G.tavern.active[idx] || !G.tavern.active[idx].ready) return;
+  const q = G.tavern.active[idx];
   const r = q.finalReward;
   const parts = [];
   if (r.gold) { G.gold += r.gold; parts.push(`🪙 ${r.gold.toLocaleString()}`); }
@@ -963,7 +978,7 @@ function claimQuestReward() {
     parts.push(`${it.icon} ${it.name} (${r.item})`);
   }
   log('sys', `🍺 QUEST COMPLETE: "${q.name}"! Reward: ${parts.join(' + ')}`);
-  G.tavern.active = null;
+  G.tavern.active.splice(idx, 1);
   genTavernBoard();
   saveGame();
   UI.refresh();
@@ -1012,6 +1027,7 @@ function grantPartClearReward(level, run) {
   G.inventory.push(item);
   run.partReward = { gold, item };
   log('loot', `🎁 Quest reward: 🪙 ${gold.toLocaleString()} + ${item.icon} ${item.name}`);
+  questEvent('level_clear');
 }
 
 // tier of the NEXT creature given kills-so-far in this area level
@@ -1047,12 +1063,16 @@ function bossName(ch) {
 function enemyHpScale(level) { return Math.pow(1.5, Math.max(0, level - 1)); }
 function enemyDmgScale(level) { return Math.pow(1.2, Math.max(0, level - 1)); }
 
+// gold was 1/5/20/45/100 — a roughly geometric (2-5x per step) jump between
+// tiers that made total gold earned feel like it exploded as tougher/rarer
+// encounters became common through the story. Flattened to even, ~linear
+// steps; xp is untouched (only gold was flagged as too steep).
 const TIER_CONF = {
   normal:    { hp: 1.0, dmg: 1.0, spd: 1.0, xp: 1, gold: 1 },
-  rare:      { hp: 3.2, dmg: 1.5, spd: 1.1, xp: 6, gold: 5 },
-  epic:      { hp: 9, dmg: 2.4, spd: 1.2, xp: 25, gold: 20 },
-  miniboss:  { hp: 15, dmg: 3.0, spd: 1.25, xp: 55, gold: 45 },
-  legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 100 },
+  rare:      { hp: 3.2, dmg: 1.5, spd: 1.1, xp: 6, gold: 3 },
+  epic:      { hp: 9, dmg: 2.4, spd: 1.2, xp: 25, gold: 5 },
+  miniboss:  { hp: 15, dmg: 3.0, spd: 1.25, xp: 55, gold: 10 },
+  legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 20 },
 };
 
 // A single scalar for "how tough is this dungeon level", deliberately
@@ -1323,6 +1343,7 @@ function sweepAutoSell() {
 function dropItem(lvl, rarity, run) {
   const it = makeItem(lvl, rarity, G.char.cls);
   if (rarity !== 'normal') questEvent('item_magic');
+  questEvent('item_any');
   if (shouldAutoSell(it)) {
     run.gold += it.value; G.gold += it.value;
     log('loot', `🪙 Auto-sold ${it.icon} ${it.name} for ${it.value.toLocaleString()} gold.`);
@@ -1738,6 +1759,7 @@ function handleKill(e, run) {
   log('kill', `☠️ ${e.name} is slain! (+${e.xp} XP)`, { tier: e.tier });
   rollLoot(e, run);
   questEvent('kill_' + e.tier);
+  questEvent('kill_any');
 }
 
 // ------------------------------------------------------------
