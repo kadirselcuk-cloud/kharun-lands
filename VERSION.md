@@ -14,6 +14,20 @@ game at runtime.
 
 ---
 
+## 1.2.2 (fix)
+
+- Top bar restructured: `.tb-charbox` (name/XP/HP/Mana, stacked into a
+  bordered card on mobile) + `.tb-side` (Gold, new inventory item count)
+  + a standalone right-aligned Help button. Save/Reset buttons removed —
+  progress auto-saves, and per-hero deletion already exists as 🗑️ Delete
+  on the title screen's slot cards; `resetGame()` (game.js) removed as
+  dead code since nothing called it anymore.
+- Removed the "+N stat"/"+N skill" `.pts` badges from the top bar — the
+  Character tab's breathing highlight (from 1.2.1) already covers this.
+- `tab-breathe` keyframes: color changed from the accent gold (too easy
+  to mistake for "this tab is active") to a dark green (`#3ecf6a`), and
+  now also breathes `background-color`, not just text/glow.
+
 ## 1.2.1 (fix)
 
 - Unspent stat/skill points (Character tab + its Character/Skills subtabs)

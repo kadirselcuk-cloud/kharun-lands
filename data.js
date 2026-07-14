@@ -5,12 +5,18 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.2.1';
+DATA.VERSION = '1.2.2';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.2.2', notes: [
+    'Top bar redesigned for mobile: hero name/XP/HP/Mana now group into one box, with Gold and your inventory item count beside it.',
+    'Removed the Save and Reset buttons from the top bar entirely (progress already auto-saves; delete a hero from its slot on the title screen instead) and right-aligned the remaining Help button.',
+    'Removed the "+N stat"/"+N skill" text from the top bar — the Character tab\'s breathing highlight already signals unspent points.',
+    'The tab breathing highlight is now dark green instead of the same gold as the active tab (easy to confuse the two before), and now breathes the tab\'s background color too, not just its text.',
+  ] },
   { v: '1.2.1', notes: [
     'Unspent stat/skill points no longer show as a ⬆ icon badge next to the Character tab — the tab text now gently pulses (breathing highlight) instead.',
     'Replaced the Character tab\'s 🧍 icon with 🛡️.',
@@ -1708,19 +1714,29 @@ DATA.SLOT_LABEL = {
 
 // Weapon bases. hands: 1|2. classes: which classes can use (null = all).
 // atkSpd: attack interval multiplier — 0.5 = twice as fast, 1.5 = 50% slower.
+// iconSize: em multiplier applied to the base emoji (see UI.weaponIcon in
+// ui.js) — lets several weapons share one emoji (e.g. the sword family all
+// use 🗡️) while still reading as distinct sizes instead of unrelated icons.
+// Two-handed weapons carry +30% damage over one-handers of similar tier —
+// a direct request to make going two-handed clearly worth the lost offhand.
 DATA.WEAPON_BASES = [
-  { id: 'greatsword', name: 'Greatsword', icon: '🗡️', hands: 2, classes: ['warrior'], dmg: [9, 14], atkSpd: 1.5 },
-  { id: 'battleaxe', name: 'Battle Axe', icon: '🪓', hands: 2, classes: ['warrior'], dmg: [9, 13], atkSpd: 1.4 },
-  { id: 'warhammer', name: 'War Hammer', icon: '🔨', hands: 1, classes: ['warrior'], dmg: [5, 8], atkSpd: 1.1 },
-  { id: 'spear', name: 'Spear', icon: '🔱', hands: 2, classes: ['warrior'], dmg: [7, 11], atkSpd: 1.1 },
-  { id: 'crossbow', name: 'Crossbow', icon: '🏹', hands: 2, classes: ['warrior', 'rogue'], dmg: [8, 13], atkSpd: 1.3 },
-  { id: 'longsword', name: 'Longsword', icon: '⚔️', hands: 1, classes: ['warrior', 'rogue'], dmg: [4, 7], atkSpd: 1.0 },
-  { id: 'dagger', name: 'Dagger', icon: '🔪', hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.5 },
+  { id: 'greatsword', name: 'Greatsword', icon: '🗡️', iconSize: 1.4, hands: 2, classes: ['warrior'], dmg: [12, 18], atkSpd: 1.5 },
+  { id: 'battleaxe', name: 'Battle Axe', icon: '🪓', iconSize: 1.15, hands: 2, classes: ['warrior'], dmg: [12, 17], atkSpd: 1.4 },
+  { id: 'maul', name: 'Maul', icon: '🔨', iconSize: 1.4, hands: 2, classes: ['warrior'], dmg: [13, 19], atkSpd: 1.6 },
+  { id: 'warhammer', name: 'War Hammer', icon: '🔨', iconSize: 1.15, hands: 1, classes: ['warrior'], dmg: [5, 8], atkSpd: 1.1 },
+  { id: 'mace', name: 'Mace', icon: '🔨', hands: 1, classes: ['warrior'], dmg: [5, 8], atkSpd: 1.05 },
+  { id: 'axe', name: 'Axe', icon: '🪓', iconSize: 0.85, hands: 1, classes: ['warrior'], dmg: [5, 8], atkSpd: 1.0 },
+  { id: 'spear', name: 'Spear', icon: '🔱', hands: 2, classes: ['warrior'], dmg: [9, 14], atkSpd: 1.1 },
+  { id: 'crossbow', name: 'Crossbow', icon: '🏹', hands: 2, classes: ['warrior', 'rogue'], dmg: [10, 17], atkSpd: 1.3 },
+  { id: 'handcrossbow', name: 'Hand Crossbow', icon: '🏹', iconSize: 0.85, hands: 1, classes: ['rogue'], dmg: [4, 6], atkSpd: 0.75 },
+  { id: 'longsword', name: 'Longsword', icon: '🗡️', iconSize: 1.15, hands: 1, classes: ['warrior', 'rogue'], dmg: [4, 7], atkSpd: 1.0 },
+  { id: 'scimitar', name: 'Scimitar', icon: '🗡️', hands: 1, classes: ['rogue'], dmg: [4, 7], atkSpd: 0.8 },
+  { id: 'dagger', name: 'Dagger', icon: '🗡️', iconSize: 0.85, hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.5 },
   { id: 'throwingknives', name: 'Throwing Knives', icon: '🥷', hands: 1, classes: ['rogue'], dmg: [3, 5], atkSpd: 0.6 },
-  { id: 'bow', name: 'Hunting Bow', icon: '🏹', hands: 2, classes: ['rogue'], dmg: [6, 10], atkSpd: 1.0 },
-  { id: 'twinblade', name: 'Twinblade', icon: '⚔️', hands: 2, classes: ['rogue'], dmg: [6, 10], atkSpd: 1.15 },
+  { id: 'bow', name: 'Hunting Bow', icon: '🏹', hands: 2, classes: ['rogue'], dmg: [8, 13], atkSpd: 1.0 },
+  { id: 'twinblade', name: 'Twinblade', icon: '⚔️', hands: 2, classes: ['rogue'], dmg: [8, 13], atkSpd: 1.15 },
   { id: 'shortsword', name: 'Shortsword', icon: '🗡️', hands: 1, classes: null, dmg: [3, 6], atkSpd: 0.9 },
-  { id: 'staff', name: 'Arcane Staff', icon: '🪄', hands: 2, classes: ['mage'], dmg: [7, 12], magic: true, atkSpd: 1.3 },
+  { id: 'staff', name: 'Arcane Staff', icon: '🪄', hands: 2, classes: ['mage'], dmg: [9, 16], magic: true, atkSpd: 1.3 },
   { id: 'wand', name: 'Wand', icon: '🪄', hands: 1, classes: ['mage'], dmg: [3, 5], magic: true, atkSpd: 0.8 },
   { id: 'scepter', name: 'Scepter', icon: '🔱', hands: 1, classes: ['mage'], dmg: [4, 7], magic: true, atkSpd: 1.0 },
 ];
@@ -1771,19 +1787,37 @@ DATA.AFFIXES = [
   { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} HP Regen` },
   { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Mana Regen` },
   { id: 'evasion', w: 6, roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
-  { id: 'dmgFlat', w: 10, roll: i => Math.round((2 + rint(0, 3)) * dmgScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
-  { id: 'dmgPct', w: 8, roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
-  { id: 'armor', w: 9, roll: i => Math.round((3 + rint(0, 3)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Armor` },
+  // dmgFlat/dmgPct: gated to the four slots that make thematic sense as
+  // "weapon damage" carriers. dmgFlat rides a linear scale (dmgFlatScale)
+  // instead of the exponential dmgScale — that curve was producing
+  // +800ish rolls by ilvl 10; linear caps it around +50 at that level.
+  { id: 'dmgFlat', w: 10, slots: ['weapon', 'gloves', 'ring', 'amulet'], roll: i => Math.round((2 + rint(0, 3)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
+  { id: 'dmgPct', w: 8, slots: ['weapon', 'gloves', 'ring', 'amulet'], roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
+  // Armor affix: halved output vs its old bigScale-only roll.
+  { id: 'armor', w: 9, roll: i => Math.round((3 + rint(0, 3)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Armor` },
   { id: 'dr', w: 4, roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
   { id: 'resPhys', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Physical Resistance` },
   { id: 'resMagic', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Magic Resistance` },
   { id: 'resPoison', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Poison Resistance` },
   { id: 'enemyResDown', w: 3, roll: i => 2 + Math.floor(i / 12) + rint(0, 3), fmt: v => `Enemies lose ${v}% Resistances` },
   { id: 'skill', w: 4, roll: () => 1, fmt: (v, x) => `+${v} to ${x || 'a skill'}` },   // extra: skill id
-  { id: 'allSkills', w: 1, roll: () => 1, fmt: v => `+${v} to All Skills` },   // very rare — same weight as Vampiric
+  // Capped at +3 — scales in slowly with item level rather than always rolling +1.
+  { id: 'allSkills', w: 1, roll: i => Math.min(3, 1 + Math.floor(i / 30)), fmt: v => `+${v} to All Skills` },   // very rare — same weight as Vampiric
   // Vampiric: very rare, epic+ weapons only (see rollAffixes' eligibility filter).
   // Scales 1-10% life steal with item level.
   { id: 'lifesteal', w: 1, weaponOnly: true, minRarity: 'epic', roll: i => Math.min(10, 1 + Math.floor(i / 11) + rint(0, 1)), fmt: v => `+${v}% Life Steal` },
+  // Mana Steal: mirrors Life Steal exactly (weapon-only, epic+, capped 10%).
+  { id: 'manasteal', w: 1, weaponOnly: true, minRarity: 'epic', roll: i => Math.min(10, 1 + Math.floor(i / 11) + rint(0, 1)), fmt: v => `+${v}% Mana Steal` },
+  // Weapon Poison: weapon-only, rare+. 30% chance per hit to poison the
+  // target for a few rounds, dealing the rolled damage at the start of
+  // each of those rounds. v is a compound value {dmg, rounds}.
+  { id: 'poisonWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
+    roll: i => ({ dmg: Math.round((1 + rint(0, 1)) * (1 + i * 0.3)), rounds: rint(2, 4) }),
+    fmt: v => `30% chance to Poison for ${v.dmg.toLocaleString()} dmg/round for ${v.rounds} Rounds` },
+  // Weapon Slow: weapon-only, rare+. v is a compound value {chance, pct, rounds}.
+  { id: 'slowWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
+    roll: () => ({ chance: rint(10, 20), pct: rint(20, 50), rounds: rint(1, 5) }),
+    fmt: v => `${v.chance}% chance to Slow enemy by ${v.pct}% for ${v.rounds} Rounds` },
 ];
 
 // Name parts keyed by affix id — items and runes generate their
@@ -1808,6 +1842,9 @@ DATA.NAME_PARTS = {
   enemyResDown: { pre: ['Sundering', 'Piercing', 'Rending', 'Cracking'], suf: ['of Sundering', 'of Breaching', 'of the Breaker', 'of Split Guards'] },
   skill:        { pre: ["Adept's", 'Practiced', "Master's", 'Honed'], suf: ['of the Adept', 'of Technique', 'of Mastery', 'of Drilled Forms'] },
   allSkills:    { pre: ["Grandmaster's", 'Exalted', 'Allwise', 'Peerless'], suf: ['of All Arts', 'of the Grandmaster', 'of Ascendance', 'of Every Discipline'] },
+  manasteal:    { pre: ['Draining', 'Siphoning', 'Mindsteal', 'Leeching'], suf: ['of Mana Steal', 'of the Siphon', 'of the Drain', 'of Stolen Thought'] },
+  poisonWeapon: { pre: ['Venomous', 'Toxic', 'Blighted', 'Vile'], suf: ['of Poison', 'of the Serpent', 'of Venom', 'of Blight'] },
+  slowWeapon:   { pre: ['Numbing', 'Chilling', 'Binding', 'Leaden'], suf: ['of Slowing', 'of Fetters', 'of the Snare', 'of Chains'] },
 };
 // fallback if an item somehow has no affixes to name itself after
 DATA.FALLBACK_PRE = ['Curious', 'Weathered', 'Polished', 'Odd'];
@@ -1820,12 +1857,17 @@ DATA.FALLBACK_SUF = ['of the Wanderer', 'of the Road', 'of Fortune', 'of the Unk
 DATA.WEAPON_NOUNS = {
   greatsword: ['Cleaver', 'Reaver', 'Edge', 'Sorrow', 'Doom'],
   battleaxe: ['Hewer', 'Splitter', 'Maw', 'Bite', 'Grudge'],
+  maul: ['Breaker', 'Quake', 'Ruin', 'Skullmark', 'Anvil'],
   warhammer: ['Crusher', 'Knell', 'Fist', 'Toll', 'Verdict'],
+  mace: ['Bludgeon', 'Dent', 'Knuckle', 'Concussion', 'Bruiser'],
+  axe: ['Chop', 'Notch', 'Chip', 'Splint', 'Wedge'],
   spear: ['Reach', 'Star', 'Pike', 'Answer', 'Horizon'],
   crossbow: ['Bolt', 'Judgment', 'Snap', 'Reply', 'Full-Stop'],
+  handcrossbow: ['Prick', 'Sting', 'Quick-Bolt', 'Palmshot', 'Retort'],
   bow: ['Song', 'Sigh', 'Arc', 'Whisper', 'Rain'],
   throwingknives: ['Swarm', 'Flight', 'Scatter', 'Chorus', 'Hail'],
   longsword: ['Fang', 'Oath', 'Song', 'Promise', 'Edge'],
+  scimitar: ['Crescent', 'Sickle', 'Sable', 'Wind', 'Sirocco'],
   dagger: ['Sting', 'Kiss', 'Whisper', 'Thorn', 'Secret'],
   twinblade: ['Dance', 'Talon', 'Storm', 'Scissor', 'Waltz'],
   shortsword: ['Bite', 'Shard', 'Point', 'Snarl', 'Quill'],
@@ -1864,6 +1906,9 @@ DATA.AFFIX_ADJ = {
   enemyResDown: ['Sundering', 'Piercing', 'Rending'], skill: ['Practiced', 'Honed', 'Studied'],
   allSkills: ['Peerless', 'Perfect', 'Exalted'],
   lifesteal: ['Vampiric', 'Bloodthirsty', 'Leeching'],
+  manasteal: ['Draining', 'Siphoning', 'Leeching'],
+  poisonWeapon: ['Venomous', 'Toxic', 'Vile'],
+  slowWeapon: ['Numbing', 'Chilling', 'Binding'],
 };
 
 // Heroic epithets per affix — the first word of a legendary weapon name.
@@ -1877,6 +1922,9 @@ DATA.AFFIX_HEROIC = {
   enemyResDown: ["Worldsplitter's", "Siegemaster's"], skill: ["Virtuoso's", "Master's"],
   allSkills: ["Master's", "Grandmaster's"],
   lifesteal: ["Bloodletter's", "Nightfeeder's"],
+  manasteal: ["Mindeater's", "Soulsiphon's"],
+  poisonWeapon: ["Plaguebringer's", "Venomlord's"],
+  slowWeapon: ["Frostbinder's", "Chainbreaker's"],
 };
 
 // helper available to data + game
@@ -1887,3 +1935,7 @@ function chance(p) { return Math.random() < p; }
 function bigScale(i) { return Math.pow(1.25, Math.max(0, i - 1)); }
 // +50% compounding growth per level — weapon damage tracks monster HP
 function dmgScale(i) { return Math.pow(1.5, Math.max(0, i - 1)); }
+// Linear growth for the "+Weapon Damage" affix — the old dmgScale curve
+// made it possible to roll +800ish by ilvl 10; this caps that item level
+// around +50.
+function dmgFlatScale(i) { return 1 + Math.max(0, i - 1); }

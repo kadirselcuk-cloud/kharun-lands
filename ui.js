@@ -15,6 +15,14 @@ let pendingNewSlot = 0;    // which save slot a freshly-picked class goes into
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+// Several weapons share one base emoji (e.g. the whole sword family uses
+// 🗡️) and are told apart by size instead — see iconSize on DATA.WEAPON_BASES.
+function itemIconHtml(it) {
+  if (it.slot !== 'weapon') return it.icon;
+  const base = DATA.WEAPON_BASES.find(b => b.id === it.base);
+  const sz = base && base.iconSize;
+  return sz ? `<span style="font-size:${sz}em">${it.icon}</span>` : it.icon;
+}
 
 // Clickable version tag + Changelog link, same markup on every screen
 // (title, prelude, class select, chapter/quest screens, epilogue, in-game).
@@ -436,22 +444,17 @@ UI.renderTopbar = function () {
   const c = G.char, d = derive(), cls = DATA.CLASSES[c.cls];
   const xpNeed = xpForLevel(c.level);
   el.innerHTML = `
-    <div class="tb-left">
+    <div class="tb-charbox">
       <span class="tb-name">${cls.icon} <b>${esc(c.name)}</b> <small>Lv ${c.level} ${cls.name}</small></span>
       <div class="bar xp-bar" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp}/${xpNeed}</span></div>
-    </div>
-    <div class="tb-mid">
       <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>❤️ ${Math.round(c.hp)}/${d.maxHp}</span></div>
       <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>🔵 ${Math.round(c.mana)}/${d.maxMana}</span></div>
     </div>
-    <div class="tb-right">
+    <div class="tb-side">
       <span class="gold">🪙 ${G.gold.toLocaleString()}</span>
-      ${c.statPoints ? `<span class="pts">+${c.statPoints} stat</span>` : ''}
-      ${c.skillPoints ? `<span class="pts">+${c.skillPoints} skill</span>` : ''}
-      <button class="btn btn-tiny btn-sq" onclick="saveGame();UI.toast('💾 Game saved')" title="Save — the game also auto-saves constantly">💾</button>
-      <button class="btn btn-tiny btn-sq" onclick="if(confirm('Delete this hero and start over?'))resetGame()" title="Reset — delete this hero and start over">↺</button>
-      <button class="btn btn-tiny btn-sq" onclick="UI.showGameHelp()" title="Help">❓</button>
-    </div>`;
+      <span class="inv-count" title="Items in inventory">🎒 ${G.inventory.length}</span>
+    </div>
+    <button class="btn btn-tiny btn-sq tb-help" onclick="UI.showGameHelp()" title="Help">❓</button>`;
 };
 
 UI.showGameHelp = function () {
@@ -463,7 +466,7 @@ UI.showGameHelp = function () {
     <p class="prelude-text"><b>🛡️ Character</b> — your stats, skills, and inventory/equipment.</p>
     <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
     <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
-    <p class="prelude-text">💾 Save writes your progress immediately (the game also auto-saves constantly). ↺ Reset permanently deletes your current hero and returns you to the title screen.</p>
+    <p class="prelude-text">Your progress auto-saves constantly — there's no manual save needed. To delete a hero, go to the title screen and use 🗑️ Delete on their slot.</p>
     <p class="prelude-text">You can keep up to 5 heroes at once — the title screen lets you Continue, 📤 Export (download as a file) or 🗑️ Delete any of them, and start a new one in any empty slot. 📥 Import loads a previously exported character file back into a free slot.</p>
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
@@ -519,7 +522,7 @@ UI.renderCharacter = function (el) {
             return `<div class="equip-slot ${it ? 'filled rar-' + it.rarity : ''}" data-slot="${slot}">
               <div class="slot-label">${DATA.SLOT_LABEL[slot]}</div>
               ${it ? `<div class="slot-item" onclick="UI.showItem(${it.uid},'equipped','${slot}')">
-                       ${it.icon} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
+                       ${itemIconHtml(it)} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
                      </div>` : `<div class="slot-empty">—</div>`}
             </div>`;
           }).join('')}
@@ -626,7 +629,7 @@ UI.renderInventory = function (el) {
         ${items.map(it => {
           const usable = it.type === 'item' ? canUseItem(it) : { ok: false };
           return `<div class="inv-item rar-${it.rarity} ${it.type === 'item' && !usable.ok ? 'unusable' : ''}" onclick="UI.showItem(${it.uid},'inv')">
-            <div class="inv-icon">${it.icon}</div>
+            <div class="inv-icon">${itemIconHtml(it)}</div>
             <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
             <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${it.type === 'item' ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
@@ -686,7 +689,10 @@ function statMapOf(it) {
   if (it.armor) m.armor = it.armor;
   if (it.spd) m.spd = it.spd;
   if (it.potionCap) m.potionCap = it.potionCap;
-  for (const a of allAffixesOf(it)) m['a_' + a.id] = (m['a_' + a.id] || 0) + a.v;
+  // compound-valued affixes (poisonWeapon/slowWeapon carry {dmg/rounds} or
+  // {chance/pct/rounds} objects, not a plain number) don't have a single
+  // scalar to compare/sum — skip them here, they still render via affixText.
+  for (const a of allAffixesOf(it)) if (typeof a.v === 'number') m['a_' + a.id] = (m['a_' + a.id] || 0) + a.v;
   return m;
 }
 function mapScore(m) { return Object.values(m).reduce((s, v) => s + v, 0); }
@@ -750,7 +756,7 @@ const STAT_LABEL = {
   dmgFlat: 'Weapon Damage', dmgPct: 'Weapon Damage %', dr: 'Damage Reduction %',
   resPhys: 'Physical Resist %', resMagic: 'Magic Resist %', resPoison: 'Poison Resist %',
   enemyResDown: 'Enemy Resist Shred %', skill: 'Skill Rank', allSkills: 'All Skills',
-  lifesteal: 'Life Steal %',
+  lifesteal: 'Life Steal %', manasteal: 'Mana Steal %',
 };
 function statLabel(key) {
   if (STAT_LABEL[key]) return STAT_LABEL[key];
@@ -819,7 +825,7 @@ UI.showItem = function (uid, context, slot) {
   if (context === 'inv') actions.push(`<button class="btn danger" onclick="sellItem(${it.uid});UI.closeModal()">Sell (🪙 ${it.value})</button>`);
 
   UI.modal(`
-    <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
+    <h3 style="color:${rar.color}">${itemIconHtml(it)} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${UI.compareBlockHtml(it, targets, baseline)}
@@ -847,7 +853,7 @@ UI.renderShop = function (el) {
           const usable = it.type === 'item' ? canUseItem(it) : null;
           const afford = G.gold >= it.price;
           return `<div class="inv-item rar-${it.rarity} ${usable && !usable.ok ? 'unusable' : ''}" onclick="UI.showShopItem(${it.uid})">
-            <div class="inv-icon">${it.icon}</div>
+            <div class="inv-icon">${itemIconHtml(it)}</div>
             <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
             <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${usable ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
@@ -882,7 +888,7 @@ UI.showShopItem = function (uid) {
   }
 
   UI.modal(`
-    <h3 style="color:${rar.color}">${it.icon} ${esc(it.name)}</h3>
+    <h3 style="color:${rar.color}">${itemIconHtml(it)} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${UI.compareBlockHtml(it, targets, baseline)}
@@ -1045,7 +1051,7 @@ UI.pickSocketTarget = function (runeUid) {
     <h3>🪨 Socket rune into…</h3>
     <div class="socket-targets">
       ${targets.map(t => `<button class="btn socket-target" onclick="socketRune(${runeUid},${t.uid});UI.closeModal()">
-        ${t.icon} <span style="color:${DATA.RARITIES[t.rarity].color}">${esc(t.name)}</span>
+        ${itemIconHtml(t)} <span style="color:${DATA.RARITIES[t.rarity].color}">${esc(t.name)}</span>
         <small>(${t.runes.length}/${t.sockets} sockets used)${equippedItems().includes(t) ? ' · equipped' : ''}</small>
       </button>`).join('')}
     </div>
@@ -1553,7 +1559,7 @@ UI.showResults = function (run, level) {
       <h4>🎁 Quest Reward</h4>
       <div class="quest-reward-box">
         <span class="gold">🪙 ${run.partReward.gold.toLocaleString()}</span>
-        <span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${run.partReward.item.icon} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>
+        <span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>
       </div>` : ''}
     <h4>Battle report</h4>
     <div class="results-grid">
@@ -1579,7 +1585,7 @@ UI.showResults = function (run, level) {
     ${run.items.length ? `<h4>Loot acquired</h4>
       <div class="loot-list">
         ${run.items.map(it => `<div class="loot-row" onclick="UI.showItem(${it.uid},'inv')">
-          ${it.icon} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
+          ${itemIconHtml(it)} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
           <small>${it.type === 'rune' ? `rune · ${it.bonuses.length} bonus` : `${DATA.RARITIES[it.rarity].name} · ${esc(it.baseName)}`}</small>
         </div>`).join('')}
       </div>` : '<p class="hint">No items this time — the wilds are stingy.</p>'}

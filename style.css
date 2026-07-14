@@ -152,15 +152,24 @@ small { color: var(--dim); }
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
   padding: 10px 14px; margin-bottom: 10px;
 }
-.tb-left, .tb-mid, .tb-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.tb-mid { flex: 1; min-width: 260px; }
-@media (max-width: 480px) {
-  .tb-mid { min-width: 100%; order: 3; }
-  .tb-left, .tb-right { flex: 1; min-width: 0; }
-}
+.tb-charbox { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; flex: 1; min-width: 320px; }
+.tb-charbox .xp-bar { max-width: 190px; }
+.tb-charbox .hp-bar, .tb-charbox .mana-bar { flex: 1; min-width: 120px; }
+.tb-side { display: flex; align-items: center; gap: 14px; }
+.tb-help { margin-left: auto; }
 .tb-name small { display: block; }
 .gold { color: #ffd84d; font-weight: 700; }
-.pts { background: #3d2f14; color: var(--accent); border-radius: 10px; padding: 2px 8px; font-size: .75rem; }
+.inv-count { color: var(--dim); font-weight: 600; }
+@media (max-width: 480px) {
+  #topbar { align-items: flex-start; }
+  .tb-charbox {
+    flex-direction: column; align-items: stretch; gap: 6px; min-width: 0;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+  }
+  .tb-charbox .xp-bar, .tb-charbox .hp-bar, .tb-charbox .mana-bar { max-width: none; min-width: 0; }
+  .tb-side { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .tb-help { margin-left: 0; }
+}
 
 /* bars */
 .bar {
@@ -631,10 +640,12 @@ small { color: var(--dim); }
   font-size: .95rem; text-align: center;
 }
 /* Notable-but-passive tab state (unspent points, etc.) — a slow breathing
-   highlight on the tab's own text instead of an added icon/badge. */
+   highlight on the tab's own text instead of an added icon/badge. Dark
+   green, distinct from the accent gold used for the active tab, so the
+   two states don't read as the same thing. */
 @keyframes tab-breathe {
-  0%, 100% { color: inherit; text-shadow: none; }
-  50% { color: var(--accent); text-shadow: 0 0 8px rgba(224,169,76,.55); }
+  0%, 100% { color: inherit; text-shadow: none; background-color: transparent; }
+  50% { color: #3ecf6a; text-shadow: 0 0 8px rgba(62,207,106,.6); background-color: rgba(62,207,106,.16); }
 }
 .tab-notify { animation: tab-breathe 2.6s ease-in-out infinite; }
 .level-panel { margin-bottom: 12px; }

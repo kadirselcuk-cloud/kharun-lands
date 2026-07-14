@@ -177,14 +177,6 @@ function loadGame(slotIdx) {
   }
   return true;
 }
-// Deletes only the active slot's hero — other slots are untouched.
-function resetGame() {
-  const slots = loadSlots();
-  if (activeSlot !== null) slots[activeSlot] = null;
-  saveSlots(slots);
-  activeSlot = null;
-  location.reload();
-}
 function deleteSlot(slotIdx) {
   const slots = loadSlots();
   slots[slotIdx] = null;
@@ -221,11 +213,12 @@ function derive() {
     str: c.stats.str, dex: c.stats.dex, int: c.stats.int,
     armor: 0, evasion: 0, speed: 0,
     hpFlat: 0, manaFlat: 0, hpPct: 0, manaPct: 0,
-    hpRegen: 0, manaRegen: 0, lifesteal: 0,
+    hpRegen: 0, manaRegen: 0, lifesteal: 0, manasteal: 0,
     dmgFlat: 0, dmgPct: 0, dr: 0,
     res: { phys: 0, magic: 0, poison: 0 },
     enemyResDown: 0,
     weaponMin: 1, weaponMax: 2, weaponMagic: false, weaponSpd: 0,
+    weaponPoison: null, weaponSlow: null,
   };
   // gear
   for (const it of equippedItems()) {
@@ -251,6 +244,9 @@ function derive() {
         case 'resPoison': d.res.poison += a.v; break;
         case 'enemyResDown': d.enemyResDown += a.v; break;
         case 'lifesteal': d.lifesteal += a.v; break;
+        case 'manasteal': d.manasteal += a.v; break;
+        case 'poisonWeapon': d.weaponPoison = a.v; break;
+        case 'slowWeapon': d.weaponSlow = a.v; break;
       }
     }
   }
@@ -290,13 +286,15 @@ function derive() {
   d.speed = Math.round(10 + d.dex * 2 + d.speed + d.weaponSpd);
   d.maxMana = Math.round((20 + d.int * 7 + c.level * 3 + d.manaFlat) * (1 + d.manaPct));
   // sub stats
-  d.hpRegen = +((1 + d.str * 0.2 + d.hpRegen) * 0.2).toFixed(1);
+  // Life Regen is 3x (200% more) as effective as its old formula.
+  d.hpRegen = +((1 + d.str * 0.2 + d.hpRegen) * 0.2 * 3).toFixed(1);
   d.evasion = Math.min(60, +(d.dex * 0.1 + d.evasion).toFixed(1));
   d.manaRegen = +((1 + d.int * 0.4 + d.manaRegen) * 0.5).toFixed(1);
   // caps
   d.res.phys = Math.min(75, d.res.phys); d.res.magic = Math.min(75, d.res.magic); d.res.poison = Math.min(75, d.res.poison);
   d.dr = Math.min(0.6, d.dr);
-  d.lifesteal = Math.min(15, d.lifesteal);
+  d.lifesteal = Math.min(10, d.lifesteal);
+  d.manasteal = Math.min(10, d.manasteal);
   // base damage: weapon + main stat scaling; the class's main stat
   // additionally grants +1% damage per point
   const main = { warrior: d.str, rogue: d.dex, mage: d.int }[c.cls];
@@ -391,6 +389,7 @@ function rollAffixes(count, ilvl, clsId, item) {
   const pool = DATA.AFFIXES.filter(a => {
     if (a.weaponOnly && (!item || item.slot !== 'weapon')) return false;
     if (a.minRarity && (!item || RARITY_ORDER[item.rarity] < RARITY_ORDER[a.minRarity])) return false;
+    if (a.slots && (!item || !a.slots.includes(item.slot))) return false;
     return true;
   });
   const totalW = pool.reduce((s, a) => s + a.w, 0);
@@ -534,11 +533,21 @@ function makeRune(ilvl, source) {
   if (source === 'legendary' && chance(0.08)) n = 6;   // rare shot at the ultimate Mythic tier
   const tier = RUNE_TIERS[n];
   const bonuses = rollAffixes(n, ilvl);
-  const pre = pick(DATA.NAME_PARTS[pick(bonuses).id].pre);
-  const suf = pick(DATA.NAME_PARTS[pick(bonuses).id].suf);
+  // A single-bonus rune (e.g. a Faded Rune) must only get ONE of
+  // prefix/suffix — giving both from the same lone bonus reads as two
+  // stats when the rune only actually carries one.
+  let runeName;
+  if (bonuses.length === 1) {
+    const parts = DATA.NAME_PARTS[bonuses[0].id];
+    runeName = chance(0.5) ? `${pick(parts.pre)} ${tier.baseName}` : `${tier.baseName} ${pick(parts.suf)}`;
+  } else {
+    const pre = pick(DATA.NAME_PARTS[pick(bonuses).id].pre);
+    const suf = pick(DATA.NAME_PARTS[pick(bonuses).id].suf);
+    runeName = `${pre} ${tier.baseName} ${suf}`;
+  }
   return {
     uid: G ? G.itemSeq++ : rint(1, 1e9), type: 'rune', rarity: tier.rarity, ilvl,
-    icon: '🪨', name: `${pre} ${tier.baseName} ${suf}`, baseName: tier.baseName,
+    icon: '🪨', name: runeName, baseName: tier.baseName,
     bonuses,
     value: 15 + ilvl * 2 + n * 10,
   };
@@ -1338,7 +1347,9 @@ function effectiveEnemyDmg(e) {
   return e.dmg * mult;
 }
 function effectiveEnemySpd(e) {
-  return hasAffix(e, 'enraged') ? e.spd * (1 + enemyMissingFrac(e) * 0.5) : e.spd;
+  let spd = hasAffix(e, 'enraged') ? e.spd * (1 + enemyMissingFrac(e) * 0.5) : e.spd;
+  if (e.slow) spd *= (1 - e.slow.pct);
+  return spd;
 }
 function incomingDmgMult(e) {
   return hasAffix(e, 'berserk') ? 1 + enemyMissingFrac(e) * 0.5 : 1;
@@ -1365,6 +1376,14 @@ function playerHit(fight, enemy, skill, r) {
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
   if (d.lifesteal) G.char.hp = Math.min(d.maxHp, G.char.hp + Math.max(1, Math.round(dmg * (d.lifesteal / 100))));
+  if (d.manasteal) G.char.mana = Math.min(d.maxMana, G.char.mana + Math.max(1, Math.round(dmg * (d.manasteal / 100))));
+  if (d.weaponPoison && chance(0.3)) {
+    if (!enemy.dots) enemy.dots = {};
+    enemy.dots.weaponPoison = { icon: '☠️', label: 'Poison', dmg: d.weaponPoison.dmg, rounds: d.weaponPoison.rounds };
+  }
+  if (d.weaponSlow && chance(d.weaponSlow.chance / 100)) {
+    enemy.slow = { pct: d.weaponSlow.pct / 100, rounds: d.weaponSlow.rounds };
+  }
   if (hasAffix(enemy, 'reflective')) {
     const reflect = Math.max(1, Math.round(levelDifficulty(enemy.level) * (WARD_TIER_MULT[enemy.tier] || 1)));
     G.char.hp -= reflect;
@@ -1775,6 +1794,25 @@ function adventureTick() {
   if (f.playerSlow && --f.playerSlow.rounds <= 0) f.playerSlow = null;
   if (f.cursedDebuff && --f.cursedDebuff.rounds <= 0) f.cursedDebuff = null;
   if (f.corrosiveDebuff && --f.corrosiveDebuff.rounds <= 0) f.corrosiveDebuff = null;
+
+  // Weapon Poison/Slow affixes tick on the enemies carrying them, same
+  // cadence as the player's own DOTs above. Enemies dying here are still
+  // caught by the "resolve deaths" loop later this round (On-death
+  // effects like Explosive still fire).
+  for (const e of f.enemies) {
+    if (e.hp <= 0) continue;
+    if (e.slow && --e.slow.rounds <= 0) e.slow = null;
+    if (e.dots) {
+      for (const key of Object.keys(e.dots)) {
+        const dot = e.dots[key];
+        e.hp -= dot.dmg;
+        ADV.run.dmgDealt += dot.dmg;
+        log('act', `${dot.icon} ${dot.label} deals ${dot.dmg.toLocaleString()} damage to ${e.name.split(' — ')[0]}`);
+        if (--dot.rounds <= 0) delete e.dots[key];
+      }
+    }
+  }
+
   if (G.char.hp <= 0) { G.char.hp = 0; retreat('defeated'); return; }
 
   autoUsePotions();
