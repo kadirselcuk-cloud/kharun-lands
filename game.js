@@ -408,6 +408,22 @@ const RARITY_ORDER = { normal: 0, magical: 1, rare: 2, epic: 3, legendary: 4, my
 // `slots` gating below — it never bypasses `minRarity`.
 const JEWELRY_SLOTS = ['ring', 'amulet', 'cloak', 'belt'];
 function isJewelrySlot(slot) { return JEWELRY_SLOTS.includes(slot); }
+
+// How many stats a rolled item ends up with: starts at `min`, then each
+// step has a coin-flip chance to add one more, up to `max` — so the
+// distribution halves at each step (e.g. Epic 4-7: 50% @4, 25% @5,
+// 12.5% @6, 12.5% @7). The flip's odds shift with item level: low-level
+// areas roll fewer extra stats, high-level areas roll more — centered
+// on ilvl 50 so early/late game both visibly diverge from a flat 50%.
+function extraStatChance(ilvl) {
+  return Math.max(0.3, Math.min(0.7, 0.5 + (ilvl - 50) * 0.003));
+}
+function rollItemStatCount(min, max, ilvl) {
+  let n = min;
+  const p = extraStatChance(ilvl);
+  while (n < max && chance(p)) n++;
+  return n;
+}
 function rollAffixes(count, ilvl, clsId, item) {
   const out = [];
   const used = new Set();
@@ -505,9 +521,12 @@ function makeItem(ilvl, rarity, clsHint) {
   }
 
   const [aMin, aMax] = DATA.RARITIES[it.rarity].affixes;
-  it.affixes = rollAffixes(rint(aMin, aMax), ilvl, clsHint, it);
+  it.affixes = rollAffixes(rollItemStatCount(aMin, aMax, ilvl), ilvl, clsHint, it);
   it.name = buildItemName(it);
-  it.value = Math.max(1, Math.round((2 + ilvl * 1.5) * DATA.RARITIES[it.rarity].value));
+  // Value scales with rarity (as before) and now also with how many
+  // stats actually rolled — a well-rolled Epic is worth noticeably more
+  // than a bare-minimum one, not just more than a Rare.
+  it.value = Math.max(1, Math.round((2 + ilvl * 1.5) * DATA.RARITIES[it.rarity].value * (1 + it.affixes.length * 0.12)));
   return it;
 }
 
@@ -542,25 +561,36 @@ function buildItemName(it) {
   return `${pre} ${it.baseName} ${suf}`;
 }
 
-// Rune tiers, by bonus count, ascending: Faded(1) < Rune(2) < Rare(3) <
-// Epic(4) < Legendary(5) < Mythic(6, the ultimate tier — a rare shot
-// off any legendary-creature drop). Bonus-count range depends on which
-// creature tier dropped it.
+// Rune tiers, by bonus count, ascending: Faded(1) < Rune(2) < Elder(3-5,
+// still colored rare/epic/legendary by count). Mythic Rune is NOT part of
+// this ascending count ladder — it's an independent, much-rarer roll
+// (see MYTHIC_RUNE_CHANCE) that always carries exactly 4 bonuses and
+// borrows Legendary's color rather than a distinct Mythic one.
+// Bonus-count range (for the non-Mythic roll) depends on which creature
+// tier dropped it.
 const RUNE_BONUS_RANGE = { normal: [1, 1], rare: [1, 2], epic: [1, 3], miniboss: [2, 4], legendary: [3, 5] };
 const RUNE_TIERS = {
   1: { baseName: 'Faded Rune', rarity: 'normal' },
   2: { baseName: 'Rune', rarity: 'magical' },
-  3: { baseName: 'Rare Rune', rarity: 'rare' },
-  4: { baseName: 'Epic Rune', rarity: 'epic' },
-  5: { baseName: 'Legendary Rune', rarity: 'legendary' },
-  6: { baseName: 'Mythic Rune', rarity: 'mythic' },
+  3: { baseName: 'Elder Rune', rarity: 'rare' },
+  4: { baseName: 'Elder Rune', rarity: 'epic' },
+  5: { baseName: 'Elder Rune', rarity: 'legendary' },
 };
+// Much rarer than the old 8% legendary-source bump it replaces — this
+// now rolls independently of source tier.
+const MYTHIC_RUNE_CHANCE = 0.015;
+const MYTHIC_RUNE_BONUSES = 4;
 // Prefix/suffix are generated from randomly chosen bonus stats.
 function makeRune(ilvl, source) {
-  const range = RUNE_BONUS_RANGE[source] || RUNE_BONUS_RANGE.normal;
-  let n = rint(...range);
-  if (source === 'legendary' && chance(0.08)) n = 6;   // rare shot at the ultimate Mythic tier
-  const tier = RUNE_TIERS[n];
+  let n, tier;
+  if (chance(MYTHIC_RUNE_CHANCE)) {
+    n = MYTHIC_RUNE_BONUSES;
+    tier = { baseName: 'Mythic Rune', rarity: 'legendary' };
+  } else {
+    const range = RUNE_BONUS_RANGE[source] || RUNE_BONUS_RANGE.normal;
+    n = rint(...range);
+    tier = RUNE_TIERS[n];
+  }
   const bonuses = rollAffixes(n, ilvl);
   // A single-bonus rune (e.g. a Faded Rune) must only get ONE of
   // prefix/suffix — giving both from the same lone bonus reads as two

@@ -1700,13 +1700,18 @@ DATA.NAME_SYL_C = ['', '', '', 'us', 'ok', 'ar', 'oth', 'ix', 'esh', 'un'];
 // ------------------------------------------------------------
 // Items
 // ------------------------------------------------------------
+// affixes: [min, max] stat count. Rare/Epic/Legendary now roll a variable
+// count within this range (see rollAffixCount in game.js) instead of a
+// fixed number — min is the initial roll, max is the ceiling after
+// repeated 50/50 "add another stat" flips.
 DATA.RARITIES = {
   normal:    { name: 'Normal',    color: '#c8c8c8', affixes: [0, 0], mult: 1.0, value: 1 },
   magical:   { name: 'Magical',   color: '#6c9bff', affixes: [1, 2], mult: 1.15, value: 3 },
-  rare:      { name: 'Rare',      color: '#ffd84d', affixes: [3, 3], mult: 1.3, value: 8 },
-  epic:      { name: 'Epic',      color: '#c77dff', affixes: [4, 4], mult: 1.5, value: 20 },
-  legendary: { name: 'Legendary', color: '#ff8b3d', affixes: [5, 5], mult: 1.75, value: 60 },
-  // Mythic: not rolled for items — reserved for the top rune tier.
+  rare:      { name: 'Rare',      color: '#ffd84d', affixes: [3, 6], mult: 1.3, value: 8 },
+  epic:      { name: 'Epic',      color: '#c77dff', affixes: [4, 7], mult: 1.5, value: 20 },
+  legendary: { name: 'Legendary', color: '#ff8b3d', affixes: [5, 10], mult: 1.75, value: 60 },
+  // Mythic: not rolled for items — the Mythic Rune below reuses
+  // Legendary's color instead of this entry (kept only for RARITY_ORDER).
   mythic:    { name: 'Mythic',    color: '#ff4d9e', affixes: [6, 6], mult: 2.0, value: 150 },
 };
 
