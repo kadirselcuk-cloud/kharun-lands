@@ -2146,9 +2146,20 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function chance(p) { return Math.random() < p; }
 // +25% compounding growth per level (armor & magnitude affixes)
 function bigScale(i) { return Math.pow(1.25, Math.max(0, i - 1)); }
-// +50% compounding growth per level — weapon damage tracks monster HP
-function dmgScale(i) { return Math.pow(1.5, Math.max(0, i - 1)); }
-// Linear growth for the "+Weapon Damage" affix — the old dmgScale curve
-// made it possible to roll +800ish by ilvl 10; this caps that item level
-// around +50.
-function dmgFlatScale(i) { return 1 + Math.max(0, i - 1); }
+// Matches enemyHpScale/enemyDmgScale (game.js) exactly — level * 1.05^L,
+// mostly linear with a small compounding kicker. A "small downgrade" from
+// the old 1.5^L (or even 1.4^L) doesn't actually fix anything: exponential
+// growth always eventually outruns linear growth regardless of how small
+// the base is, so weapon damage kept blowing past monster HP by the
+// mid-game. Full parity with monster scaling keeps hits-to-kill roughly
+// constant across the whole level range instead of trending toward zero.
+function dmgScale(i) { const l = Math.max(1, i); return l * Math.pow(1.05, l - 1); }
+// Deliberately NOT matched to dmgScale/monster scaling — armor feeds a
+// diminishing-returns mitigation formula (enemyHit in game.js) whose
+// denominator is linear in level; giving armor ANY exponential component
+// (even a small 1.05^L one) eventually overwhelms that denominator again,
+// the exact "armor mitigation runs away toward 100%" bug fixed earlier
+// this session. Pure linear (no exponential term at all) is the more
+// conservative, already-correct choice here, not a smaller version of the
+// same fix — kept at the slope-0.85 "small downgrade" from last change.
+function dmgFlatScale(i) { return 1 + Math.max(0, i - 1) * 0.85; }
