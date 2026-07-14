@@ -160,13 +160,12 @@ small { color: var(--dim); }
 .tb-name small { display: block; }
 .gold { color: #ffd84d; font-weight: 700; }
 .inv-count { color: var(--dim); font-weight: 600; }
-@media (max-width: 480px) {
+@media (max-width: 860px) {
   #topbar {
-    display: grid; grid-template-columns: 60% 1fr; grid-template-areas: "charbox side" "help help";
-    align-items: start; gap: 8px;
+    display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
   }
   .tb-charbox {
-    grid-area: charbox;
+    flex: 0 0 60%;
     flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
   }
@@ -174,11 +173,11 @@ small { color: var(--dim); }
   .tb-charbox .bar { flex: none; height: 20px; }
   .tb-charbox .xp-bar, .tb-charbox .hp-bar, .tb-charbox .mana-bar { max-width: none; min-width: 0; width: 100%; }
   .tb-side {
-    grid-area: side;
+    flex: 1; min-width: 0;
     flex-direction: column; align-items: flex-start; gap: 6px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
   }
-  .tb-help { grid-area: help; margin-left: auto; }
+  .tb-help { flex: none; margin-left: 0; align-self: center; }
 }
 
 /* bars */
