@@ -162,19 +162,23 @@ small { color: var(--dim); }
 .inv-count { color: var(--dim); font-weight: 600; }
 @media (max-width: 860px) {
   #topbar {
-    display: flex; flex-wrap: nowrap; align-items: center; gap: 8px;
+    display: flex; flex-wrap: nowrap; align-items: stretch; gap: 8px;
   }
   .tb-charbox {
-    flex: 0 0 60%;
-    flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0;
-    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+    flex: 0 0 60%; min-width: 0;
+    display: grid; grid-template-columns: auto 1fr; grid-template-rows: repeat(3, 1fr);
+    column-gap: 10px; row-gap: 3px; align-items: center;
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
   }
-  .tb-charbox .tb-name { text-align: center; }
-  .tb-charbox .bar { flex: none; height: 20px; }
+  .tb-charbox .tb-name { grid-column: 1; grid-row: 1 / 4; text-align: left; align-self: center; }
+  .tb-charbox .bar { flex: none; height: 16px; grid-column: 2; }
   .tb-charbox .xp-bar, .tb-charbox .hp-bar, .tb-charbox .mana-bar { max-width: none; min-width: 0; width: 100%; }
+  .tb-charbox .xp-bar { grid-row: 1; }
+  .tb-charbox .mana-bar { grid-row: 2; }
+  .tb-charbox .hp-bar { grid-row: 3; }
   .tb-side {
     flex: 1; min-width: 0;
-    flex-direction: column; align-items: flex-start; gap: 6px;
+    flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px;
     background: var(--panel2); border: 1px solid var(--border); border-radius: 8px; padding: 10px;
   }
   .tb-help { flex: none; margin-left: 0; align-self: center; }

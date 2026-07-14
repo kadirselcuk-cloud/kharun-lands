@@ -15,6 +15,14 @@ let pendingNewSlot = 0;    // which save slot a freshly-picked class goes into
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+// Compact display for topbar numbers — 1,234 -> 1.2K, 2,000,000 -> 2M.
+function formatK(n) {
+  n = Math.round(n);
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return (Math.round(n / 1e5) / 10) + 'M';
+  if (abs >= 1e3) return (Math.round(n / 1e2) / 10) + 'K';
+  return n.toLocaleString();
+}
 // Several weapons share one base emoji (e.g. the whole sword family uses
 // 🗡️) and are told apart by size instead — see iconSize on DATA.WEAPON_BASES.
 function itemIconHtml(it) {
@@ -451,13 +459,13 @@ UI.renderTopbar = function () {
   el.innerHTML = `
     <div class="tb-charbox">
       <span class="tb-name">${cls.icon} <b>${esc(c.name)}</b> <small>Lv ${c.level} ${cls.name}</small></span>
-      <div class="bar xp-bar" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp}/${xpNeed}</span></div>
-      <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>❤️ ${Math.round(c.hp)}/${d.maxHp}</span></div>
-      <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>🔵 ${Math.round(c.mana)}/${d.maxMana}</span></div>
+      <div class="bar xp-bar" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${formatK(c.xp)}/${formatK(xpNeed)}</span></div>
+      <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>❤️ ${formatK(c.hp)}/${formatK(d.maxHp)}</span></div>
+      <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>🔵 ${formatK(c.mana)}/${formatK(d.maxMana)}</span></div>
     </div>
     <div class="tb-side">
-      <span class="gold">🪙 ${G.gold.toLocaleString()}</span>
-      <span class="inv-count" title="Items in inventory">🎒 ${G.inventory.length}</span>
+      <span class="gold">🪙 ${formatK(G.gold)}</span>
+      <span class="inv-count" title="Items in inventory">🎒 ${formatK(G.inventory.length)}</span>
     </div>
     <button class="btn btn-tiny btn-sq tb-help" onclick="UI.showGameHelp()" title="Help">❓</button>`;
 };
