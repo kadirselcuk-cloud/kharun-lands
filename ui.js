@@ -756,7 +756,9 @@ const STAT_LABEL = {
   dmgFlat: 'Weapon Damage', dmgPct: 'Weapon Damage %', dr: 'Damage Reduction %',
   resPhys: 'Physical Resist %', resMagic: 'Magic Resist %', resPoison: 'Poison Resist %',
   enemyResDown: 'Enemy Resist Shred %', skill: 'Skill Rank', allSkills: 'All Skills',
-  lifesteal: 'Life Steal %', manasteal: 'Mana Steal %',
+  lifesteal: 'Life Steal %', manasteal: 'Mana Steal %', allStats: 'All Stats',
+  painReflect: 'Pain Reflection %', execute: 'Execute %', goldFind: 'Gold Find %', magicFind: 'Magic Find %',
+  critStrike: 'Critical Strike %', doubleStrike: 'Double Strike %', procOffense: 'Spellstrike %', procSupport: 'Blessing %',
 };
 function statLabel(key) {
   if (STAT_LABEL[key]) return STAT_LABEL[key];

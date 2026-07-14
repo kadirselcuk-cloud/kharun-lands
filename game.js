@@ -9,7 +9,7 @@ const MAX_SLOTS = 5;
 let activeSlot = null;   // index (0..MAX_SLOTS-1) of the slot G was loaded from / is being saved to
 const MAX_LEVEL_AREA = 100;
 const CREATURES_PER_LEVEL = 1111;
-const MAX_RANK = 5;
+const MAX_RANK = 10;
 
 let G = null;          // global game state
 let ADV = null;        // active adventure run state
@@ -196,7 +196,9 @@ function effectiveRank(skillId) {
       if (a.id === 'skill' && a.skillId === skillId) bonus += a.v;
     }
   }
-  return Math.min(rank + bonus, MAX_RANK + 3);
+  // Learned rank caps at MAX_RANK, but gear (+skill/+All Skills) can push
+  // the effective rank beyond it — capped at double, not unlimited.
+  return Math.min(rank + bonus, MAX_RANK * 2);
 }
 
 function equippedItems() { return Object.values(G.char.equip).filter(Boolean); }
@@ -219,6 +221,8 @@ function derive() {
     enemyResDown: 0,
     weaponMin: 1, weaponMax: 2, weaponMagic: false, weaponSpd: 0,
     weaponPoison: null, weaponSlow: null,
+    painReflect: 0, execute: 0, goldFind: 0, magicFind: 0,
+    critStrike: 0, doubleStrike: 0, procOffense: 0, procSupport: 0,
   };
   // gear
   for (const it of equippedItems()) {
@@ -229,6 +233,7 @@ function derive() {
         case 'str': d.str += a.v; break;
         case 'dex': d.dex += a.v; break;
         case 'int': d.int += a.v; break;
+        case 'allStats': d.str += a.v; d.dex += a.v; d.int += a.v; break;
         case 'hp': d.hpFlat += a.v; break;
         case 'mana': d.manaFlat += a.v; break;
         case 'speed': d.speed += a.v; break;
@@ -247,6 +252,14 @@ function derive() {
         case 'manasteal': d.manasteal += a.v; break;
         case 'poisonWeapon': d.weaponPoison = a.v; break;
         case 'slowWeapon': d.weaponSlow = a.v; break;
+        case 'painReflect': d.painReflect += a.v; break;
+        case 'execute': d.execute += a.v; break;
+        case 'goldFind': d.goldFind += a.v; break;
+        case 'magicFind': d.magicFind += a.v; break;
+        case 'critStrike': d.critStrike += a.v; break;
+        case 'doubleStrike': d.doubleStrike += a.v; break;
+        case 'procOffense': d.procOffense += a.v; break;
+        case 'procSupport': d.procSupport += a.v; break;
       }
     }
   }
@@ -281,20 +294,31 @@ function derive() {
     if (p.resAll) { d.res.phys += p.resAll; d.res.magic += p.resAll; d.res.poison += p.resAll; }
   }
 
-  // MAIN STATS drive the important stats:
-  d.maxHp = Math.round((50 + d.str * 9 + c.level * 8 + d.hpFlat) * (1 + d.hpPct));
-  d.speed = Math.round(10 + d.dex * 2 + d.speed + d.weaponSpd);
-  d.maxMana = Math.round((20 + d.int * 7 + c.level * 3 + d.manaFlat) * (1 + d.manaPct));
+  // MAIN STATS drive the important stats. statLevelMult makes each point
+  // of Str/Dex/Int worth more as the character levels up (+2%/level,
+  // e.g. 2x at level 50, 3x at level 100) — a direct request that stat
+  // points and the Speed sub-stat felt too weak at high level. Only
+  // applied to HP/Mana/Speed/Evasion/Regen, not the 1%/pt damage bonus
+  // below (that's a separate, already-powerful lever left untouched).
+  const statLevelMult = 1 + c.level * 0.02;
+  d.maxHp = Math.round((50 + d.str * 9 * statLevelMult + c.level * 8 + d.hpFlat) * (1 + d.hpPct));
+  d.speed = Math.round(10 + d.dex * 2 * statLevelMult + d.speed + d.weaponSpd);
+  d.maxMana = Math.round((20 + d.int * 7 * statLevelMult + c.level * 3 + d.manaFlat) * (1 + d.manaPct));
   // sub stats
   // Life Regen is 3x (200% more) as effective as its old formula.
-  d.hpRegen = +((1 + d.str * 0.2 + d.hpRegen) * 0.2 * 3).toFixed(1);
-  d.evasion = Math.min(60, +(d.dex * 0.1 + d.evasion).toFixed(1));
-  d.manaRegen = +((1 + d.int * 0.4 + d.manaRegen) * 0.5).toFixed(1);
+  d.hpRegen = +((1 + d.str * 0.2 * statLevelMult + d.hpRegen) * 0.2 * 3).toFixed(1);
+  d.evasion = Math.min(60, +(d.dex * 0.1 * statLevelMult + d.evasion).toFixed(1));
+  d.manaRegen = +((1 + d.int * 0.4 * statLevelMult + d.manaRegen) * 0.5).toFixed(1);
   // caps
   d.res.phys = Math.min(75, d.res.phys); d.res.magic = Math.min(75, d.res.magic); d.res.poison = Math.min(75, d.res.poison);
   d.dr = Math.min(0.6, d.dr);
   d.lifesteal = Math.min(10, d.lifesteal);
   d.manasteal = Math.min(10, d.manasteal);
+  d.painReflect = Math.min(50, d.painReflect);
+  d.critStrike = Math.min(50, d.critStrike);
+  d.doubleStrike = Math.min(40, d.doubleStrike);
+  d.procOffense = Math.min(30, d.procOffense);
+  d.procSupport = Math.min(30, d.procSupport);
   // base damage: weapon + main stat scaling; the class's main stat
   // additionally grants +1% damage per point
   const main = { warrior: d.str, rogue: d.dex, mage: d.int }[c.cls];
@@ -380,6 +404,10 @@ function skillCost(s) {
 }
 
 const RARITY_ORDER = { normal: 0, magical: 1, rare: 2, epic: 3, legendary: 4, mythic: 5 };
+// Jewelry ("Jewelry can get everything") bypasses both `weaponOnly` and
+// `slots` gating below — it never bypasses `minRarity`.
+const JEWELRY_SLOTS = ['ring', 'amulet', 'cloak', 'belt'];
+function isJewelrySlot(slot) { return JEWELRY_SLOTS.includes(slot); }
 function rollAffixes(count, ilvl, clsId, item) {
   const out = [];
   const used = new Set();
@@ -387,9 +415,10 @@ function rollAffixes(count, ilvl, clsId, item) {
   // pool when the caller passes the item they're rolling for and it
   // qualifies — runes (no item passed) never roll them.
   const pool = DATA.AFFIXES.filter(a => {
-    if (a.weaponOnly && (!item || item.slot !== 'weapon')) return false;
+    const jewelry = !!item && isJewelrySlot(item.slot);
+    if (a.weaponOnly && !jewelry && (!item || item.slot !== 'weapon')) return false;
     if (a.minRarity && (!item || RARITY_ORDER[item.rarity] < RARITY_ORDER[a.minRarity])) return false;
-    if (a.slots && (!item || !a.slots.includes(item.slot))) return false;
+    if (a.slots && !jewelry && (!item || !a.slots.includes(item.slot))) return false;
     return true;
   });
   const totalW = pool.reduce((s, a) => s + a.w, 0);
@@ -1054,8 +1083,11 @@ function makeCreature(level, tier, opts) {
 // ------------------------------------------------------------
 // Loot
 // ------------------------------------------------------------
-function rollItemRarity(tier) {
-  const r = Math.random() * 100;
+function rollItemRarity(tier, magicFind) {
+  // Magic Find compresses the roll toward the rarer end of each tier's
+  // table (capped at a 60% pull so it can't guarantee the top rarity).
+  let r = Math.random() * 100;
+  if (magicFind) r *= (1 - Math.min(0.6, magicFind / 100));
   switch (tier) {
     case 'legendary':
       if (r < 25) return 'legendary';
@@ -1099,7 +1131,9 @@ function itemDropChance(tier) {
 function rollLoot(creature, run) {
   const tier = creature.tier;
   const lvl = creature.level;
-  const goldBase = Math.round((2 + lvl * 1.6) * TIER_CONF[tier].gold * (0.7 + Math.random() * 0.6));
+  const magicFind = (ADV && ADV.d && ADV.d.magicFind) || 0;
+  const goldMult = 1 + ((ADV && ADV.d && ADV.d.goldFind) || 0) / 100;
+  const goldBase = Math.round((2 + lvl * 1.6) * TIER_CONF[tier].gold * (0.7 + Math.random() * 0.6) * goldMult);
 
   // Rune roll is independent (legendary: 10% per spec)
   if (chance(RUNE_CHANCE[tier])) {
@@ -1111,7 +1145,7 @@ function rollLoot(creature, run) {
   if (tier === 'legendary' || tier === 'miniboss') {
     run.gold += goldBase; G.gold += goldBase;
     const r = Math.random() * 100;
-    if (r < 75) dropItem(lvl, rollItemRarity(tier), run);
+    if (r < 75) dropItem(lvl, rollItemRarity(tier, magicFind), run);
     else gainPotion(pick(['hp', 'mana', 'scroll']), run);
   } else {
     const r = Math.random() * 100;
@@ -1122,7 +1156,7 @@ function rollLoot(creature, run) {
     }[tier];
     let acc = 0;
     if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; }
-    else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier), run); }
+    else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier, magicFind), run); }
     else if (r < (acc += T.hpPot)) { gainPotion('hp', run); }
     else if (r < (acc += T.manaPot)) { gainPotion('mana', run); }
     else if (r < (acc += T.buffPot)) { gainPotion('scroll', run); }
@@ -1137,7 +1171,7 @@ function rollLoot(creature, run) {
   if (specialtyCount) {
     const chanceEach = itemDropChance(tier);
     for (let i = 0; i < specialtyCount; i++) {
-      if (chance(chanceEach)) dropItem(lvl, rollItemRarity(tier), run);
+      if (chance(chanceEach)) dropItem(lvl, rollItemRarity(tier, magicFind), run);
     }
   }
 }
@@ -1373,6 +1407,8 @@ function playerHit(fight, enemy, skill, r) {
   if (hasAffix(enemy, 'spectral')) dmg = resKey === 'phys' ? Math.max(1, Math.round(dmg * 0.2)) : dmg * 2;
   if (enemy.dr) dmg = Math.max(1, Math.round(dmg * (1 - enemy.dr)));
   dmg = Math.max(1, Math.round(dmg * incomingDmgMult(enemy)));
+  if (d.execute && enemy.hp / enemy.maxHp < 0.25) dmg = Math.round(dmg * (1 + d.execute / 100));
+  if (d.critStrike && chance(d.critStrike / 100)) dmg *= 2;
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
   if (d.lifesteal) G.char.hp = Math.min(d.maxHp, G.char.hp + Math.max(1, Math.round(dmg * (d.lifesteal / 100))));
@@ -1413,6 +1449,12 @@ function enemyHit(fight, enemy) {
   G.char.hp -= dmg;
   ADV.run.dmgTaken += dmg;
   fight.lastHit = { icon: '🩸', label: `${enemy.name.split(' — ')[0]}'s ${enemy.attack}`, amount: dmg };
+  if (d.painReflect) {
+    const reflected = Math.max(1, Math.round(dmg * (d.painReflect / 100)));
+    enemy.hp -= reflected;
+    ADV.run.dmgDealt += reflected;
+    log('act', `🌵 Pain Reflection sends ${reflected.toLocaleString()} damage back at ${enemy.name.split(' — ')[0]}!`);
+  }
   if (hasAffix(enemy, 'vampiric')) enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.max(1, Math.round(dmg * 0.25)));
   if (hasAffix(enemy, 'poisonous')) {
     fight.playerDots.poison = { icon: '☠️', label: `${enemy.name.split(' — ')[0]}'s poison`, dmg: Math.max(1, Math.round(enemy.dmg * 0.12)), rounds: 3 };
@@ -1430,7 +1472,7 @@ function enemyHit(fight, enemy) {
 function playerAct(fight) {
   const c = G.char;
   const d = ADV.d;
-  const attacks = 1 + (fight.buffs.some(b => b.extraHit) ? 1 : 0);
+  const attacks = 1 + (fight.buffs.some(b => b.extraHit) ? 1 : 0) + (d.doubleStrike && chance(d.doubleStrike / 100) ? 1 : 0);
   for (let i = 0; i < attacks; i++) {
     const alive = fight.enemies.filter(e => e.hp > 0);
     if (!alive.length) return;
@@ -1476,6 +1518,44 @@ function playerAct(fight) {
       }
       log('act', `${skill.icon} ${skill.name} hits ${parts.join(', ')}`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${total.toLocaleString()} dmg` };
+
+      // Ultra-rare gear procs: casting a random spell on landing a hit.
+      // Independent of learned rank/mana/cooldown (the item is casting,
+      // not the player) and always resolved at a fixed low rank (1), so
+      // it's a minor bonus rather than a free copy of the player's build.
+      if (d.procOffense && chance(d.procOffense / 100)) {
+        const opts = Object.values(DATA.SKILLS[c.cls]).filter(s => ['attack', 'attack2', 'aoe', 'aoe2', 'debuff'].includes(s.cat));
+        if (opts.length) {
+          const ps = pick(opts);
+          const stillAlive = fight.enemies.filter(e => e.hp > 0);
+          if (stillAlive.length) {
+            if (ps.mult) {
+              const ptgts = ps.aoe ? stillAlive : [stillAlive[0]];
+              for (const t of ptgts) { const pd = playerHit(fight, t, ps, 1); log('act', `${ps.icon} ${ps.name} (proc) hits ${t.name.split(' — ')[0]} for ${pd.toLocaleString()}`); }
+            } else if (ps.debuff) {
+              const db = ps.debuff(1);
+              fight.enemyDmgDown = Math.max(fight.enemyDmgDown, db.dmgDown || 0);
+              fight.enemyResDown = Math.max(fight.enemyResDown, db.resDown || 0);
+              fight.debuffRounds = Math.max(fight.debuffRounds, db.rounds || 4); fight.debuffApplied = true;
+              log('act', `${ps.icon} ${ps.name} (proc) weakens the enemy!`);
+            }
+          }
+        }
+      }
+      if (d.procSupport && chance(d.procSupport / 100)) {
+        const opts = Object.values(DATA.SKILLS[c.cls]).filter(s => ['heal', 'buff'].includes(s.cat));
+        if (opts.length) {
+          const ps = pick(opts);
+          if (ps.healPct) {
+            const heal = Math.round(d.maxHp * ps.healPct(1));
+            c.hp = Math.min(d.maxHp, c.hp + heal);
+            log('act', `${ps.icon} ${ps.name} (proc) heals you for ${heal} HP`);
+          } else if (ps.buff) {
+            fight.buffs.push({ ...ps.buff(1), icon: ps.icon, name: ps.name });
+            log('act', `${ps.icon} ${ps.name} (proc) triggers!`);
+          }
+        }
+      }
     }
   }
 }

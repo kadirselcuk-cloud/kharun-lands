@@ -1537,118 +1537,122 @@ function mkSkills(list) { const o = {}; for (const s of list) o[s.id] = s; retur
 
 DATA.SKILLS = {
 warrior: mkSkills([
+  // Skill ranks: per-rank coefficients below are HALVED vs. the old
+  // MAX_RANK=5 balance (see MAX_RANK in game.js, now 10) — rank 10 with no
+  // gear bonus lands roughly where old rank 5 did, leaving headroom for
+  // +skill/+All Skills gear to push ranks past 10 without exploding.
   { id: 'w_basic', cat: 'basic', name: 'Slash', icon: '🗡️', minLvl: 1,
-    desc: r => `Free weapon attack for ${100 + 6 * r}% damage. Costs nothing.`,
-    mult: r => 1.0 + 0.06 * r, cost: () => 0, cd: 0 },
+    desc: r => `Free weapon attack for ${100 + 3 * r}% damage. Costs nothing.`,
+    mult: r => 1.0 + 0.03 * r, cost: () => 0, cd: 0 },
   { id: 'w_pass1', cat: 'passive', name: 'Toughness', icon: '🛡️', minLvl: 2,
-    desc: r => `Passive: +${6 * r}% Max HP, +${2 * r} Armor, +${(0.6 * r).toFixed(1)} HP Regen.`,
-    passive: r => ({ hpPct: 0.06 * r, armor: 2 * r, hpRegen: 0.6 * r }) },
+    desc: r => `Passive: +${3 * r}% Max HP, +${1 * r} Armor, +${(0.3 * r).toFixed(1)} HP Regen.`,
+    passive: r => ({ hpPct: 0.03 * r, armor: 1 * r, hpRegen: 0.3 * r }) },
   { id: 'w_pass2', cat: 'passive2', name: 'Battle Hardened', icon: '⚙️', minLvl: 10, req: 'w_pass1',
-    desc: r => `Passive: ${2 * r}% damage reduction, +${2 * r}% all resistances, +${3 * r}% damage.`,
-    passive: r => ({ dr: 0.02 * r, resAll: 2 * r, dmgPct: 0.03 * r }) },
+    desc: r => `Passive: ${1 * r}% damage reduction, +${1 * r}% all resistances, +${1.5 * r}% damage.`,
+    passive: r => ({ dr: 0.01 * r, resAll: 1 * r, dmgPct: 0.015 * r }) },
   { id: 'w_atk1', cat: 'attack', name: 'Heavy Strike', icon: '💥', minLvl: 2,
-    desc: r => `A crushing blow for ${150 + 30 * r}% damage.`,
-    mult: r => 1.5 + 0.3 * r, cost: () => 10, cd: 2 },
+    desc: r => `A crushing blow for ${150 + 15 * r}% damage.`,
+    mult: r => 1.5 + 0.15 * r, cost: () => 10, cd: 2 },
   { id: 'w_atk2', cat: 'attack2', name: 'Skull Crusher', icon: '🔨', minLvl: 8, req: 'w_atk1',
-    desc: r => `${250 + 50 * r}% damage and stuns the enemy for 1 round.`,
-    mult: r => 2.5 + 0.5 * r, cost: () => 22, cd: 4, stun: 1 },
+    desc: r => `${250 + 25 * r}% damage and stuns the enemy for 1 round.`,
+    mult: r => 2.5 + 0.25 * r, cost: () => 22, cd: 4, stun: 1 },
   { id: 'w_aoe1', cat: 'aoe', name: 'Whirlwind', icon: '🌀', minLvl: 5,
-    desc: r => `Spin and hit ALL enemies for ${90 + 18 * r}% damage.`,
-    mult: r => 0.9 + 0.18 * r, cost: () => 16, cd: 3, aoe: true },
+    desc: r => `Spin and hit ALL enemies for ${90 + 9 * r}% damage.`,
+    mult: r => 0.9 + 0.09 * r, cost: () => 16, cd: 3, aoe: true },
   { id: 'w_aoe2', cat: 'aoe2', name: 'Earthquake', icon: '🌋', minLvl: 12, req: 'w_aoe1',
-    desc: r => `Shatter the ground: ${160 + 32 * r}% damage to ALL enemies.`,
-    mult: r => 1.6 + 0.32 * r, cost: () => 32, cd: 5, aoe: true },
+    desc: r => `Shatter the ground: ${160 + 16 * r}% damage to ALL enemies.`,
+    mult: r => 1.6 + 0.16 * r, cost: () => 32, cd: 5, aoe: true },
   { id: 'w_heal', cat: 'heal', name: 'Second Wind', icon: '💚', minLvl: 3,
-    desc: r => `Recover ${14 + 5 * r}% of Max HP.`,
-    healPct: r => 0.14 + 0.05 * r, cost: () => 14, cd: 4 },
+    desc: r => `Recover ${14 + 2.5 * r}% of Max HP.`,
+    healPct: r => 0.14 + 0.025 * r, cost: () => 14, cd: 4 },
   { id: 'w_buff', cat: 'buff', name: 'Battle Shout', icon: '📯', minLvl: 4,
-    desc: r => `+${10 + 6 * r}% damage and +${2 * r} Strength for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.10 + 0.06 * r, str: 2 * r, rounds: 5 }), cost: () => 15, cd: 6 },
+    desc: r => `+${10 + 3 * r}% damage and +${1 * r} Strength for 5 rounds.`,
+    buff: r => ({ dmgPct: 0.10 + 0.03 * r, str: 1 * r, rounds: 5 }), cost: () => 15, cd: 6 },
   { id: 'w_debuff', cat: 'debuff', name: 'Intimidate', icon: '😤', minLvl: 6,
-    desc: r => `Enemies deal ${10 + 5 * r}% less damage and lose ${4 * r}% resistances for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.10 + 0.05 * r, resDown: 4 * r, rounds: 4 }), cost: () => 12, cd: 5 },
+    desc: r => `Enemies deal ${10 + 2.5 * r}% less damage and lose ${2 * r}% resistances for 4 rounds.`,
+    debuff: r => ({ dmgDown: 0.10 + 0.025 * r, resDown: 2 * r, rounds: 4 }), cost: () => 12, cd: 5 },
   { id: 'w_ult', cat: 'ult', name: 'Berserk', icon: '🔥', minLvl: 15,
-    desc: r => `ULTIMATE: +${25 + 12 * r}% damage and attack twice per round for 6 rounds.`,
-    buff: r => ({ dmgPct: 0.25 + 0.12 * r, extraHit: 1, rounds: 6 }), cost: () => 40, cd: 10 },
+    desc: r => `ULTIMATE: +${25 + 6 * r}% damage and attack twice per round for 6 rounds.`,
+    buff: r => ({ dmgPct: 0.25 + 0.06 * r, extraHit: 1, rounds: 6 }), cost: () => 40, cd: 10 },
   { id: 'w_ult2', cat: 'ult2', name: 'Avatar of War', icon: '👹', minLvl: 25, req: 'w_ult',
-    desc: r => `ULTIMATE: Become war itself — ${380 + 80 * r}% damage to ALL enemies, and +${15 + 5 * r}% damage for 4 rounds.`,
-    mult: r => 3.8 + 0.8 * r, aoe: true, buff: r => ({ dmgPct: 0.15 + 0.05 * r, rounds: 4 }), cost: () => 60, cd: 12 },
+    desc: r => `ULTIMATE: Become war itself — ${380 + 40 * r}% damage to ALL enemies, and +${15 + 2.5 * r}% damage for 4 rounds.`,
+    mult: r => 3.8 + 0.4 * r, aoe: true, buff: r => ({ dmgPct: 0.15 + 0.025 * r, rounds: 4 }), cost: () => 60, cd: 12 },
 ]),
 rogue: mkSkills([
   { id: 'r_basic', cat: 'basic', name: 'Quick Stab', icon: '🗡️', minLvl: 1,
-    desc: r => `Free weapon attack for ${100 + 6 * r}% damage. Costs nothing.`,
-    mult: r => 1.0 + 0.06 * r, cost: () => 0, cd: 0 },
+    desc: r => `Free weapon attack for ${100 + 3 * r}% damage. Costs nothing.`,
+    mult: r => 1.0 + 0.03 * r, cost: () => 0, cd: 0 },
   { id: 'r_pass1', cat: 'passive', name: 'Nimble', icon: '🪶', minLvl: 2,
-    desc: r => `Passive: +${2 * r}% Evasion, +${3 * r} Speed, +${2 * r}% damage.`,
-    passive: r => ({ evasion: 2 * r, speed: 3 * r, dmgPct: 0.02 * r }) },
+    desc: r => `Passive: +${1 * r}% Evasion, +${1.5 * r} Speed, +${1 * r}% damage.`,
+    passive: r => ({ evasion: 1 * r, speed: 1.5 * r, dmgPct: 0.01 * r }) },
   { id: 'r_pass2', cat: 'passive2', name: 'Shadow Dance', icon: '🌑', minLvl: 10, req: 'r_pass1',
-    desc: r => `Passive: +${2 * r}% Evasion, +${4 * r}% damage, +${(0.4 * r).toFixed(1)} HP Regen.`,
-    passive: r => ({ evasion: 2 * r, dmgPct: 0.04 * r, hpRegen: 0.4 * r }) },
+    desc: r => `Passive: +${1 * r}% Evasion, +${2 * r}% damage, +${(0.2 * r).toFixed(1)} HP Regen.`,
+    passive: r => ({ evasion: 1 * r, dmgPct: 0.02 * r, hpRegen: 0.2 * r }) },
   { id: 'r_atk1', cat: 'attack', name: 'Backstab', icon: '🔪', minLvl: 2,
-    desc: r => `Strike a vital spot for ${150 + 32 * r}% damage.`,
-    mult: r => 1.5 + 0.32 * r, cost: () => 10, cd: 2 },
+    desc: r => `Strike a vital spot for ${150 + 16 * r}% damage.`,
+    mult: r => 1.5 + 0.16 * r, cost: () => 10, cd: 2 },
   { id: 'r_atk2', cat: 'attack2', name: 'Eviscerate', icon: '🩸', minLvl: 8, req: 'r_atk1',
-    desc: r => `${260 + 52 * r}% damage — ignores half the enemy's physical resistance.`,
-    mult: r => 2.6 + 0.52 * r, cost: () => 22, cd: 4, pierce: 0.5 },
+    desc: r => `${260 + 26 * r}% damage — ignores half the enemy's physical resistance.`,
+    mult: r => 2.6 + 0.26 * r, cost: () => 22, cd: 4, pierce: 0.5 },
   { id: 'r_aoe1', cat: 'aoe', name: 'Fan of Knives', icon: '🎯', minLvl: 5,
-    desc: r => `Throw blades at ALL enemies for ${85 + 18 * r}% damage.`,
-    mult: r => 0.85 + 0.18 * r, cost: () => 16, cd: 3, aoe: true },
+    desc: r => `Throw blades at ALL enemies for ${85 + 9 * r}% damage.`,
+    mult: r => 0.85 + 0.09 * r, cost: () => 16, cd: 3, aoe: true },
   { id: 'r_aoe2', cat: 'aoe2', name: 'Blade Storm', icon: '🌪️', minLvl: 12, req: 'r_aoe1',
-    desc: r => `A whirl of steel: ${155 + 32 * r}% damage to ALL enemies.`,
-    mult: r => 1.55 + 0.32 * r, cost: () => 32, cd: 5, aoe: true },
+    desc: r => `A whirl of steel: ${155 + 16 * r}% damage to ALL enemies.`,
+    mult: r => 1.55 + 0.16 * r, cost: () => 32, cd: 5, aoe: true },
   { id: 'r_heal', cat: 'heal', name: 'Adrenaline Rush', icon: '💚', minLvl: 3,
-    desc: r => `Surge of vigor: recover ${13 + 5 * r}% of Max HP.`,
-    healPct: r => 0.13 + 0.05 * r, cost: () => 14, cd: 4 },
+    desc: r => `Surge of vigor: recover ${13 + 2.5 * r}% of Max HP.`,
+    healPct: r => 0.13 + 0.025 * r, cost: () => 14, cd: 4 },
   { id: 'r_buff', cat: 'buff', name: 'Deadly Focus', icon: '👁️', minLvl: 4,
-    desc: r => `+${12 + 6 * r}% damage and +${2 * r} Dexterity for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.12 + 0.06 * r, dex: 2 * r, rounds: 5 }), cost: () => 15, cd: 6 },
+    desc: r => `+${12 + 3 * r}% damage and +${1 * r} Dexterity for 5 rounds.`,
+    buff: r => ({ dmgPct: 0.12 + 0.03 * r, dex: 1 * r, rounds: 5 }), cost: () => 15, cd: 6 },
   { id: 'r_debuff', cat: 'debuff', name: 'Expose Weakness', icon: '🎯', minLvl: 6,
-    desc: r => `Enemies lose ${5 * r}% resistances and deal ${8 + 4 * r}% less damage for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.08 + 0.04 * r, resDown: 5 * r, rounds: 4 }), cost: () => 12, cd: 5 },
+    desc: r => `Enemies lose ${2.5 * r}% resistances and deal ${8 + 2 * r}% less damage for 4 rounds.`,
+    debuff: r => ({ dmgDown: 0.08 + 0.02 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 12, cd: 5 },
   { id: 'r_ult', cat: 'ult', name: 'Death Mark', icon: '💀', minLvl: 15,
-    desc: r => `ULTIMATE: Mark all enemies for death — ${300 + 60 * r}% damage and they lose ${6 * r}% resistances for 4 rounds.`,
-    mult: r => 3.0 + 0.6 * r, aoe: true, debuff: r => ({ resDown: 6 * r, dmgDown: 0, rounds: 4 }), cost: () => 40, cd: 10 },
+    desc: r => `ULTIMATE: Mark all enemies for death — ${300 + 30 * r}% damage and they lose ${3 * r}% resistances for 4 rounds.`,
+    mult: r => 3.0 + 0.3 * r, aoe: true, debuff: r => ({ resDown: 3 * r, dmgDown: 0, rounds: 4 }), cost: () => 40, cd: 10 },
   { id: 'r_ult2', cat: 'ult2', name: 'Thousand Cuts', icon: '⚔️', minLvl: 25, req: 'r_ult',
-    desc: r => `ULTIMATE: ${420 + 85 * r}% damage to ALL enemies and attack twice per round for 4 rounds.`,
-    mult: r => 4.2 + 0.85 * r, aoe: true, buff: r => ({ extraHit: 1, rounds: 4 }), cost: () => 60, cd: 12 },
+    desc: r => `ULTIMATE: ${420 + 42.5 * r}% damage to ALL enemies and attack twice per round for 4 rounds.`,
+    mult: r => 4.2 + 0.425 * r, aoe: true, buff: r => ({ extraHit: 1, rounds: 4 }), cost: () => 60, cd: 12 },
 ]),
 mage: mkSkills([
   { id: 'm_basic', cat: 'basic', name: 'Arcane Bolt', icon: '✨', minLvl: 1,
-    desc: r => `Free magic attack for ${100 + 7 * r}% damage. Costs nothing.`,
-    mult: r => 1.0 + 0.07 * r, cost: () => 0, cd: 0, magic: true },
+    desc: r => `Free magic attack for ${100 + 3.5 * r}% damage. Costs nothing.`,
+    mult: r => 1.0 + 0.035 * r, cost: () => 0, cd: 0, magic: true },
   { id: 'm_pass1', cat: 'passive', name: 'Arcane Mind', icon: '🧠', minLvl: 2,
-    desc: r => `Passive: +${8 * r}% Max Mana, +${(0.8 * r).toFixed(1)} Mana Regen, +${2 * r}% damage.`,
-    passive: r => ({ manaPct: 0.08 * r, manaRegen: 0.8 * r, dmgPct: 0.02 * r }) },
+    desc: r => `Passive: +${4 * r}% Max Mana, +${(0.4 * r).toFixed(1)} Mana Regen, +${1 * r}% damage.`,
+    passive: r => ({ manaPct: 0.04 * r, manaRegen: 0.4 * r, dmgPct: 0.01 * r }) },
   { id: 'm_pass2', cat: 'passive2', name: 'Archmage', icon: '🌟', minLvl: 10, req: 'm_pass1',
-    desc: r => `Passive: +${5 * r}% damage, +${3 * r}% Max HP, +${2 * r}% all resistances.`,
-    passive: r => ({ dmgPct: 0.05 * r, hpPct: 0.03 * r, resAll: 2 * r }) },
+    desc: r => `Passive: +${2.5 * r}% damage, +${1.5 * r}% Max HP, +${1 * r}% all resistances.`,
+    passive: r => ({ dmgPct: 0.025 * r, hpPct: 0.015 * r, resAll: 1 * r }) },
   { id: 'm_atk1', cat: 'attack', name: 'Fireball', icon: '🔥', minLvl: 2,
-    desc: r => `Hurl fire for ${160 + 34 * r}% damage.`,
-    mult: r => 1.6 + 0.34 * r, cost: () => 12, cd: 2, magic: true },
+    desc: r => `Hurl fire for ${160 + 17 * r}% damage.`,
+    mult: r => 1.6 + 0.17 * r, cost: () => 12, cd: 2, magic: true },
   { id: 'm_atk2', cat: 'attack2', name: 'Pyroblast', icon: '☄️', minLvl: 8, req: 'm_atk1',
-    desc: r => `${280 + 55 * r}% damage — ignores half the enemy's magic resistance.`,
-    mult: r => 2.8 + 0.55 * r, cost: () => 26, cd: 4, magic: true, pierce: 0.5 },
+    desc: r => `${280 + 27.5 * r}% damage — ignores half the enemy's magic resistance.`,
+    mult: r => 2.8 + 0.275 * r, cost: () => 26, cd: 4, magic: true, pierce: 0.5 },
   { id: 'm_aoe1', cat: 'aoe', name: 'Frost Nova', icon: '❄️', minLvl: 5,
-    desc: r => `Freeze ALL enemies for ${95 + 20 * r}% damage.`,
-    mult: r => 0.95 + 0.2 * r, cost: () => 18, cd: 3, aoe: true, magic: true },
+    desc: r => `Freeze ALL enemies for ${95 + 10 * r}% damage.`,
+    mult: r => 0.95 + 0.1 * r, cost: () => 18, cd: 3, aoe: true, magic: true },
   { id: 'm_aoe2', cat: 'aoe2', name: 'Meteor Storm', icon: '🌠', minLvl: 12, req: 'm_aoe1',
-    desc: r => `Rain destruction: ${175 + 36 * r}% damage to ALL enemies.`,
-    mult: r => 1.75 + 0.36 * r, cost: () => 36, cd: 5, aoe: true, magic: true },
+    desc: r => `Rain destruction: ${175 + 18 * r}% damage to ALL enemies.`,
+    mult: r => 1.75 + 0.18 * r, cost: () => 36, cd: 5, aoe: true, magic: true },
   { id: 'm_heal', cat: 'heal', name: 'Healing Light', icon: '💚', minLvl: 3,
-    desc: r => `Mend wounds: recover ${16 + 6 * r}% of Max HP.`,
-    healPct: r => 0.16 + 0.06 * r, cost: () => 16, cd: 4 },
+    desc: r => `Mend wounds: recover ${16 + 3 * r}% of Max HP.`,
+    healPct: r => 0.16 + 0.03 * r, cost: () => 16, cd: 4 },
   { id: 'm_buff', cat: 'buff', name: 'Arcane Power', icon: '🔮', minLvl: 4,
-    desc: r => `+${14 + 7 * r}% damage and +${2 * r} Intelligence for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.14 + 0.07 * r, int: 2 * r, rounds: 5 }), cost: () => 18, cd: 6 },
+    desc: r => `+${14 + 3.5 * r}% damage and +${1 * r} Intelligence for 5 rounds.`,
+    buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, rounds: 5 }), cost: () => 18, cd: 6 },
   { id: 'm_debuff', cat: 'debuff', name: 'Curse of Weakness', icon: '🕯️', minLvl: 6,
-    desc: r => `Enemies deal ${12 + 5 * r}% less damage and lose ${5 * r}% resistances for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.12 + 0.05 * r, resDown: 5 * r, rounds: 4 }), cost: () => 14, cd: 5 },
+    desc: r => `Enemies deal ${12 + 2.5 * r}% less damage and lose ${2.5 * r}% resistances for 4 rounds.`,
+    debuff: r => ({ dmgDown: 0.12 + 0.025 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 14, cd: 5 },
   { id: 'm_ult', cat: 'ult', name: 'Elemental Fury', icon: '🌩️', minLvl: 15,
-    desc: r => `ULTIMATE: ${340 + 65 * r}% damage to ALL enemies and +${20 + 8 * r}% damage for 4 rounds.`,
-    mult: r => 3.4 + 0.65 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.08 * r, rounds: 4 }), cost: () => 45, cd: 10 },
+    desc: r => `ULTIMATE: ${340 + 32.5 * r}% damage to ALL enemies and +${20 + 4 * r}% damage for 4 rounds.`,
+    mult: r => 3.4 + 0.325 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.04 * r, rounds: 4 }), cost: () => 45, cd: 10 },
   { id: 'm_ult2', cat: 'ult2', name: 'Apocalypse', icon: '☀️', minLvl: 25, req: 'm_ult',
-    desc: r => `ULTIMATE: ${460 + 90 * r}% damage to ALL enemies, ignoring half their magic resistance.`,
-    mult: r => 4.6 + 0.9 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 65, cd: 12 },
+    desc: r => `ULTIMATE: ${460 + 45 * r}% damage to ALL enemies, ignoring half their magic resistance.`,
+    mult: r => 4.6 + 0.45 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 65, cd: 12 },
 ]),
 };
 
@@ -1777,32 +1781,46 @@ DATA.JEWELRY_BASES = {
 // Magnitude stats (HP, mana, damage, armor, regen) grow exponentially
 // with item level (+25%/level) to match monster scaling; percentage
 // and capped stats stay on gentle linear growth.
+// slots: an allowlist of non-jewelry slots this affix may roll on.
+// Jewelry (ring/amulet/cloak/belt) always bypasses `slots` AND
+// `weaponOnly` — "Jewelry can get everything" — see rollAffixes' pool
+// filter (game.js) and isJewelrySlot.
 DATA.AFFIXES = [
   { id: 'str', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Strength` },
   { id: 'dex', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Dexterity` },
   { id: 'int', w: 10, roll: i => 1 + Math.floor(i / 8) + rint(0, 2), fmt: v => `+${v} Intelligence` },
+  // All Stats: rare bonus, slightly gentler per-stat than a dedicated
+  // str/dex/int roll since it grants all three at once.
+  { id: 'allStats', w: 3, minRarity: 'rare', roll: i => 1 + Math.floor(i / 10) + rint(0, 2), fmt: v => `+${v} to All Stats` },
   { id: 'hp', w: 10, roll: i => Math.round((12 + rint(0, 10)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max HP` },
   { id: 'mana', w: 8, roll: i => Math.round((8 + rint(0, 6)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max Mana` },
-  { id: 'speed', w: 8, roll: i => 2 + Math.floor(i / 5) + rint(0, 3), fmt: v => `+${v} Speed` },
+  // Speed: gloves & boots (+jewelry) — the "mobility" slots.
+  { id: 'speed', w: 8, slots: ['gloves', 'boots'], roll: i => 2 + Math.floor(i / 5) + rint(0, 3), fmt: v => `+${v} Speed` },
   { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} HP Regen` },
   { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Mana Regen` },
-  { id: 'evasion', w: 6, roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
-  // dmgFlat/dmgPct: gated to the four slots that make thematic sense as
-  // "weapon damage" carriers. dmgFlat rides a linear scale (dmgFlatScale)
-  // instead of the exponential dmgScale — that curve was producing
-  // +800ish rolls by ilvl 10; linear caps it around +50 at that level.
-  { id: 'dmgFlat', w: 10, slots: ['weapon', 'gloves', 'ring', 'amulet'], roll: i => Math.round((2 + rint(0, 3)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
-  { id: 'dmgPct', w: 8, slots: ['weapon', 'gloves', 'ring', 'amulet'], roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
-  // Armor affix: halved output vs its old bigScale-only roll.
-  { id: 'armor', w: 9, roll: i => Math.round((3 + rint(0, 3)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Armor` },
-  { id: 'dr', w: 4, roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
-  { id: 'resPhys', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Physical Resistance` },
-  { id: 'resMagic', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Magic Resistance` },
-  { id: 'resPoison', w: 6, roll: i => 3 + Math.floor(i / 8) + rint(0, 4), fmt: v => `+${v}% Poison Resistance` },
-  { id: 'enemyResDown', w: 3, roll: i => 2 + Math.floor(i / 12) + rint(0, 3), fmt: v => `Enemies lose ${v}% Resistances` },
-  { id: 'skill', w: 4, roll: () => 1, fmt: (v, x) => `+${v} to ${x || 'a skill'}` },   // extra: skill id
+  // Evasion: gloves & boots (+jewelry) — same mobility grouping as Speed.
+  { id: 'evasion', w: 6, slots: ['gloves', 'boots'], roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
+  // dmgFlat/dmgPct: weapon/gloves/armor (+jewelry) — "damage bonuses for
+  // weapons, gloves, armor" per direct request. dmgFlat rides a linear
+  // scale (dmgFlatScale) instead of the exponential dmgScale — that curve
+  // was producing +800ish rolls by ilvl 10; linear caps it around +50.
+  { id: 'dmgFlat', w: 10, slots: ['weapon', 'gloves', 'armor'], roll: i => Math.round((2 + rint(0, 3)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Weapon Damage` },
+  { id: 'dmgPct', w: 8, slots: ['weapon', 'gloves', 'armor'], roll: i => 3 + Math.floor(i / 6) + rint(0, 4), fmt: v => `+${v}% Weapon Damage` },
+  // Armor: any armor-wearing slot (+jewelry), not weapon.
+  { id: 'armor', w: 9, slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => Math.round((3 + rint(0, 3)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Armor` },
+  // Damage Reduction: armor only (+jewelry) per direct request.
+  { id: 'dr', w: 4, slots: ['armor'], roll: i => 1 + Math.floor(i / 20) + rint(0, 2), fmt: v => `${v}% Damage Reduction` },
+  // Resistances: bumped up and gated to rare+ per direct request, and
+  // restricted to armor-wearing slots (+jewelry), not weapon.
+  { id: 'resPhys', w: 6, minRarity: 'rare', slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => 6 + Math.floor(i / 5) + rint(0, 6), fmt: v => `+${v}% Physical Resistance` },
+  { id: 'resMagic', w: 6, minRarity: 'rare', slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => 6 + Math.floor(i / 5) + rint(0, 6), fmt: v => `+${v}% Magic Resistance` },
+  { id: 'resPoison', w: 6, minRarity: 'rare', slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'], roll: i => 6 + Math.floor(i / 5) + rint(0, 6), fmt: v => `+${v}% Poison Resistance` },
+  // Enemy Resist Shred: weapon/gloves (+jewelry) — an offense-side stat.
+  { id: 'enemyResDown', w: 3, slots: ['weapon', 'gloves'], roll: i => 2 + Math.floor(i / 12) + rint(0, 3), fmt: v => `Enemies lose ${v}% Resistances` },
+  // Skill bonuses: Helm/Armor/Weapon (+jewelry) per direct request.
+  { id: 'skill', w: 4, slots: ['helmet', 'armor', 'weapon'], roll: () => 1, fmt: (v, x) => `+${v} to ${x || 'a skill'}` },   // extra: skill id
   // Capped at +3 — scales in slowly with item level rather than always rolling +1.
-  { id: 'allSkills', w: 1, roll: i => Math.min(3, 1 + Math.floor(i / 30)), fmt: v => `+${v} to All Skills` },   // very rare — same weight as Vampiric
+  { id: 'allSkills', w: 1, slots: ['helmet', 'armor', 'weapon'], roll: i => Math.min(3, 1 + Math.floor(i / 30)), fmt: v => `+${v} to All Skills` },   // very rare — same weight as Vampiric
   // Vampiric: very rare, epic+ weapons only (see rollAffixes' eligibility filter).
   // Scales 1-10% life steal with item level.
   { id: 'lifesteal', w: 1, weaponOnly: true, minRarity: 'epic', roll: i => Math.min(10, 1 + Math.floor(i / 11) + rint(0, 1)), fmt: v => `+${v}% Life Steal` },
@@ -1818,6 +1836,33 @@ DATA.AFFIXES = [
   { id: 'slowWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
     roll: () => ({ chance: rint(10, 20), pct: rint(20, 50), rounds: rint(1, 5) }),
     fmt: v => `${v.chance}% chance to Slow enemy by ${v.pct}% for ${v.rounds} Rounds` },
+  // Pain Reflection: rare, defensive slots (+jewelry) — reflects a % of
+  // incoming damage back at the attacker.
+  { id: 'painReflect', w: 3, minRarity: 'rare', slots: ['helmet', 'armor', 'gloves', 'pants', 'boots', 'offhand'],
+    roll: i => 5 + Math.floor(i / 10) + rint(0, 5), fmt: v => `Reflects ${v}% of incoming damage` },
+  // Execute: rare, weapon-only (+jewelry) — bonus damage vs. low-HP enemies.
+  { id: 'execute', w: 3, weaponOnly: true, minRarity: 'rare',
+    roll: i => 10 + Math.floor(i / 8) + rint(0, 10), fmt: v => `+${v}% damage to enemies below 25% HP` },
+  // Gold Find / Magic Find: rare, jewelry-exclusive (empty slots array —
+  // no non-jewelry slot qualifies, but the jewelry bypass still applies).
+  { id: 'goldFind', w: 3, minRarity: 'rare', slots: [], roll: i => 10 + Math.floor(i / 6) + rint(0, 10), fmt: v => `+${v}% Gold Find` },
+  { id: 'magicFind', w: 3, minRarity: 'rare', slots: [], roll: i => 5 + Math.floor(i / 8) + rint(0, 5), fmt: v => `+${v}% Magic Find` },
+  // Critical Strike / Double Strike: ultra-rare, weapon-only (+jewelry),
+  // legendary+ only — same prestige tier as Life/Mana Steal.
+  { id: 'critStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
+    roll: i => Math.min(30, 5 + Math.floor(i / 10) + rint(0, 5)), fmt: v => `${v}% chance to deal +100% damage` },
+  { id: 'doubleStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
+    roll: i => Math.min(20, 3 + Math.floor(i / 12) + rint(0, 4)), fmt: v => `${v}% chance to strike again immediately` },
+  // Spellstrike / Blessing: ultra-rare, weapon-only (+jewelry),
+  // legendary+. On landing a hit, a chance to also cast a random skill
+  // from the player's own class — independent of learned rank, mana, or
+  // cooldown (it's the item casting, not the player) — always resolved
+  // at a fixed low rank (1), so it's a minor proc, not a mana-free copy
+  // of the player's actual build.
+  { id: 'procOffense', w: 1, weaponOnly: true, minRarity: 'legendary',
+    roll: () => rint(5, 10), fmt: v => `${v}% chance to also cast a random attack/debuff spell on hit` },
+  { id: 'procSupport', w: 1, weaponOnly: true, minRarity: 'legendary',
+    roll: () => rint(5, 10), fmt: v => `${v}% chance to also cast a random heal/buff spell on hit` },
 ];
 
 // Name parts keyed by affix id — items and runes generate their
@@ -1845,6 +1890,15 @@ DATA.NAME_PARTS = {
   manasteal:    { pre: ['Draining', 'Siphoning', 'Mindsteal', 'Leeching'], suf: ['of Mana Steal', 'of the Siphon', 'of the Drain', 'of Stolen Thought'] },
   poisonWeapon: { pre: ['Venomous', 'Toxic', 'Blighted', 'Vile'], suf: ['of Poison', 'of the Serpent', 'of Venom', 'of Blight'] },
   slowWeapon:   { pre: ['Numbing', 'Chilling', 'Binding', 'Leaden'], suf: ['of Slowing', 'of Fetters', 'of the Snare', 'of Chains'] },
+  allStats:     { pre: ["Champion's", 'Complete', 'Balanced', 'Wholesome'], suf: ['of Completion', 'of the Champion', 'of Balance', 'of All Virtues'] },
+  painReflect:  { pre: ['Thorned', 'Barbed', 'Spiked', 'Vengeful'], suf: ['of Thorns', 'of Retribution', 'of Spikes', 'of Vengeance'] },
+  execute:      { pre: ['Merciless', 'Grim', "Reaper's", 'Finishing'], suf: ['of Execution', 'of the Reaper', 'of Finality', 'of the Death Blow'] },
+  goldFind:     { pre: ["Miser's", 'Golden', 'Greedy', "Merchant's"], suf: ['of Gold', 'of Fortune', 'of the Hoard', 'of the Merchant'] },
+  magicFind:    { pre: ['Lucky', 'Fated', "Fortune's", 'Charmed'], suf: ['of Luck', 'of Fate', 'of the Prospector', 'of Discovery'] },
+  critStrike:   { pre: ['Precise', 'Deadly', 'Piercing', 'Ruthless'], suf: ['of Precision', 'of the Killshot', 'of Ruthlessness', 'of the Vital Point'] },
+  doubleStrike: { pre: ['Twinned', 'Flickering', 'Relentless', 'Rapid'], suf: ['of Twin Blows', 'of the Flurry', 'of Relentlessness', 'of Rapid Strikes'] },
+  procOffense:  { pre: ['Arcing', 'Volatile', 'Sparking', 'Wild'], suf: ['of Spellstrike', 'of the Spark', 'of Wild Magic', 'of the Outburst'] },
+  procSupport:  { pre: ['Blessed', 'Radiant', 'Serene', 'Hallowed'], suf: ['of Blessing', 'of Grace', 'of the Ward', 'of Serenity'] },
 };
 // fallback if an item somehow has no affixes to name itself after
 DATA.FALLBACK_PRE = ['Curious', 'Weathered', 'Polished', 'Odd'];
@@ -1909,6 +1963,15 @@ DATA.AFFIX_ADJ = {
   manasteal: ['Draining', 'Siphoning', 'Leeching'],
   poisonWeapon: ['Venomous', 'Toxic', 'Vile'],
   slowWeapon: ['Numbing', 'Chilling', 'Binding'],
+  allStats: ['Complete', 'Balanced', 'Wholesome'],
+  painReflect: ['Thorned', 'Barbed', 'Vengeful'],
+  execute: ['Merciless', 'Grim', 'Finishing'],
+  goldFind: ['Golden', 'Greedy', 'Lucrative'],
+  magicFind: ['Lucky', 'Fated', 'Charmed'],
+  critStrike: ['Precise', 'Deadly', 'Ruthless'],
+  doubleStrike: ['Twinned', 'Flickering', 'Rapid'],
+  procOffense: ['Arcing', 'Volatile', 'Wild'],
+  procSupport: ['Blessed', 'Radiant', 'Hallowed'],
 };
 
 // Heroic epithets per affix — the first word of a legendary weapon name.
@@ -1925,6 +1988,15 @@ DATA.AFFIX_HEROIC = {
   manasteal: ["Mindeater's", "Soulsiphon's"],
   poisonWeapon: ["Plaguebringer's", "Venomlord's"],
   slowWeapon: ["Frostbinder's", "Chainbreaker's"],
+  allStats: ["Ascendant's", "Paragon's"],
+  painReflect: ["Retributor's", "Thornlord's"],
+  execute: ["Reaper's", "Deathbringer's"],
+  goldFind: ["Midas'", "Hoarder's"],
+  magicFind: ["Fortune's", "Fated One's"],
+  critStrike: ["Assassin's", "Executioner's"],
+  doubleStrike: ["Whirlwind's", "Blur's"],
+  procOffense: ["Stormcaller's", "Chaosweaver's"],
+  procSupport: ["Sainted", "Seraph's"],
 };
 
 // helper available to data + game
