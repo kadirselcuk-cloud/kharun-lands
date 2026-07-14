@@ -143,6 +143,41 @@ DATA.CLASSES = {
   },
 };
 
+// ------------------------------------------------------------
+// Advanced Classes — at level 25 the player picks one of two paths per
+// base class; at level 50 that path automatically evolves to its tier-3
+// name (see className() in game.js — tier-3 is a pure function of
+// (advancedClass, level), no extra saved field). Each path unlocks 4 new
+// skills (see DATA.SKILLS' path-tagged entries): a level-25 active +
+// passive, and a level-50 passive + Ultimate.
+// ------------------------------------------------------------
+DATA.ADVANCED_PATHS = {
+  warrior: [
+    { id: 'knight', tier2Name: 'Knight', tier3Name: 'Paladin', icon: '🛡️',
+      focus: 'Protection & Armor',
+      desc: 'Sworn to protect: heavier armor, damage reduction, and self-healing wards make you almost impossible to bring down.' },
+    { id: 'mercenary', tier2Name: 'Mercenary', tier3Name: 'Warlord', icon: '⚔️',
+      focus: 'Damage & Disability',
+      desc: 'A brutal battlefield controller: crippling strikes, crowd control, and rising damage against wounded prey.' },
+  ],
+  rogue: [
+    { id: 'assassin', tier2Name: 'Assassin', tier3Name: 'Ninja', icon: '🥷',
+      focus: 'Dagger, Exotic Weapons & Poison',
+      desc: 'A master of exotic blades and toxins: every strike can crit, double, and poison whatever it touches.' },
+    { id: 'hunter', tier2Name: 'Hunter', tier3Name: 'Sniper', icon: '🏹',
+      focus: 'Bows, Crossbows & Ranged Damage',
+      desc: 'A precision marksman: devastating critical shots from range, with the speed and evasion to stay untouched.' },
+  ],
+  mage: [
+    { id: 'sorcerer', tier2Name: 'Sorcerer', tier3Name: 'Archmage', icon: '☄️',
+      focus: 'Magic Damage',
+      desc: 'Raw arcane power distilled into ever-larger spells that shred through magic resistance.' },
+    { id: 'radiant', tier2Name: 'Radiant', tier3Name: 'Archon', icon: '🌟',
+      focus: 'Protection, Healing, Crowd Control & AOE',
+      desc: 'A holy caster: radiant wards, weakening light, and area magic that protects as much as it destroys.' },
+  ],
+};
+
 // Opening-screen prologue, shown once before the hero is chosen.
 // Paged: each page is one context-block of the story, stepped through
 // with a Continue button. The Journal's Prologue page shows all pages.
@@ -1581,6 +1616,34 @@ warrior: mkSkills([
   { id: 'w_ult2', cat: 'ult2', name: 'Avatar of War', icon: '👹', minLvl: 25, req: 'w_ult',
     desc: r => `ULTIMATE: Become war itself — ${380 + 40 * r}% damage to ALL enemies, and +${15 + 2.5 * r}% damage for 4 rounds.`,
     mult: r => 3.8 + 0.4 * r, aoe: true, buff: r => ({ dmgPct: 0.15 + 0.025 * r, rounds: 4 }), cost: () => 60, cd: 12 },
+
+  // ===== Advanced Class — Knight -> Paladin (Protection & Armor) =====
+  { id: 'w_p_knight_active', cat: 'buff', path: 'knight', name: 'Divine Protection', icon: '🛡️✨', minLvl: 25, req: 'w_buff',
+    desc: r => `Channel divine protection: +${Math.round((0.03 + 0.02 * r) * 100)}% Damage Reduction, +${2 * r}% all resistances, +${(0.3 * r).toFixed(1)} HP Regen for 6 rounds.`,
+    buff: r => ({ dr: 0.03 + 0.02 * r, resAll: 2 * r, hpRegen: 0.3 * r, rounds: 6 }), cost: () => 20, cd: 6 },
+  { id: 'w_p_knight_pass1', cat: 'passive3', path: 'knight', name: 'Aegis Training', icon: '⚜️', minLvl: 25,
+    desc: r => `Passive: +${2.5 * r} Armor, +${2 * r}% Damage Reduction, +${3 * r}% Max HP.`,
+    passive: r => ({ armor: 2.5 * r, dr: 0.02 * r, hpPct: 0.03 * r }) },
+  { id: 'w_p_knight_pass2', cat: 'passive4', path: 'knight', name: 'Unbreakable Faith', icon: '🕊️', minLvl: 50, req: 'w_p_knight_pass1',
+    desc: r => `Passive: +${2 * r}% Damage Reduction, reflect ${(1.5 * r).toFixed(1)}% of damage taken back at attackers, +${1.5 * r}% all resistances.`,
+    passive: r => ({ dr: 0.02 * r, painReflect: 1.5 * r, resAll: 1.5 * r }) },
+  { id: 'w_p_knight_ult', cat: 'ult', path: 'knight', name: 'Aegis of the Paladin', icon: '👼', minLvl: 50, req: 'w_ult',
+    desc: r => `ULTIMATE: Smite ALL enemies for ${220 + 22 * r}% damage and shield yourself with +${Math.round((0.05 + 0.03 * r) * 100)}% Damage Reduction for 4 rounds.`,
+    mult: r => 2.2 + 0.22 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.03 * r, rounds: 4 }), cost: () => 45, cd: 11 },
+
+  // ===== Advanced Class — Mercenary -> Warlord (Damage & Disability) =====
+  { id: 'w_p_merc_active', cat: 'debuff', path: 'mercenary', name: 'Crippling Blow', icon: '⛓️💥', minLvl: 25, req: 'w_debuff',
+    desc: r => `Crush a foe for ${180 + 18 * r}% damage, crippling them: -${Math.round((0.15 + 0.025 * r) * 100)}% damage dealt and -${3 * r}% resistances for 5 rounds.`,
+    mult: r => 1.8 + 0.18 * r, debuff: r => ({ dmgDown: 0.15 + 0.025 * r, resDown: 3 * r, rounds: 5 }), cost: () => 22, cd: 5 },
+  { id: 'w_p_merc_pass1', cat: 'passive3', path: 'mercenary', name: 'Bloodlust', icon: '🩸', minLvl: 25,
+    desc: r => `Passive: +${1.5 * r}% Critical Strike chance (double damage), +${1.5 * r}% damage.`,
+    passive: r => ({ critStrike: 1.5 * r, dmgPct: 0.015 * r }) },
+  { id: 'w_p_merc_pass2', cat: 'passive4', path: 'mercenary', name: 'Warmonger', icon: '⚔️🔥', minLvl: 50, req: 'w_p_merc_pass1',
+    desc: r => `Passive: +${2 * r}% bonus damage against enemies below 25% HP, +${2 * r}% damage.`,
+    passive: r => ({ execute: 2 * r, dmgPct: 0.02 * r }) },
+  { id: 'w_p_merc_ult', cat: 'ult', path: 'mercenary', name: 'Reign of Terror', icon: '💀🌪️', minLvl: 50, req: 'w_ult',
+    desc: r => `ULTIMATE: Terrorize the battlefield for ${250 + 25 * r}% damage to ALL enemies and stun them for 1 round.`,
+    mult: r => 2.5 + 0.25 * r, aoe: true, stun: 1, cost: () => 48, cd: 11 },
 ]),
 rogue: mkSkills([
   { id: 'r_basic', cat: 'basic', name: 'Quick Stab', icon: '🗡️', minLvl: 1,
@@ -1619,6 +1682,34 @@ rogue: mkSkills([
   { id: 'r_ult2', cat: 'ult2', name: 'Thousand Cuts', icon: '⚔️', minLvl: 25, req: 'r_ult',
     desc: r => `ULTIMATE: ${420 + 42.5 * r}% damage to ALL enemies and attack twice per round for 4 rounds.`,
     mult: r => 4.2 + 0.425 * r, aoe: true, buff: r => ({ extraHit: 1, rounds: 4 }), cost: () => 60, cd: 12 },
+
+  // ===== Advanced Class — Assassin -> Ninja (Dagger/Exotic Weapons, Poison) =====
+  { id: 'r_p_assassin_active', cat: 'attack2', path: 'assassin', name: 'Venomous Strike', icon: '🗡️☠️', minLvl: 25, req: 'r_atk2',
+    desc: r => `Strike with venom for ${280 + 28 * r}% damage, poisoning the target for ${3 + r} damage/round for 3 rounds.`,
+    mult: r => 2.8 + 0.28 * r, pierce: 0.5, poisonDot: r => ({ dmg: 3 + r, rounds: 3 }), cost: () => 24, cd: 4 },
+  { id: 'r_p_assassin_pass1', cat: 'passive3', path: 'assassin', name: 'Exotic Mastery', icon: '🔪', minLvl: 25,
+    desc: r => `Passive: +${2 * r}% Critical Strike chance, +${1 * r}% chance to strike twice.`,
+    passive: r => ({ critStrike: 2 * r, doubleStrike: 1 * r }) },
+  { id: 'r_p_assassin_pass2', cat: 'passive4', path: 'assassin', name: 'Toxin Adept', icon: '🧪', minLvl: 50, req: 'r_p_assassin_pass1',
+    desc: r => `Passive: +${(0.5 * r).toFixed(1)}% Lifesteal, +${2 * r}% damage.`,
+    passive: r => ({ lifesteal: 0.5 * r, dmgPct: 0.02 * r }) },
+  { id: 'r_p_assassin_ult', cat: 'ult', path: 'assassin', name: 'Shadow Execution', icon: '🌑🗡️', minLvl: 50, req: 'r_ult',
+    desc: r => `ULTIMATE: Vanish and strike ALL enemies for ${320 + 32 * r}% damage, poisoning them for ${4 + 1.5 * r} damage/round for 4 rounds.`,
+    mult: r => 3.2 + 0.32 * r, aoe: true, poisonDot: r => ({ dmg: 4 + 1.5 * r, rounds: 4 }), cost: () => 50, cd: 11 },
+
+  // ===== Advanced Class — Hunter -> Sniper (Bows/Crossbows, Ranged Damage) =====
+  { id: 'r_p_hunter_active', cat: 'attack2', path: 'hunter', name: 'Kill Shot', icon: '🏹🎯', minLvl: 25, req: 'r_atk2',
+    desc: r => `A precise shot for ${320 + 32 * r}% damage, ignoring 60% of the enemy's resistance.`,
+    mult: r => 3.2 + 0.32 * r, pierce: 0.6, cost: () => 24, cd: 4 },
+  { id: 'r_p_hunter_pass1', cat: 'passive3', path: 'hunter', name: 'Deadeye', icon: '🎯', minLvl: 25,
+    desc: r => `Passive: +${2.5 * r}% Critical Strike chance, +${1 * r} Speed.`,
+    passive: r => ({ critStrike: 2.5 * r, speed: 1 * r }) },
+  { id: 'r_p_hunter_pass2', cat: 'passive4', path: 'hunter', name: "Marksman's Focus", icon: '🏹', minLvl: 50, req: 'r_p_hunter_pass1',
+    desc: r => `Passive: +${3 * r}% damage, +${1 * r}% Evasion.`,
+    passive: r => ({ dmgPct: 0.03 * r, evasion: 1 * r }) },
+  { id: 'r_p_hunter_ult', cat: 'ult', path: 'hunter', name: 'Dead Eye Barrage', icon: '🏹💥', minLvl: 50, req: 'r_ult',
+    desc: r => `ULTIMATE: Unleash a hail of arrows on ALL enemies for ${350 + 35 * r}% damage, ignoring half their resistance.`,
+    mult: r => 3.5 + 0.35 * r, aoe: true, pierce: 0.5, cost: () => 50, cd: 11 },
 ]),
 mage: mkSkills([
   { id: 'm_basic', cat: 'basic', name: 'Arcane Bolt', icon: '✨', minLvl: 1,
@@ -1627,7 +1718,7 @@ mage: mkSkills([
   { id: 'm_pass1', cat: 'passive', name: 'Arcane Mind', icon: '🧠', minLvl: 2,
     desc: r => `Passive: +${6 * r}% Max Mana, +${(0.6 * r).toFixed(1)} Mana Regen, +${1.5 * r}% damage.`,
     passive: r => ({ manaPct: 0.06 * r, manaRegen: 0.6 * r, dmgPct: 0.015 * r }) },
-  { id: 'm_pass2', cat: 'passive2', name: 'Archmage', icon: '🌟', minLvl: 10, req: 'm_pass1',
+  { id: 'm_pass2', cat: 'passive2', name: 'Spellweaver', icon: '🌟', minLvl: 10, req: 'm_pass1',
     desc: r => `Passive: +${3.5 * r}% damage, +${2 * r}% Max HP, +${1.5 * r}% all resistances.`,
     passive: r => ({ dmgPct: 0.035 * r, hpPct: 0.02 * r, resAll: 1.5 * r }) },
   { id: 'm_atk1', cat: 'attack', name: 'Fireball', icon: '🔥', minLvl: 2,
@@ -1657,12 +1748,45 @@ mage: mkSkills([
   { id: 'm_ult2', cat: 'ult2', name: 'Apocalypse', icon: '☀️', minLvl: 25, req: 'm_ult',
     desc: r => `ULTIMATE: ${460 + 45 * r}% damage to ALL enemies, ignoring half their magic resistance.`,
     mult: r => 4.6 + 0.45 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 65, cd: 12 },
+
+  // ===== Advanced Class — Sorcerer -> Archmage (Magic Damage) =====
+  { id: 'm_p_sorcerer_active', cat: 'attack2', path: 'sorcerer', name: 'Disintegrate', icon: '☄️💀', minLvl: 25, req: 'm_atk2', magic: true,
+    desc: r => `Unleash pure arcane force for ${340 + 34 * r}% magic damage, ignoring 60% of the enemy's magic resistance.`,
+    mult: r => 3.4 + 0.34 * r, pierce: 0.6, cost: () => 30, cd: 4 },
+  { id: 'm_p_sorcerer_pass1', cat: 'passive3', path: 'sorcerer', name: 'Spell Mastery', icon: '📖', minLvl: 25,
+    desc: r => `Passive: +${2 * r}% damage, +${3 * r}% Max Mana.`,
+    passive: r => ({ dmgPct: 0.02 * r, manaPct: 0.03 * r }) },
+  { id: 'm_p_sorcerer_pass2', cat: 'passive4', path: 'sorcerer', name: 'Overload', icon: '🌟', minLvl: 50, req: 'm_p_sorcerer_pass1',
+    desc: r => `Passive: +${3 * r}% damage, +${1.5 * r}% Critical Strike chance.`,
+    passive: r => ({ dmgPct: 0.03 * r, critStrike: 1.5 * r }) },
+  { id: 'm_p_sorcerer_ult', cat: 'ult', path: 'sorcerer', name: 'Cataclysm', icon: '🌋✨', minLvl: 50, req: 'm_ult', magic: true,
+    desc: r => `ULTIMATE: Rain pure destruction on ALL enemies for ${380 + 38 * r}% magic damage, ignoring 40% of their resistance.`,
+    mult: r => 3.8 + 0.38 * r, aoe: true, pierce: 0.4, cost: () => 55, cd: 11 },
+
+  // ===== Advanced Class — Radiant -> Archon (Protection, Healing, CC, AOE) =====
+  { id: 'm_p_radiant_active', cat: 'debuff', path: 'radiant', name: 'Radiant Ward', icon: '✨🛡️', minLvl: 25, req: 'm_debuff', magic: true,
+    desc: r => `Radiant light damages ALL enemies for ${160 + 16 * r}% magic damage and weakens them (-${Math.round((0.12 + 0.02 * r) * 100)}% damage, -${2 * r}% resistances) while shielding you with +${Math.round((0.02 + 0.015 * r) * 100)}% Damage Reduction, all for 5 rounds.`,
+    mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: 5 }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: 5 }), cost: () => 26, cd: 5 },
+  { id: 'm_p_radiant_pass1', cat: 'passive3', path: 'radiant', name: 'Sacred Vigil', icon: '🕯️', minLvl: 25,
+    desc: r => `Passive: +${2 * r}% Max HP, +${1 * r}% Damage Reduction, +${(0.3 * r).toFixed(1)} HP Regen.`,
+    passive: r => ({ hpPct: 0.02 * r, dr: 0.01 * r, hpRegen: 0.3 * r }) },
+  { id: 'm_p_radiant_pass2', cat: 'passive4', path: 'radiant', name: 'Divine Radiance', icon: '🌞', minLvl: 50, req: 'm_p_radiant_pass1',
+    desc: r => `Passive: +${2 * r}% damage, +${1.5 * r}% all resistances, +${(0.3 * r).toFixed(1)} Mana Regen.`,
+    passive: r => ({ dmgPct: 0.02 * r, resAll: 1.5 * r, manaRegen: 0.3 * r }) },
+  { id: 'm_p_radiant_ult', cat: 'ult', path: 'radiant', name: 'Radiant Nova', icon: '🌟💥', minLvl: 50, req: 'm_ult', magic: true,
+    desc: r => `ULTIMATE: Unleash a nova of radiant energy on ALL enemies for ${300 + 30 * r}% magic damage and shield yourself with +${Math.round((0.05 + 0.025 * r) * 100)}% Damage Reduction for 5 rounds.`,
+    mult: r => 3.0 + 0.3 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.025 * r, rounds: 5 }), cost: () => 55, cd: 11 },
 ]),
 };
 
-DATA.SKILL_ORDER = ['basic', 'passive', 'passive2', 'attack', 'attack2', 'aoe', 'aoe2', 'heal', 'buff', 'debuff', 'ult', 'ult2'];
+// passive3/passive4 are the Advanced Class path passives (level 25/50) —
+// additive slots, always empty until a path is chosen (DATA.SKILLS[cls] has
+// no entry for them until then, and UI.renderSkills/similar already
+// tolerate a missing cat via .filter(Boolean)).
+DATA.SKILL_ORDER = ['basic', 'passive', 'passive2', 'passive3', 'passive4', 'attack', 'attack2', 'aoe', 'aoe2', 'heal', 'buff', 'debuff', 'ult', 'ult2'];
 DATA.CAT_LABEL = {
   basic: 'Main Attack', passive: 'Passive', passive2: 'Greater Passive',
+  passive3: 'Advanced Passive', passive4: 'Mastery Passive',
   attack: 'Attack', attack2: 'Greater Attack', aoe: 'Area Attack', aoe2: 'Greater Area Attack',
   heal: 'Healing', buff: 'Buff', debuff: 'Debuff', ult: 'Ultimate', ult2: 'Greater Ultimate',
 };

@@ -81,6 +81,8 @@ function newGame(clsId, slotIdx) {
       equip: {},   // slot -> item
       hp: 0, mana: 0, // set after derive
       kills: 0,
+      advancedClass: null,   // path id (e.g. 'knight') chosen at level 25, or null
+      tier3Seen: false,      // guards the one-time level-50 evolution announcement
     },
     gold: 25,
     potions: { hp: 2, mana: 1 },   // drinkable stock — capped by potionCapacity(); used manually in combat
@@ -165,6 +167,8 @@ function loadGame(slotIdx) {
   ensureSettings();
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
+  if (G.char.advancedClass === undefined) G.char.advancedClass = null;
+  if (G.char.tier3Seen === undefined) G.char.tier3Seen = false;
   if (!G.shop || !G.shop.stock) genShopStock();
   // old saves carry quests with a baked-in "reward" object instead of
   // the current "rewardSpec" — those can't be displayed or claimed
@@ -206,6 +210,30 @@ function allAffixesOf(item) {
   const out = [...(item.affixes || [])];
   for (const r of (item.runes || [])) out.push(...r.bonuses);
   return out;
+}
+
+// Picks which skill occupies a given cat slot for the current character.
+// Advanced Class path skills share a cat with the base skill they evolve
+// (e.g. Divine Protection is also cat:'buff', replacing Battle Shout) so
+// every "one skill per cat" site — the skill list, the hotbar, proc pools —
+// can stay a flat per-cat lookup instead of needing a second dimension.
+function classSkillFor(cat) {
+  const c = G.char;
+  const skills = Object.values(DATA.SKILLS[c.cls]);
+  return skills.find(s => s.cat === cat && s.path === c.advancedClass)
+      || skills.find(s => s.cat === cat && !s.path);
+}
+
+// The class name shown throughout the UI: base class until an Advanced
+// Class path is chosen (level 25), that path's tier-2 name from 25-49, and
+// its tier-3 name from level 50 on — tier-3 is a pure function of
+// (advancedClass, level), no extra saved field needed.
+function className(char) {
+  const base = DATA.CLASSES[char.cls];
+  if (!char.advancedClass) return base.name;
+  const path = DATA.ADVANCED_PATHS[char.cls].find(p => p.id === char.advancedClass);
+  if (!path) return base.name;
+  return char.level >= 50 ? path.tier3Name : path.tier2Name;
 }
 
 // buffBonus: optional { str, dex, int } from active combat buffs (e.g. a
@@ -299,6 +327,11 @@ function derive(buffBonus) {
     if (p.dmgPct) d.dmgPct += p.dmgPct;
     if (p.dr) d.dr += p.dr;
     if (p.resAll) { d.res.phys += p.resAll; d.res.magic += p.resAll; d.res.poison += p.resAll; }
+    if (p.critStrike) d.critStrike += p.critStrike;
+    if (p.doubleStrike) d.doubleStrike += p.doubleStrike;
+    if (p.execute) d.execute += p.execute;
+    if (p.painReflect) d.painReflect += p.painReflect;
+    if (p.lifesteal) d.lifesteal += p.lifesteal;
   }
 
   // MAIN STATS drive the important stats. statLevelMult makes each point
@@ -357,16 +390,30 @@ function xpForLevel(lvl) {
   return XP_LEVEL_CACHE[lvl];
 }
 
+// Stat points per level rise in two brackets past the Advanced Class
+// milestones: the base +3/level up to 25, +4/level from 26-50, +5/level
+// from 51 on. Skill points stay a flat +1/level throughout.
+function statPointsForLevel(level) {
+  if (level > 50) return 5;
+  if (level > 25) return 4;
+  return 3;
+}
+
 function gainXp(amount, run) {
   const c = G.char;
   c.xp += amount;
-  let ups = 0;
+  let ups = 0, statGained = 0;
   while (c.xp >= xpForLevel(c.level)) {
     c.xp -= xpForLevel(c.level);
     c.level++; ups++;
-    c.statPoints += 3; c.skillPoints += 1;
+    const sp = statPointsForLevel(c.level);
+    c.statPoints += sp; c.skillPoints += 1;
+    statGained += sp;
   }
-  if (ups && run) run.levelUps += ups;
+  if (ups) {
+    if (run) run.levelUps += ups;
+    log('sys', `🎉 LEVEL UP! You are now level ${c.level} (+${statGained} stat, +${ups} skill point${ups > 1 ? 's' : ''})`);
+  }
   return ups;
 }
 
@@ -378,6 +425,16 @@ function spendStat(stat) {
 
 function canLearn(skill) {
   const c = G.char;
+  // Advanced Class path skills are exclusive to the chosen path; the base
+  // skill they evolve (same cat, no path) becomes locked the moment that
+  // path's replacement exists for this character, whether or not it's
+  // been learned yet — same "banked, but replaced" rule as the Ultimate.
+  if (skill.path) {
+    if (c.advancedClass !== skill.path) return { ok: false, why: 'Wrong Advanced Class path' };
+  } else {
+    const replacement = classSkillFor(skill.cat);
+    if (replacement !== skill) return { ok: false, why: `Replaced by ${replacement.name}` };
+  }
   const cur = c.skills[skill.id] || 0;
   if (cur >= MAX_RANK) return { ok: false, why: 'Max rank' };
   if (c.skillPoints <= 0) return { ok: false, why: 'No skill points' };
@@ -881,9 +938,8 @@ function claimQuestReward() {
   const parts = [];
   if (r.gold) { G.gold += r.gold; parts.push(`🪙 ${r.gold.toLocaleString()}`); }
   if (r.xp) {
-    const ups = gainXp(r.xp);
+    gainXp(r.xp);
     parts.push(`✨ ${r.xp.toLocaleString()} XP`);
-    if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
   }
   if (r.item) {
     const it = makeItem(Math.max(1, q.finalArea || G.area), r.item, G.char.cls);
@@ -1577,6 +1633,11 @@ function playerAct(fight) {
         total += dmg;
         parts.push(dmg > 0 ? `${t.name.split(' — ')[0]} for ${dmg.toLocaleString()}` : `${t.name.split(' — ')[0]} (evaded!)`);
         if (skill.stun && dmg > 0 && t.hp > 0) t.stunned = (t.stunned || 0) + skill.stun;
+        if (skill.poisonDot && dmg > 0 && t.hp > 0) {
+          if (!t.dots) t.dots = {};
+          const pd = skill.poisonDot(r);
+          t.dots.skillPoison = { icon: '☠️', label: 'Poison', dmg: pd.dmg, rounds: pd.rounds };
+        }
       }
       log('act', `${skill.icon} ${skill.name} hits ${parts.join(', ')}`);
       ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${total.toLocaleString()} dmg` };
@@ -1586,7 +1647,9 @@ function playerAct(fight) {
       // not the player) and always resolved at a fixed low rank (1), so
       // it's a minor bonus rather than a free copy of the player's build.
       if (d.procOffense && chance(d.procOffense / 100)) {
-        const opts = Object.values(DATA.SKILLS[c.cls]).filter(s => ['attack', 'attack2', 'aoe', 'aoe2', 'debuff'].includes(s.cat));
+        // classSkillFor (not a flat filter) so a banked/replaced base skill
+        // or the other Advanced Class path's skill can never proc.
+        const opts = ['attack', 'attack2', 'aoe', 'aoe2', 'debuff'].map(classSkillFor).filter(Boolean);
         if (opts.length) {
           const ps = pick(opts);
           const stillAlive = fight.enemies.filter(e => e.hp > 0);
@@ -1605,7 +1668,7 @@ function playerAct(fight) {
         }
       }
       if (d.procSupport && chance(d.procSupport / 100)) {
-        const opts = Object.values(DATA.SKILLS[c.cls]).filter(s => ['heal', 'buff'].includes(s.cat));
+        const opts = ['heal', 'buff'].map(classSkillFor).filter(Boolean);
         if (opts.length) {
           const ps = pick(opts);
           if (ps.healPct) {
@@ -1651,12 +1714,11 @@ function handleKill(e, run) {
   // XP/loot/stats) and must NOT push the kill-count past the exact
   // checkpoints (111th = Epic, 1111th = Legendary) that trigger them.
   if (!e.isEscort) G.progress[ADV.level] = (G.progress[ADV.level] || 0) + 1;
-  const ups = gainXp(e.xp, run);
+  gainXp(e.xp, run);
   run.xp += e.xp;
   log('kill', `☠️ ${e.name} is slain! (+${e.xp} XP)`, { tier: e.tier });
   rollLoot(e, run);
   questEvent('kill_' + e.tier);
-  if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
 }
 
 // ------------------------------------------------------------
@@ -1998,9 +2060,8 @@ function adventureTick() {
     }
     if (e.hp <= 0) {
       dropItem(ADV.level, elfKillRarity(e.elfType), run);
-      const ups = gainXp(e.xp, run); run.xp += e.xp;
+      gainXp(e.xp, run); run.xp += e.xp;
       log('kill', `🧝 The elf collapses — his whole bag spills open!`, { tier: 'elf' });
-      if (ups) log('sys', `🎉 LEVEL UP! You are now level ${G.char.level} (+3 stat, +1 skill point)`);
       ADV.fight = null;
     } else if (f.elfHits >= 5) {
       log('sys', `🧝 After 5 hits the elf scurries off laughing, bag ${Math.round(lost * 100)}% lighter.`);

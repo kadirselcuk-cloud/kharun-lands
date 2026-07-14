@@ -98,7 +98,7 @@ UI.slotCardHtml = function (save, i) {
   const c = save.char, cls = DATA.CLASSES[c.cls];
   return `<div class="slot-card">
     <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
-      <small>Level ${c.level} ${cls.name} · 🧭 Quest ${save.unlocked}/100 unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
+      <small>Level ${c.level} ${className(c)} · 🧭 Quest ${save.unlocked}/100 unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
     </div>
     <div class="slot-actions">
       <button class="btn btn-primary" id="continue-btn-${i}">▶ Continue</button>
@@ -127,11 +127,11 @@ UI.showTitle = function () {
     </div>`;
   slots.forEach((save, i) => {
     if (save) {
-      const c = save.char, cls = DATA.CLASSES[c.cls];
+      const c = save.char;
       $(`#continue-btn-${i}`).onclick = () => { loadGame(i); UI.showGame(); };
       $(`#export-btn-${i}`).onclick = () => UI.exportSlot(i);
       $(`#delete-btn-${i}`).onclick = () => {
-        if (confirm(`Delete ${c.name} (Lv ${c.level} ${cls.name}) permanently? This can't be undone unless you exported them first.`)) {
+        if (confirm(`Delete ${c.name} (Lv ${c.level} ${className(c)}) permanently? This can't be undone unless you exported them first.`)) {
           deleteSlot(i);
           UI.showTitle();
         }
@@ -356,6 +356,79 @@ UI.showClassSelect = function () {
   });
 };
 
+// Mandatory full-screen picker shown once a character reaches level 25
+// without an Advanced Class path yet — reuses UI.showClassSelect's
+// card-grid pattern, sourced from the 2 paths for this base class instead
+// of the 3 base classes. No back-out; picking is required to continue.
+UI.showPathSelect = function () {
+  const c = G.char;
+  const paths = DATA.ADVANCED_PATHS[c.cls];
+  $('#app').innerHTML = `
+    <div class="class-select">
+      <h1>⚔️ KHARUN LANDS</h1>
+      <p class="subtitle">${esc(c.name)} has reached level 25 — choose an Advanced Class path.</p>
+      <div class="class-cards">
+        ${paths.map(p => {
+          const pathSkills = Object.values(DATA.SKILLS[c.cls]).filter(s => s.path === p.id);
+          return `<div class="class-card" data-path="${p.id}">
+            <div class="class-icon">${p.icon}</div>
+            <h2>${esc(p.tier2Name)}</h2>
+            <div class="class-title">→ ${esc(p.tier3Name)} at level 50</div>
+            <p class="class-desc">${esc(p.desc)}</p>
+            <p class="class-playstyle">💡 Focus: ${esc(p.focus)}</p>
+            <div class="class-skills-preview">
+              ${pathSkills.map(s => `<span title="${esc(s.name)} (Lv ${s.minLvl})">${s.icon}</span>`).join('')}
+            </div>
+            <button class="btn btn-primary pick-btn">Become a ${esc(p.tier2Name)}</button>
+          </div>`;
+        }).join('')}
+      </div>
+      ${UI.versionFooterHtml()}
+    </div>`;
+  $('#app').querySelectorAll('.class-card').forEach(card => {
+    card.querySelector('.pick-btn').onclick = () => {
+      G.char.advancedClass = card.dataset.path;
+      saveGame();
+      UI.showGame();
+    };
+  });
+};
+
+// One-time, dismissable congrats modal for the automatic level-50
+// evolution (tier2 -> tier3 name). Lists the two skills that just
+// unlocked (the path's passive4 and its Ultimate replacement).
+UI.showTier3Announce = function () {
+  const c = G.char;
+  const path = DATA.ADVANCED_PATHS[c.cls].find(p => p.id === c.advancedClass);
+  const newSkills = Object.values(DATA.SKILLS[c.cls]).filter(s => s.path === c.advancedClass && s.minLvl === 50);
+  UI.modal(`
+    <h3>🎉 ${esc(c.name)} is now a ${esc(path.tier3Name)}!</h3>
+    <p class="prelude-text">Your training is complete — you've automatically evolved into your path's final form.</p>
+    <p class="prelude-text">Newly unlocked:</p>
+    <ul>${newSkills.map(s => `<li>${s.icon} <b>${esc(s.name)}</b> — ${esc(s.desc(1))}</li>`).join('')}</ul>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="UI.closeModal()">Continue</button></div>`);
+};
+
+// Checked at the top of UI.refresh/UI.refreshAdventure — the single choke
+// point both non-combat actions and every combat tick pass through, so a
+// level-25/50 milestone reached mid-fight is caught immediately rather
+// than waiting for the player to next switch tabs. Returns true if it took
+// over the screen (caller should stop rendering normally this pass).
+UI.checkClassMilestones = function () {
+  const c = G.char;
+  if (c.level >= 25 && !c.advancedClass) {
+    if (ADV && ADV.fight) ADV.paused = true;
+    UI.showPathSelect();
+    return true;
+  }
+  if (c.level >= 50 && c.advancedClass && !c.tier3Seen) {
+    c.tier3Seen = true; saveGame();
+    if (ADV && ADV.fight) ADV.paused = true;
+    UI.showTier3Announce();
+  }
+  return false;
+};
+
 UI.showGame = function () {
   $('#app').innerHTML = `
     <div id="topbar"></div>
@@ -398,6 +471,7 @@ UI.updateTabNotifications = function () {
 
 UI.refresh = function () {
   if (!G) return;
+  if (UI.checkClassMilestones()) return;
   UI.renderTopbar();
   UI.updateTabNotifications();
   const el = $('#tab-content');
@@ -461,7 +535,7 @@ UI.renderTopbar = function () {
   const xpNeed = xpForLevel(c.level);
   el.innerHTML = `
     <div class="tb-charbox">
-      <span class="tb-name">${cls.icon} <b>${esc(c.name)}</b> <small>Lv ${c.level} ${cls.name}</small></span>
+      <span class="tb-name">${cls.icon} <b>${esc(c.name)}</b> <small>Lv ${c.level} ${className(c)}</small></span>
       <div class="bar xp-bar" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${formatK(c.xp)}/${formatK(xpNeed)}</span></div>
       <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>❤️ ${formatK(c.hp)}/${formatK(d.maxHp)}</span></div>
       <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>🔵 ${formatK(c.mana)}/${formatK(d.maxMana)}</span></div>
@@ -480,7 +554,8 @@ UI.showGameHelp = function () {
     <p class="prelude-text"><b>📖 Chapters</b> group ten Quests each around one region of the story. <b>🧭 Quests</b> are individual objectives with their own intro, creatures and boss. <b>🗺️ Locations</b> are where a Quest physically takes place.</p>
     <p class="prelude-text"><b>🗺️ Adventure</b> — fight through your current Quest's creatures. Has its own ❓ Help and ⚔️ Combat Arena ❓ Help for details on the gauge, potions and skills.</p>
     <p class="prelude-text"><b>🛡️ Character</b> — your stats, skills, and inventory/equipment.</p>
-    <p class="prelude-text">Leveling up grants +3 stat points and +1 skill point. The number shown next to each Main Stat already includes gear bonuses; spending a point raises your base value by 1. <b>Strength</b> drives Max HP & HP Regen, <b>Dexterity</b> drives Speed, Evasion & attack rate, and <b>Intelligence</b> drives Max Mana & Mana Regen — whichever is your class's main stat also adds +1% damage per point. <b>Speed</b> is how much your attack gauge fills each round; you act once it reaches 100. <b>Attack Interval</b> is your weapon's swing speed factor — lower is faster. <b>Potion Capacity</b> is 2 by default and increases with an equipped belt. Each class can only equip certain armor weights (Light/Medium/Heavy); a two-handed weapon fills both weapon slots, or you can dual-wield two one-handers, or pair one with a shield/off-hand.</p>
+    <p class="prelude-text">Leveling up grants stat points and +1 skill point every level: +3 stat points up to level 25, +4 from 26-50, and +5 from level 51 on. The number shown next to each Main Stat already includes gear bonuses; spending a point raises your base value by 1. <b>Strength</b> drives Max HP & HP Regen, <b>Dexterity</b> drives Speed, Evasion & attack rate, and <b>Intelligence</b> drives Max Mana & Mana Regen — whichever is your class's main stat also adds +1% damage per point. <b>Speed</b> is how much your attack gauge fills each round; you act once it reaches 100. <b>Attack Interval</b> is your weapon's swing speed factor — lower is faster. <b>Potion Capacity</b> is 2 by default and increases with an equipped belt. Each class can only equip certain armor weights (Light/Medium/Heavy); a two-handed weapon fills both weapon slots, or you can dual-wield two one-handers, or pair one with a shield/off-hand.</p>
+    <p class="prelude-text"><b>⚔️ Advanced Classes</b> — at level 25 you choose one of two paths for your class (e.g. the Warrior becomes a Knight or a Mercenary), unlocking a new active skill and a new passive skill built around that path. At level 50 your path automatically evolves to its final form (Knight → Paladin, Mercenary → Warlord, and so on for every class) — no choice needed, you'll be notified when it happens — unlocking a second new passive and a stronger Ultimate that replaces your original one. Points already spent on a skill a path replaces aren't refunded, but nothing is wasted going in: every path skill is strictly stronger than what it replaces.</p>
     <p class="prelude-text"><b>🏙️ City</b> — the Shop (buy/sell/equip gear) and the Tavern (side quests for gold/gear).</p>
     <p class="prelude-text"><b>📔 Journal</b> — read back the Prologue, any chapter you've reached, and the Epilogue once unlocked; tracks each Quest's objective and, once cleared, its resolution.</p>
     <p class="prelude-text">Your progress auto-saves constantly — there's no manual save needed. To delete a hero, go to the title screen and use 🗑️ Delete on their slot.</p>
@@ -504,7 +579,7 @@ UI.renderCharacter = function (el) {
     ${c.statPoints ? `
       <div class="lvlup-banner">⬆ LEVEL UP! You have <b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b> to spend below.</div>` : ''}
     <div class="panel level-panel">
-      <h3>📈 Level ${c.level} ${cls.name}</h3>
+      <h3>📈 Level ${c.level} ${className(c)}</h3>
       <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()}</span></div>
     </div>
     <div class="two-col">
@@ -552,8 +627,7 @@ UI.renderCharacter = function (el) {
 // ------------------------------------------------------------
 UI.renderSkills = function (el) {
   const c = G.char;
-  const skills = Object.values(DATA.SKILLS[c.cls]);
-  const ordered = DATA.SKILL_ORDER.map(cat => skills.find(s => s.cat === cat)).filter(Boolean);
+  const ordered = DATA.SKILL_ORDER.map(classSkillFor).filter(Boolean);
   el.innerHTML = `
     ${c.skillPoints ? `<div class="lvlup-banner">⬆ You have <b>${c.skillPoints} unused skill point${c.skillPoints > 1 ? 's' : ''}</b> — learn or rank up a skill below!</div>` : ''}
     <div class="panel">
@@ -570,6 +644,7 @@ UI.renderSkills = function (el) {
               <div class="skill-head">
                 <b>${s.name}</b>
                 <span class="skill-cat">${DATA.CAT_LABEL[s.cat]}</span>
+                ${s.path ? `<span class="skill-cat">${DATA.ADVANCED_PATHS[c.cls].find(p => p.id === s.path).icon} ${esc(DATA.ADVANCED_PATHS[c.cls].find(p => p.id === s.path).tier2Name)}</span>` : ''}
                 <span class="skill-rank">${rank > 0 ? `Rank ${rank}/${MAX_RANK}${eff > rank ? ` <span class="bonus">(+${eff - rank} gear)</span>` : ''}` : '—'}</span>
               </div>
               <div class="skill-desc">${s.desc(Math.max(1, eff))}</div>
@@ -1229,7 +1304,7 @@ UI.playerEffects = function () {
 
 // Left side of the arena: next-action box, the hero, and active effects.
 UI.playerCardHtml = function () {
-  const c = G.char, cls = DATA.CLASSES[c.cls];
+  const c = G.char;
   const d = ADV ? ADV.d : derive();
   const gaugePct = ADV && ADV.fight ? Math.min(100, ADV.fight.playerGauge / (d.atkInterval || 100) * 100) : 0;
   const nextSkill = UI.nextActionSkill();
@@ -1239,7 +1314,7 @@ UI.playerCardHtml = function () {
       <div class="next-action-box" title="${nextSkill ? esc(nextSkill.name) : ''}">${nextSkill ? nextSkill.icon : ''}</div>
       <div class="hero-card">
         <div class="hero-name">${esc(c.name)}</div>
-        <div class="hero-sub">Lv ${c.level} ${cls.name}</div>
+        <div class="hero-sub">Lv ${c.level} ${className(c)}</div>
         <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
         <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${Math.round(c.mana).toLocaleString()}/${d.maxMana.toLocaleString()}</span></div>
         <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
@@ -1397,7 +1472,8 @@ UI.showAutoUseSettings = function () {
 // keyboard shortcuts, so the Nth button always matches the Nth key.
 UI.activeSkills = function () {
   if (!G || !G.char) return [];
-  return Object.values(DATA.SKILLS[G.char.cls]).filter(s => !s.passive && s.cat !== 'basic' && (G.char.skills[s.id] || 0) > 0);
+  return DATA.SKILL_ORDER.map(classSkillFor).filter(Boolean)
+    .filter(s => !s.passive && s.cat !== 'basic' && (G.char.skills[s.id] || 0) > 0);
 };
 
 const SKILL_SHORTCUTS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'];
@@ -1499,6 +1575,8 @@ UI.logHtml = function () {
 };
 
 UI.refreshAdventure = function () {
+  if (!G) return;
+  if (UI.checkClassMilestones()) return;
   UI.renderTopbar();
   UI.updateTabNotifications();
   if (activeTab !== 'adventure') return;
