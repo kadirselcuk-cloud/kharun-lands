@@ -380,21 +380,26 @@ UI.showGame = function () {
   UI.refresh();
 };
 
-UI.refresh = function () {
-  if (!G) return;
-  UI.renderTopbar();
+// Unspent stat/skill points and a finished (unclaimed) Tavern quest each
+// breathe a highlight on their top-level tab — kept as its own function so
+// it can be called from the adventure tick loop too, not just UI.refresh(),
+// otherwise a level-up or quest completion mid-combat wouldn't show until
+// the player next switched tabs.
+UI.updateTabNotifications = function () {
   document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === activeTab));
-  // unspent stat/skill points: no added icon, just a slow breathing
-  // highlight on the tab's own text so it doesn't clutter the tab bar.
   const charTab = document.querySelector('#tabs button[data-tab="character"]');
   if (charTab) {
     charTab.innerHTML = `🛡️ Character`;
     charTab.classList.toggle('tab-notify', !!(G.char.statPoints || G.char.skillPoints));
   }
-  // a finished (unclaimed) Tavern quest breathes on the City tab too, so
-  // it's visible without having to already be inside the City/Tavern subtab.
   const cityTab = document.querySelector('#tabs button[data-tab="city"]');
   if (cityTab) cityTab.classList.toggle('tab-notify', !!(G.tavern && G.tavern.active && G.tavern.active.ready));
+};
+
+UI.refresh = function () {
+  if (!G) return;
+  UI.renderTopbar();
+  UI.updateTabNotifications();
   const el = $('#tab-content');
   if (!el) return;
   if (activeTab === 'character') UI.renderCharacterHub(el);
@@ -1172,7 +1177,7 @@ UI.showAdventureSettings = function () {
 UI.showAdventureHelp = function () {
   UI.modal(`
     <h3>❓ Adventure Help</h3>
-    <p class="prelude-text">Each Quest is tied to one Location. Fight through its creatures to fill the progress bar — every 11th kill is a 🔷 Rare, every 111th a 🟣 Epic, and the 1,111th is the quest's named boss. Slaying the boss completes the quest and unlocks the next.</p>
+    <p class="prelude-text">Each Quest is tied to one Location. Fight through its creatures and track your progress on the progress bar — along the way you'll run into 🔷 Rare and 🟣 Epic creatures, sometimes a Miniboss, before facing the quest's 🟠 Legendary named boss. Slaying the boss completes the quest and unlocks the next.</p>
     <p class="prelude-text">Tap the quest name or location to re-read its story and objective. Use 🐾 Bestiary to see every creature this quest can throw at you, including rare/elite versions, the wandering elf, and the boss.</p>
     <p class="prelude-text">⚔️ ADVENTURE! starts the fight — your hero battles round by round until the boss falls or their HP hits 0. ⚠️ Falling in battle resets this quest's kill progress (loot, gold and XP earned are kept); retreating manually keeps your progress. Potions found along the way are drunk on the spot.</p>
     <p class="prelude-text">While adventuring you can Pause, Retreat, or change playback Speed at any time. ⚙️ Settings controls how many enemies you fight at once — more enemies means faster progress but more danger.</p>
@@ -1336,7 +1341,7 @@ UI.showBestiary = function (level, pageIdx) {
 
 UI.showCombatOptions = function () {
   const m = G.settings.encounterMode;
-  const tiers = [['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['miniboss', 'Miniboss'], ['abnormal', 'Abnormal']];
+  const tiers = [['miniboss', 'Miniboss'], ['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['abnormal', 'Abnormal']];
   const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
   UI.modal(`
     <h3>⚙️ Combat Options</h3>
@@ -1491,6 +1496,7 @@ UI.logHtml = function () {
 
 UI.refreshAdventure = function () {
   UI.renderTopbar();
+  UI.updateTabNotifications();
   if (activeTab !== 'adventure') return;
   const panel = $('#enemy-panel');
   if (panel) panel.innerHTML = UI.enemyPanelHtml();
