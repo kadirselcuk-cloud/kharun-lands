@@ -366,8 +366,6 @@ UI.showGame = function () {
       <button data-tab="journal">📔 Journal</button>
     </div>
     <div id="tab-content"></div>
-    <div id="modal-root"></div>
-    <div id="toast"></div>
     ${UI.versionFooterHtml()}`;
   document.querySelectorAll('#tabs button').forEach(b => {
     b.onclick = () => {
@@ -1629,7 +1627,10 @@ UI.showChangelog = function () {
 // ------------------------------------------------------------
 UI.modal = function (innerHtml) {
   const root = $('#modal-root');
-  root.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this)UI.closeModal()"><div class="modal">${innerHtml}</div></div>`;
+  root.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this)UI.closeModal()"><div class="modal">
+    <button class="modal-x" onclick="UI.closeModal()" title="Close" aria-label="Close">✕</button>
+    ${innerHtml}
+  </div></div>`;
 };
 UI.closeModal = function () { $('#modal-root').innerHTML = ''; };
 
