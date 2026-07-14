@@ -208,11 +208,18 @@ function allAffixesOf(item) {
   return out;
 }
 
-function derive() {
+// buffBonus: optional { str, dex, int } from active combat buffs (e.g. a
+// buff skill's stat bonus) — previously declared on every class's buff
+// skill but never actually consumed anywhere, so "+X Strength" etc. from
+// Battle Shout/Deadly Focus/Arcane Power did nothing. Folded in here,
+// before it feeds every downstream formula (HP/Mana/Speed/Evasion/Regen/
+// damage), so it only needs to be passed once by the live-combat caller.
+function derive(buffBonus) {
   const c = G.char;
   const cls = DATA.CLASSES[c.cls];
+  const bb = buffBonus || { str: 0, dex: 0, int: 0 };
   const d = {
-    str: c.stats.str, dex: c.stats.dex, int: c.stats.int,
+    str: c.stats.str + bb.str, dex: c.stats.dex + bb.dex, int: c.stats.int + bb.int,
     armor: 0, evasion: 0, speed: 0,
     hpFlat: 0, manaFlat: 0, hpPct: 0, manaPct: 0,
     hpRegen: 0, manaRegen: 0, lifesteal: 0, manasteal: 0,
@@ -327,6 +334,12 @@ function derive() {
   d.baseDmgMin = Math.round((d.weaponMin + main * 0.9) * (1 + d.dmgPct) * mainMult);
   d.baseDmgMax = Math.round((d.weaponMax + main * 1.1) * (1 + d.dmgPct) * mainMult);
   return d;
+}
+
+function sumBuffStats(buffs) {
+  const b = { str: 0, dex: 0, int: 0 };
+  for (const buf of buffs) { b.str += buf.str || 0; b.dex += buf.dex || 0; b.int += buf.int || 0; }
+  return b;
 }
 
 // ------------------------------------------------------------
@@ -1490,7 +1503,9 @@ function enemyHit(fight, enemy) {
     const armorRed = armor / (armor + 40 + 8 * enemy.level);
     dmg *= (1 - armorRed);
   }
-  dmg *= (1 - d.dr);
+  let buffDr = 0;
+  for (const b of fight.buffs) if (b.dr) buffDr += b.dr;
+  dmg *= (1 - Math.min(0.75, d.dr + buffDr));
   if (hasAffix(enemy, 'magical')) dmg += raw * (0.15 + Math.random() * 0.15);
   dmg = Math.max(1, Math.round(dmg));
   G.char.hp -= dmg;
@@ -1789,7 +1804,7 @@ function adventureTick() {
   if (!ADV) return;
   const run = ADV.run;
   const level = ADV.level;
-  ADV.d = derive(); // refresh (level-ups / gear changes apply live)
+  ADV.d = derive(ADV.fight ? sumBuffStats(ADV.fight.buffs) : undefined); // refresh (level-ups / gear changes / active buffs apply live)
   const d = ADV.d;
 
   // manual potion cooldowns tick down every game tick
