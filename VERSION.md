@@ -14,6 +14,17 @@ game at runtime.
 
 ---
 
+## 1.2.3 (fix)
+
+- Fixed the Tavern's active-quest progress bar (`.quest-bar`): `.quest-card`
+  is a column-flex container, so `.bar`'s `flex:1` (flex-basis:0) was
+  collapsing it to ~2px — same bug class as the hero-card and enemy-card
+  fixes in earlier versions, just never applied here. Added
+  `.quest-card .bar { flex: none; }`.
+- City tab and its Tavern sub-tab now get the `.tab-notify` breathing
+  highlight whenever `G.tavern.active.ready` is true, so a claimable
+  Tavern quest is visible from the tab bar itself.
+
 ## 1.2.2 (fix)
 
 - Top bar restructured: `.tb-charbox` (name/XP/HP/Mana, stacked into a

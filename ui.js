@@ -385,6 +385,10 @@ UI.refresh = function () {
     charTab.innerHTML = `🛡️ Character`;
     charTab.classList.toggle('tab-notify', !!(G.char.statPoints || G.char.skillPoints));
   }
+  // a finished (unclaimed) Tavern quest breathes on the City tab too, so
+  // it's visible without having to already be inside the City/Tavern subtab.
+  const cityTab = document.querySelector('#tabs button[data-tab="city"]');
+  if (cityTab) cityTab.classList.toggle('tab-notify', !!(G.tavern && G.tavern.active && G.tavern.active.ready));
   const el = $('#tab-content');
   if (!el) return;
   if (activeTab === 'character') UI.renderCharacterHub(el);
@@ -415,10 +419,11 @@ UI.renderCharacterHub = function (el) {
 // City hub: Shop / Tavern sub-tabs
 // ------------------------------------------------------------
 UI.renderCityHub = function (el) {
+  const questReady = !!(G.tavern && G.tavern.active && G.tavern.active.ready);
   el.innerHTML = `
     <div class="subtabs">
       <button data-sub="shop" class="${activeCitySub === 'shop' ? 'active' : ''}">🛒 Shop</button>
-      <button data-sub="tavern" class="${activeCitySub === 'tavern' ? 'active' : ''}">🍺 Tavern</button>
+      <button data-sub="tavern" class="${activeCitySub === 'tavern' ? 'active' : ''} ${questReady ? 'tab-notify' : ''}">🍺 Tavern</button>
     </div>
     <div id="city-sub-content"></div>`;
   el.querySelectorAll('.subtabs button').forEach(b => b.onclick = () => { activeCitySub = b.dataset.sub; UI.refresh(); });

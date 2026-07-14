@@ -5,12 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.2.2';
+DATA.VERSION = '1.2.3';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.2.3', notes: [
+    'Fixed the Tavern quest progress bar, which was invisible — a column-flex layout bug (the same class of bug already fixed twice before on other bars) was collapsing it to 2px.',
+    'City tab and its Tavern sub-tab now breathe (dark green highlight) whenever a Tavern quest is ready to claim.',
+  ] },
   { v: '1.2.2', notes: [
     'Top bar redesigned for mobile: hero name/XP/HP/Mana now group into one box, with Gold and your inventory item count beside it.',
     'Removed the Save and Reset buttons from the top bar entirely (progress already auto-saves; delete a hero from its slot on the title screen instead) and right-aligned the remaining Help button.',

@@ -681,6 +681,10 @@ small { color: var(--dim); }
 .quest-tag { background: #3d2f14; color: var(--accent); border-radius: 8px; padding: 1px 8px; font-size: .68rem; margin-left: auto; }
 .quest-desc { font-size: .82rem; color: #b9bdcc; line-height: 1.4; flex: 1; }
 .quest-reward { font-size: .8rem; color: #ffd84d; }
+/* .bar's flex:1 targets the main axis, which is vertical since .quest-card
+   is a column flex container — without this override the progress bar
+   collapses to a sliver, same issue already fixed on .hero-card/.enemy-card. */
+.quest-card .bar { flex: none; }
 .quest-bar { height: 18px; } .quest-bar > div { background: linear-gradient(180deg, #d9a94c, #8a611b); }
 .quest-card .btn { align-self: flex-start; }
 
