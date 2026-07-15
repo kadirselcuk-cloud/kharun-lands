@@ -91,7 +91,14 @@ function newGame(clsId, slotIdx) {
     unlocked: 1,         // highest unlocked area
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
-    totals: { adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 } },
+    totals: {
+      adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
+      killsBySpecies: {}, bossesKilled: 0, deaths: 0,
+      dmgDealt: 0, dmgTaken: 0,
+      itemsFound: 0, itemsByRarity: { normal: 0, magical: 0, rare: 0, epic: 0, legendary: 0 }, runesFound: 0,
+      goldFound: 0, goldSpent: 0, itemsSold: 0, goldFromSales: 0,
+      potionsUsed: 0, runesSocketed: 0, questsCompleted: 0,
+    },
     settings: defaultSettings(),
     shop: null,
     tavern: null,
@@ -166,6 +173,14 @@ function loadGame(slotIdx) {
   activeSlot = slotIdx;
   ensureSettings();
   if (G.totals && G.totals.kills && G.totals.kills.miniboss === undefined) G.totals.kills.miniboss = 0;
+  if (G.totals) {
+    const t = G.totals;
+    if (!t.killsBySpecies) t.killsBySpecies = {};
+    for (const k of ['bossesKilled', 'deaths', 'dmgDealt', 'dmgTaken', 'itemsFound', 'runesFound', 'goldFound', 'goldSpent', 'itemsSold', 'goldFromSales', 'potionsUsed', 'runesSocketed', 'questsCompleted']) {
+      if (t[k] === undefined) t[k] = 0;
+    }
+    if (!t.itemsByRarity) t.itemsByRarity = { normal: 0, magical: 0, rare: 0, epic: 0, legendary: 0 };
+  }
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
   if (G.char.advancedClass === undefined) G.char.advancedClass = null;
   if (G.char.tier3Seen === undefined) G.char.tier3Seen = false;
@@ -756,7 +771,9 @@ function unequipItem(slot) {
 function sellItem(uid) {
   const idx = G.inventory.findIndex(i => i.uid === uid);
   if (idx < 0) return;
-  G.gold += G.inventory[idx].value;
+  const value = G.inventory[idx].value;
+  G.gold += value;
+  G.totals.itemsSold++; G.totals.goldFromSales += value;
   G.inventory.splice(idx, 1);
   saveGame(); UI.refresh();
 }
@@ -792,6 +809,7 @@ function socketRune(runeUid, itemUid) {
   if (!target || !target.sockets || target.runes.length >= target.sockets) return;
   target.runes.push(G.inventory[rIdx]);
   G.inventory.splice(rIdx, 1);
+  G.totals.runesSocketed++;
   clampVitals(); saveGame(); UI.refresh();
 }
 
@@ -843,6 +861,7 @@ function buyShopItem(uid) {
   const it = G.shop.stock[idx];
   if (G.gold < it.price) { UI.toast('Not enough gold!'); return; }
   G.gold -= it.price;
+  G.totals.goldSpent += it.price;
   G.shop.stock.splice(idx, 1);
   G.inventory.push(it);
   saveGame(); UI.refresh();
@@ -898,7 +917,7 @@ function genQuest() {
     () => { const n = rint(1, 2); return { type: 'kill_epic', icon: '🏆', name: 'Trophy Hunter', desc: `A wealthy collector pays handsomely for proof of ${n} EPIC kill${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'rare' } }; },
     () => { const n = rint(5, 9); return { type: 'item_magic', icon: '💎', name: 'The Collector', desc: `A shady dealer in the corner wants ${n} magical-or-better items found on adventure.`, target: n, rewardSpec: { goldMult: 6, xpMult: 6 } }; },
     () => { const n = rint(3, 6); return { type: 'potion', icon: '🧪', name: 'Potion Tester', desc: `The alchemist needs field data: drink ${n} potions while adventuring.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3, item: 'magical' } }; },
-    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${n.toLocaleString()} gold on adventures to bail him out.`, target: n, rewardSpec: { goldMult: 0, xpMult: 7, item: 'epic' } }; },
+    () => { const n = goldR(8); return { type: 'gold', icon: '🪙', name: 'Debt of Honor', desc: `The barkeep owes dangerous people. Earn ${formatK(n)} gold on adventures to bail him out.`, target: n, rewardSpec: { goldMult: 0, xpMult: 7, item: 'epic' } }; },
     () => { return { type: 'kill_legendary', icon: '🔶', name: 'Head of the Beast', desc: 'A hooded stranger slides a map across the table: slay a LEGENDARY level boss. Any will do.', target: 1, rewardSpec: { goldMult: 10, xpMult: 10, item: 'epic' } }; },
     () => { return { type: 'kill_miniboss', icon: '👑', name: 'Crownsnatcher', desc: 'Rumors tell of crowned beasts prowling the back half of a chapter (levels 5+). Slay a MINI BOSS.', target: 1, rewardSpec: { goldMult: 6, xpMult: 6, item: 'rare' } }; },
     () => { const n = rint(40, 80); return { type: 'kill_any', icon: '🛡️', name: 'Clear the Roads', desc: `A caravan master needs the roads swept clear: fell ${n} creatures of any kind blocking the way.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4 } }; },
@@ -967,16 +986,19 @@ function claimQuestReward(idx) {
   const q = G.tavern.active[idx];
   const r = q.finalReward;
   const parts = [];
-  if (r.gold) { G.gold += r.gold; parts.push(`🪙 ${r.gold.toLocaleString()}`); }
+  if (r.gold) { G.gold += r.gold; G.totals.goldFound += r.gold; parts.push(`🪙 ${formatK(r.gold)}`); }
   if (r.xp) {
     gainXp(r.xp);
-    parts.push(`✨ ${r.xp.toLocaleString()} XP`);
+    parts.push(`✨ ${formatK(r.xp)} XP`);
   }
   if (r.item) {
     const it = makeItem(Math.max(1, q.finalArea || G.area), r.item, G.char.cls);
     G.inventory.push(it);
+    G.totals.itemsFound++;
+    G.totals.itemsByRarity[r.item] = (G.totals.itemsByRarity[r.item] || 0) + 1;
     parts.push(`${it.icon} ${it.name} (${r.item})`);
   }
+  G.totals.questsCompleted++;
   log('sys', `🍺 QUEST COMPLETE: "${q.name}"! Reward: ${parts.join(' + ')}`);
   G.tavern.active.splice(idx, 1);
   genTavernBoard();
@@ -989,6 +1011,7 @@ function restockShop() {
   const cost = restockCost();
   if (G.gold < cost) { UI.toast('Not enough gold!'); return; }
   G.gold -= cost;
+  G.totals.goldSpent += cost;
   genShopStock();
   saveGame(); UI.refresh();
 }
@@ -1024,9 +1047,12 @@ function grantPartClearReward(level, run) {
   const rarity = r < 0.6 ? 'rare' : r < 0.9 ? 'epic' : 'legendary';
   const item = makeItem(level, rarity, G.char.cls);
   G.gold += gold;
+  G.totals.goldFound += gold;
+  G.totals.itemsFound++;
+  G.totals.itemsByRarity[rarity] = (G.totals.itemsByRarity[rarity] || 0) + 1;
   G.inventory.push(item);
   run.partReward = { gold, item };
-  log('loot', `🎁 Quest reward: 🪙 ${gold.toLocaleString()} + ${item.icon} ${item.name}`);
+  log('loot', `🎁 Quest reward: 🪙 ${formatK(gold)} + ${item.icon} ${item.name}`);
   questEvent('level_clear');
 }
 
@@ -1062,12 +1088,14 @@ function bossName(ch) {
 // Mostly-linear growth (scales with level itself) plus a small 5%
 // compounding kicker per level — replaces the old pure-exponential
 // 1.5^level/1.2^level curve, which stayed too weak through the opening
-// chapters and only got dangerous very late. Deliberately NOT mirrored in
-// weapon/armor/gear scaling (still steeply exponential) — monsters fall
-// further behind player power at high level as a direct result; an
-// accepted tradeoff for making the early game feel appropriately tough.
-function enemyHpScale(level) { const l = Math.max(1, level); return l * Math.pow(1.05, l - 1); }
-function enemyDmgScale(level) { const l = Math.max(1, level); return l * Math.pow(1.05, l - 1); }
+// chapters and only got dangerous very late. Weapon damage (dmgScale,
+// data.js) matches this exactly at 1.05 so hits-to-kill stays flat across
+// the whole level range — monster HP/damage use a slightly steeper 1.10
+// on top of that shared base, a deliberate small edge so monsters get
+// modestly tougher relative to player power over a long run instead of
+// staying perfectly flat forever.
+function enemyHpScale(level) { const l = Math.max(1, level); return l * Math.pow(1.10, l - 1); }
+function enemyDmgScale(level) { const l = Math.max(1, level); return l * Math.pow(1.10, l - 1); }
 
 // gold was 1/5/20/45/100 — a roughly geometric (2-5x per step) jump between
 // tiers that made total gold earned feel like it exploded as tougher/rarer
@@ -1280,11 +1308,12 @@ function rollLoot(creature, run) {
   if (chance(RUNE_CHANCE[tier])) {
     const rune = makeRune(lvl, tier);
     run.items.push(rune); G.inventory.push(rune);
+    G.totals.runesFound++;
     log('loot', `🪨 A ${rune.name} drops! (${rune.bonuses.length} bonus${rune.bonuses.length > 1 ? 'es' : ''})`);
   }
 
   if (tier === 'legendary' || tier === 'miniboss') {
-    run.gold += goldBase; G.gold += goldBase;
+    run.gold += goldBase; G.gold += goldBase; G.totals.goldFound += goldBase;
     const r = Math.random() * 100;
     if (r < 75) dropItem(lvl, rollItemRarity(tier, magicFind), run);
     else gainPotion(pick(['hp', 'mana', 'scroll']), run);
@@ -1296,7 +1325,7 @@ function rollLoot(creature, run) {
       epic:   { gold: 55, item: 32, hpPot: 2.5, manaPot: 2.2, buffPot: 2 },
     }[tier];
     let acc = 0;
-    if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; }
+    if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; G.totals.goldFound += goldBase; }
     else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier, magicFind), run); }
     else if (r < (acc += T.hpPot)) { gainPotion('hp', run); }
     else if (r < (acc += T.manaPot)) { gainPotion('mana', run); }
@@ -1342,17 +1371,21 @@ function sweepAutoSell() {
   const uids = new Set(sold.map(i => i.uid));
   G.inventory = G.inventory.filter(i => !uids.has(i.uid));
   G.gold += gold;
+  G.totals.itemsSold += sold.length; G.totals.goldFromSales += gold;
   saveGame(); UI.refresh();
   return { count: sold.length, gold };
 }
 
 function dropItem(lvl, rarity, run) {
   const it = makeItem(lvl, rarity, G.char.cls);
+  G.totals.itemsFound++;
+  G.totals.itemsByRarity[rarity] = (G.totals.itemsByRarity[rarity] || 0) + 1;
   if (rarity !== 'normal') questEvent('item_magic');
   questEvent('item_any');
   if (shouldAutoSell(it)) {
     run.gold += it.value; G.gold += it.value;
-    log('loot', `🪙 Auto-sold ${it.icon} ${it.name} for ${it.value.toLocaleString()} gold.`);
+    G.totals.itemsSold++; G.totals.goldFromSales += it.value;
+    log('loot', `🪙 Auto-sold ${it.icon} ${it.name} for ${formatK(it.value)} gold.`);
     return;
   }
   run.items.push(it); G.inventory.push(it);
@@ -1395,6 +1428,7 @@ function drinkPotion(kind) {
   if ((ADV.potCd[kind] || 0) > 0) return;
   const d = ADV.d;
   G.potions[kind]--;
+  G.totals.potionsUsed++;
   ADV.potCd[kind] = POTION_CD;
   if (kind === 'hp') {
     // 0.5% Full Health, 25% Greater (40%), otherwise regular (20%)
@@ -1574,7 +1608,8 @@ function playerHit(fight, enemy, skill, r) {
   if (d.manasteal) G.char.mana = Math.min(d.maxMana, G.char.mana + Math.max(1, Math.round(dmg * (d.manasteal / 100))));
   if (d.weaponPoison && chance(0.3)) {
     if (!enemy.dots) enemy.dots = {};
-    enemy.dots.weaponPoison = { icon: '☠️', label: 'Poison', dmg: d.weaponPoison.dmg, rounds: d.weaponPoison.rounds };
+    const wpDmg = Math.max(1, Math.round(enemy.maxHp * d.weaponPoison.pct));
+    enemy.dots.weaponPoison = { icon: '☠️', label: 'Poison', dmg: wpDmg, rounds: d.weaponPoison.rounds };
   }
   if (d.weaponSlow && chance(d.weaponSlow.chance / 100)) {
     enemy.slow = { pct: d.weaponSlow.pct / 100, rounds: d.weaponSlow.rounds };
@@ -1617,7 +1652,7 @@ function enemyHit(fight, enemy) {
     const reflected = Math.max(1, Math.round(dmg * (d.painReflect / 100)));
     enemy.hp -= reflected;
     ADV.run.dmgDealt += reflected;
-    log('act', `🌵 Pain Reflection sends ${reflected.toLocaleString()} damage back at ${enemy.name.split(' — ')[0]}!`);
+    log('act', `🌵 Pain Reflection sends ${formatK(reflected)} damage back at ${enemy.name.split(' — ')[0]}!`);
   }
   if (hasAffix(enemy, 'vampiric')) enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.max(1, Math.round(dmg * 0.25)));
   if (hasAffix(enemy, 'poisonous')) {
@@ -1677,16 +1712,17 @@ function playerAct(fight) {
       for (const t of tgts) {
         const dmg = playerHit(fight, t, skill, r);
         total += dmg;
-        parts.push(dmg > 0 ? `${t.name.split(' — ')[0]} for ${dmg.toLocaleString()}` : `${t.name.split(' — ')[0]} (evaded!)`);
+        parts.push(dmg > 0 ? `${t.name.split(' — ')[0]} for ${formatK(dmg)}` : `${t.name.split(' — ')[0]} (evaded!)`);
         if (skill.stun && dmg > 0 && t.hp > 0) t.stunned = (t.stunned || 0) + skill.stun;
         if (skill.poisonDot && dmg > 0 && t.hp > 0) {
           if (!t.dots) t.dots = {};
           const pd = skill.poisonDot(r);
-          t.dots.skillPoison = { icon: '☠️', label: 'Poison', dmg: pd.dmg, rounds: pd.rounds };
+          const pdDmg = pd.pct ? Math.max(1, Math.round(t.maxHp * pd.pct)) : pd.dmg;
+          t.dots.skillPoison = { icon: '☠️', label: 'Poison', dmg: pdDmg, rounds: pd.rounds };
         }
       }
       log('act', `${skill.icon} ${skill.name} hits ${parts.join(', ')}`);
-      ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${total.toLocaleString()} dmg` };
+      ADV.lastAction = { side: 'player', icon: skill.icon, txt: `${skill.name} — ${formatK(total)} dmg` };
 
       // Ultra-rare gear procs: casting a random spell on landing a hit.
       // Independent of learned rank/mana/cooldown (the item is casting,
@@ -1702,7 +1738,7 @@ function playerAct(fight) {
           if (stillAlive.length) {
             if (ps.mult) {
               const ptgts = ps.aoe ? stillAlive : [stillAlive[0]];
-              for (const t of ptgts) { const pd = playerHit(fight, t, ps, 1); log('act', `${ps.icon} ${ps.name} (proc) hits ${t.name.split(' — ')[0]} for ${pd.toLocaleString()}`); }
+              for (const t of ptgts) { const pd = playerHit(fight, t, ps, 1); log('act', `${ps.icon} ${ps.name} (proc) hits ${t.name.split(' — ')[0]} for ${formatK(pd)}`); }
             } else if (ps.debuff) {
               const db = ps.debuff(1);
               fight.enemyDmgDown = Math.max(fight.enemyDmgDown, db.dmgDown || 0);
@@ -1745,8 +1781,8 @@ function enemyAct(fight, e) {
     log('enemy', `💨 You dodge ${e.name}'s ${e.attack}!`);
     ADV.lastAction = { side: 'enemy', icon: '💨', txt: `Dodged ${shortName}'s ${e.attack}!` };
   } else {
-    log('enemy', `🩸 ${e.name}'s ${e.attack} (${e.atkType}) deals ${hit.dmg.toLocaleString()} damage`);
-    ADV.lastAction = { side: 'enemy', icon: '🩸', txt: `${shortName}: ${e.attack} — ${hit.dmg.toLocaleString()} dmg` };
+    log('enemy', `🩸 ${e.name}'s ${e.attack} (${e.atkType}) deals ${formatK(hit.dmg)} damage`);
+    ADV.lastAction = { side: 'enemy', icon: '🩸', txt: `${shortName}: ${e.attack} — ${formatK(hit.dmg)} dmg` };
   }
 }
 
@@ -1754,6 +1790,7 @@ function handleKill(e, run) {
   e.dead = true;
   run.kills[e.tier]++;
   G.totals.kills[e.tier]++;
+  G.totals.killsBySpecies[e.species] = (G.totals.killsBySpecies[e.species] || 0) + 1;
   G.char.kills++;
   // Only the featured creature of an encounter advances the level's
   // 1111 pattern position — escort companions are bonus kills (extra
@@ -1897,6 +1934,10 @@ function retreat(reason) {
     }
   }
   questEvent('gold', run.gold);   // gold-earning quests tally on return
+  G.totals.dmgDealt += run.dmgDealt;
+  G.totals.dmgTaken += run.dmgTaken;
+  if (reason === 'defeated') G.totals.deaths++;
+  if (reason === 'boss') G.totals.bossesKilled++;
   const d = derive();
   G.char.hp = d.maxHp; G.char.mana = d.maxMana; // rest at home
   genShopStock(); // the merchant rotates wares while you were away
@@ -2058,7 +2099,7 @@ function adventureTick() {
         const dot = e.dots[key];
         e.hp -= dot.dmg;
         ADV.run.dmgDealt += dot.dmg;
-        log('act', `${dot.icon} ${dot.label} deals ${dot.dmg.toLocaleString()} damage to ${e.name.split(' — ')[0]}`);
+        log('act', `${dot.icon} ${dot.label} deals ${formatK(dot.dmg)} damage to ${e.name.split(' — ')[0]}`);
         if (--dot.rounds <= 0) delete e.dots[key];
       }
     }

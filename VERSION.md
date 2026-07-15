@@ -14,6 +14,48 @@ game at runtime.
 
 ---
 
+## 1.3.0 (minor)
+
+- **Advanced Classes**: at level 25 each base class picks one of two paths
+  (Warrior: Knight/Paladin or Mercenary/Warlord; Rogue: Assassin/Ninja or
+  Hunter/Sniper; Mage: Sorcerer/Archmage or Radiant/Archon), unlocking a new
+  active + passive skill. At level 50 the path automatically evolves to its
+  tier-3 name, unlocking a second passive and a stronger Ultimate that
+  replaces the original one (banked ranks kept, just no longer learnable).
+- **Combat rebalance**: fixed a real bug where armor's mitigation formula
+  (`armor/(armor+40+8*level)`) paired with armor's old exponential (1.25^L)
+  growth curve drove physical damage taken toward zero by ~level 35 —
+  switched armor to a linear curve so mitigation plateaus at a stable,
+  gear-weight-differentiated ceiling (~75% heavy/~71% medium/~61% light)
+  instead of runaway immunity. Weapon damage scaling matched to monster
+  HP/damage scaling (both `level * 1.10^(level-1)` for monsters, weapons at
+  `level * 1.05^(level-1)`) so difficulty stays consistent across the whole
+  level range instead of trivializing late-game. `+HP`/`+Mana` affixes moved
+  off the same old exponential curve for the same reason (a single lucky
+  roll could otherwise make a character nearly unkillable or give a Mage
+  effectively infinite mana).
+- **Mage**: cooldowns cut ~35-45% and mana costs brought in line with
+  Warrior/Rogue (was a ~15-20% mage-only premium) — a "cast often" identity
+  shift, applied to her base kit and both Advanced Class paths.
+- **Rogue**: dagger attack speed trimmed (atkSpd 0.5 -> 0.6) — it was giving
+  2-3x the attack frequency of other weapon choices independent of any
+  stat/gear difference.
+- **Tavern**: board expanded 3 -> 6 quests, up to 2 can be active
+  simultaneously (was 1), 3 new quest types (Clear the Roads/kill any tier,
+  Pack Rat/find any item, Trailblazer/clear story quests), reward formula
+  base coefficients raised ~30%.
+- **Gold**: per-tier multiplier flattened from a near-geometric 1/5/20/45/100
+  to linear-ish 1/3/5/10/20 steps.
+- **Poison DOTs** (Venomous Strike, Shadow Execution, the Poison Weapon
+  affix) now deal a percentage of the target's Max HP per round instead of a
+  flat number, so they stay relevant at any level instead of trivializing.
+- **UI**: all large numbers (damage, HP, gold, XP, item values) now display
+  compactly as `X.XXK`/`X.XXM`/`X.XXB` instead of full digit strings.
+- Script tags in `index.html` now carry a `?v=` cache-busting query string,
+  bumped on every deploy — without it a host/browser with no explicit
+  cache-control header could keep serving stale JS after a change like this
+  one ships, which looks exactly like a gameplay bug.
+
 ## 1.2.3 (fix)
 
 - Fixed the Tavern's active-quest progress bar (`.quest-bar`): `.quest-card`

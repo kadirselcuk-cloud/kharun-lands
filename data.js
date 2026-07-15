@@ -5,12 +5,22 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.2.3';
+DATA.VERSION = '1.3.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.3.0', notes: [
+    'Advanced Classes: at level 25, choose one of two paths per class (e.g. Warrior -> Knight or Mercenary), each unlocking a new active + passive skill; at level 50 your path automatically evolves to its final form, unlocking a second passive and a stronger Ultimate.',
+    'Major combat rebalance: fixed an armor-mitigation bug that let physical damage taken trend toward zero at higher levels; monster HP/damage and weapon damage now scale together so difficulty stays consistent through the whole game instead of trailing off.',
+    'Mage reworked toward a "cast often" playstyle — lower cooldowns and mana costs across her kit.',
+    'Rogue attack speed trimmed slightly; Warrior armor scaling reworked to be tanky without becoming unkillable.',
+    'Tavern expanded: 6 quests on the board (was 3), up to 2 active at once (was 1), 3 new quest types, better rewards.',
+    'Gold rewards from tougher enemies no longer scale in steep jumps between tiers.',
+    'Poison-damage effects (Venomous Strike, Shadow Execution, poisoned weapons) now scale with the target\'s Max HP instead of a flat number, so they stay meaningful at any level.',
+    'All large numbers in the UI (damage, HP, gold, etc.) now display compactly as K/M/B.',
+  ] },
   { v: '1.2.3', notes: [
     'Fixed the Tavern quest progress bar, which was invisible — a column-flex layout bug (the same class of bug already fixed twice before on other bars) was collapsing it to 2px.',
     'City tab and its Tavern sub-tab now breathe (dark green highlight) whenever a Tavern quest is ready to claim.',
@@ -1685,8 +1695,8 @@ rogue: mkSkills([
 
   // ===== Advanced Class — Assassin -> Ninja (Dagger/Exotic Weapons, Poison) =====
   { id: 'r_p_assassin_active', cat: 'attack2', path: 'assassin', name: 'Venomous Strike', icon: '🗡️☠️', minLvl: 25, req: 'r_atk2',
-    desc: r => `Strike with venom for ${280 + 28 * r}% damage, poisoning the target for ${3 + r} damage/round for 3 rounds.`,
-    mult: r => 2.8 + 0.28 * r, pierce: 0.5, poisonDot: r => ({ dmg: 3 + r, rounds: 3 }), cost: () => 24, cd: 4 },
+    desc: r => `Strike with venom for ${280 + 28 * r}% damage, poisoning the target for ${(1 + r * 0.2).toFixed(1)}% of their max HP/round for 3 rounds.`,
+    mult: r => 2.8 + 0.28 * r, pierce: 0.5, poisonDot: r => ({ pct: 0.01 + r * 0.002, rounds: 3 }), cost: () => 24, cd: 4 },
   { id: 'r_p_assassin_pass1', cat: 'passive3', path: 'assassin', name: 'Exotic Mastery', icon: '🔪', minLvl: 25,
     desc: r => `Passive: +${2 * r}% Critical Strike chance, +${1 * r}% chance to strike twice.`,
     passive: r => ({ critStrike: 2 * r, doubleStrike: 1 * r }) },
@@ -1694,8 +1704,8 @@ rogue: mkSkills([
     desc: r => `Passive: +${(0.5 * r).toFixed(1)}% Lifesteal, +${2 * r}% damage.`,
     passive: r => ({ lifesteal: 0.5 * r, dmgPct: 0.02 * r }) },
   { id: 'r_p_assassin_ult', cat: 'ult', path: 'assassin', name: 'Shadow Execution', icon: '🌑🗡️', minLvl: 50, req: 'r_ult',
-    desc: r => `ULTIMATE: Vanish and strike ALL enemies for ${320 + 32 * r}% damage, poisoning them for ${4 + 1.5 * r} damage/round for 4 rounds.`,
-    mult: r => 3.2 + 0.32 * r, aoe: true, poisonDot: r => ({ dmg: 4 + 1.5 * r, rounds: 4 }), cost: () => 50, cd: 11 },
+    desc: r => `ULTIMATE: Vanish and strike ALL enemies for ${320 + 32 * r}% damage, poisoning them for ${(1.5 + r * 0.3).toFixed(1)}% of their max HP/round for 4 rounds.`,
+    mult: r => 3.2 + 0.32 * r, aoe: true, poisonDot: r => ({ pct: 0.015 + r * 0.003, rounds: 4 }), cost: () => 50, cd: 11 },
 
   // ===== Advanced Class — Hunter -> Sniper (Bows/Crossbows, Ranged Damage) =====
   { id: 'r_p_hunter_active', cat: 'attack2', path: 'hunter', name: 'Kill Shot', icon: '🏹🎯', minLvl: 25, req: 'r_atk2',
@@ -1932,12 +1942,16 @@ DATA.AFFIXES = [
   // All Stats: rare bonus, slightly gentler per-stat than a dedicated
   // str/dex/int roll since it grants all three at once.
   { id: 'allStats', w: 3, minRarity: 'rare', roll: i => 1 + Math.floor(i / 10) + rint(0, 2), fmt: v => `+${v} to All Stats` },
-  { id: 'hp', w: 10, roll: i => Math.round((12 + rint(0, 10)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max HP` },
-  { id: 'mana', w: 8, roll: i => Math.round((8 + rint(0, 6)) * bigScale(i)), fmt: v => `+${v.toLocaleString()} Max Mana` },
+  // dmgFlatScale (linear), not bigScale — a flat HP/Mana pool that grows
+  // exponentially while everything that threatens it (monster damage) grows
+  // near-linearly lets a single lucky roll trivialize survivability or
+  // erase Mana as a resource entirely. Same reasoning as armor/dmgFlat.
+  { id: 'hp', w: 10, roll: i => Math.round((12 + rint(0, 10)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Max HP` },
+  { id: 'mana', w: 8, roll: i => Math.round((8 + rint(0, 6)) * dmgFlatScale(i)), fmt: v => `+${v.toLocaleString()} Max Mana` },
   // Speed: gloves & boots (+jewelry) — the "mobility" slots.
   { id: 'speed', w: 8, slots: ['gloves', 'boots'], roll: i => 2 + Math.floor(i / 5) + rint(0, 3), fmt: v => `+${v} Speed` },
-  { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} HP Regen` },
-  { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * bigScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Mana Regen` },
+  { id: 'hpRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * dmgFlatScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} HP Regen` },
+  { id: 'manaRegen', w: 6, roll: i => Math.round((1 + rint(0, 1)) * dmgFlatScale(i) * 0.5), fmt: v => `+${v.toLocaleString()} Mana Regen` },
   // Evasion: gloves & boots (+jewelry) — same mobility grouping as Speed.
   { id: 'evasion', w: 6, slots: ['gloves', 'boots'], roll: i => 1 + Math.floor(i / 15) + rint(0, 2), fmt: v => `+${v}% Evasion` },
   // dmgFlat/dmgPct: weapon/gloves/armor (+jewelry) — "damage bonuses for
@@ -1970,9 +1984,14 @@ DATA.AFFIXES = [
   // Weapon Poison: weapon-only, rare+. 30% chance per hit to poison the
   // target for a few rounds, dealing the rolled damage at the start of
   // each of those rounds. v is a compound value {dmg, rounds}.
+  // Percent of target max HP, not a flat number — a flat dmg/round value
+  // (the old `Math.round(...*(1+i*0.3))`) grows only linearly with ilvl
+  // while monster HP grows on a much steeper curve, so it would trivialize
+  // to irrelevance within a handful of levels. Same fix as the poison-DOT
+  // skills (Venomous Strike / Shadow Execution).
   { id: 'poisonWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
-    roll: i => ({ dmg: Math.round((1 + rint(0, 1)) * (1 + i * 0.3)), rounds: rint(2, 4) }),
-    fmt: v => `30% chance to Poison for ${v.dmg.toLocaleString()} dmg/round for ${v.rounds} Rounds` },
+    roll: i => ({ pct: Math.min(0.04, 0.008 + i * 0.0003), rounds: rint(2, 4) }),
+    fmt: v => `30% chance to Poison for ${(v.pct * 100).toFixed(1)}% max HP/round for ${v.rounds} Rounds` },
   // Weapon Slow: weapon-only, rare+. v is a compound value {chance, pct, rounds}.
   { id: 'slowWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
     roll: () => ({ chance: rint(10, 20), pct: rint(20, 50), rounds: rint(1, 5) }),

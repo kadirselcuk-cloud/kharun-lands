@@ -17,11 +17,13 @@ const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 // Compact display for topbar numbers — 1,234 -> 1.2K, 2,000,000 -> 2M.
 function formatK(n) {
-  n = Math.round(n);
   const abs = Math.abs(n);
-  if (abs >= 1e6) return (Math.round(n / 1e5) / 10) + 'M';
-  if (abs >= 1e3) return (Math.round(n / 1e2) / 10) + 'K';
-  return n.toLocaleString();
+  if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
+  if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (abs >= 1e3) return (n / 1e3).toFixed(2) + 'K';
+  // below 1000: keep as-is (rounding here would destroy decimal stats
+  // like HP Regen showing "1.9") — just cap to 2 fraction digits.
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
 // Several weapons share one base emoji (e.g. the whole sword family uses
 // 🗡️) and are told apart by size instead — see iconSize on DATA.WEAPON_BASES.
@@ -98,7 +100,7 @@ UI.slotCardHtml = function (save, i) {
   const c = save.char, cls = DATA.CLASSES[c.cls];
   return `<div class="slot-card">
     <div class="title-hero">${cls.icon} <b>${esc(c.name)}</b><br>
-      <small>Level ${c.level} ${className(c)} · 🧭 Quest ${save.unlocked}/100 unlocked · ${(c.kills || 0).toLocaleString()} kills · 🪙 ${(save.gold || 0).toLocaleString()}</small>
+      <small>Level ${c.level} ${className(c)} · 🧭 Quest ${save.unlocked}/100 unlocked · ${formatK(c.kills || 0)} kills · 🪙 ${formatK(save.gold || 0)}</small>
     </div>
     <div class="slot-actions">
       <button class="btn btn-primary" id="continue-btn-${i}">▶ Continue</button>
@@ -568,6 +570,62 @@ UI.showGameHelp = function () {
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
+// Lifetime stats, tracked in G.totals as events happen throughout the game
+// (see handleKill/rollLoot/dropItem/sellItem/buyShopItem/drinkPotion/
+// socketRune/claimQuestReward/retreat in game.js) rather than computed
+// after the fact, so this stays accurate even across sold/deleted items.
+UI.showPlayerStats = function () {
+  const t = G.totals;
+  const totalKills = Object.values(t.kills).reduce((a, b) => a + b, 0);
+  const totalItems = Object.values(t.itemsByRarity).reduce((a, b) => a + b, 0);
+  const topSpecies = Object.entries(t.killsBySpecies).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const row = (label, value) => `<div class="stat-row"><span>${label}</span><b>${value}</b></div>`;
+  UI.modal(`
+    <h3>📊 Player Statistics</h3>
+    <div class="two-col">
+      <div class="panel">
+        <h3>⚔️ Combat</h3>
+        ${row('Adventures completed', formatK(t.adventures))}
+        ${row('Deaths', formatK(t.deaths))}
+        ${row('Chapter/Quest bosses defeated', formatK(t.bossesKilled))}
+        ${row('Damage dealt', formatK(t.dmgDealt))}
+        ${row('Damage taken', formatK(t.dmgTaken))}
+        <h3>💀 Kills — ${formatK(totalKills)} total</h3>
+        ${row('⚪ Normal', formatK(t.kills.normal))}
+        ${row('🔷 Rare', formatK(t.kills.rare))}
+        ${row('🟣 Epic', formatK(t.kills.epic))}
+        ${row('🩷 Miniboss', formatK(t.kills.miniboss))}
+        ${row('🔶 Legendary', formatK(t.kills.legendary))}
+      </div>
+      <div class="panel">
+        <h3>📦 Loot</h3>
+        ${row('Items found', formatK(totalItems))}
+        ${row('Runes found', formatK(t.runesFound))}
+        ${row('Runes socketed', formatK(t.runesSocketed))}
+        ${row('Items sold', formatK(t.itemsSold))}
+        <h3>Items found by rarity</h3>
+        ${row('Normal', formatK(t.itemsByRarity.normal))}
+        ${row('Magical', formatK(t.itemsByRarity.magical))}
+        ${row('Rare', formatK(t.itemsByRarity.rare))}
+        ${row('Epic', formatK(t.itemsByRarity.epic))}
+        ${row('Legendary', formatK(t.itemsByRarity.legendary))}
+        <h3>🪙 Gold</h3>
+        ${row('Gold found', formatK(t.goldFound))}
+        ${row('Gold from selling items', formatK(t.goldFromSales))}
+        ${row('Gold spent', formatK(t.goldSpent))}
+        <h3>Other</h3>
+        ${row('Potions used', formatK(t.potionsUsed))}
+        ${row('Tavern quests completed', formatK(t.questsCompleted))}
+      </div>
+    </div>
+    ${topSpecies.length ? `
+    <h3>🐾 Most-killed creatures</h3>
+    <div class="bestiary-tiers">
+      ${topSpecies.map(([species, n]) => `<div class="bestiary-tier-row"><span>${esc(species)}</span><span>${formatK(n)} kills</span></div>`).join('')}
+    </div>` : ''}
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+};
+
 // ------------------------------------------------------------
 // Character tab
 // ------------------------------------------------------------
@@ -584,8 +642,12 @@ UI.renderCharacter = function (el) {
     ${c.statPoints ? `
       <div class="lvlup-banner">⬆ LEVEL UP! You have <b>${c.statPoints} stat point${c.statPoints > 1 ? 's' : ''}</b> to spend below.</div>` : ''}
     <div class="panel level-panel">
-      <h3>📈 Level ${c.level} ${className(c)}</h3>
-      <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${c.xp.toLocaleString()} / ${xpNeed.toLocaleString()}</span></div>
+      <h3>📈 Level ${c.level} ${className(c)}
+        <span class="filters">
+          <button class="btn btn-tiny btn-sq" onclick="UI.showPlayerStats()" title="Player Statistics">📊</button>
+        </span>
+      </h3>
+      <div class="bar xp-bar xp-bar-big" title="XP: ${c.xp}/${xpNeed}"><div style="width:${Math.min(100, c.xp / xpNeed * 100)}%"></div><span>XP ${formatK(c.xp)} / ${formatK(xpNeed)}</span></div>
     </div>
     <div class="two-col">
       <div class="panel">
@@ -594,21 +656,21 @@ UI.renderCharacter = function (el) {
         ${statRow('dex', cls.mainStat === 'dex' ? '⭐ Dexterity' : 'Dexterity', 'stat-dex')}
         ${statRow('int', cls.mainStat === 'int' ? '⭐ Intelligence' : 'Intelligence', 'stat-int')}
         <h3>Important Stats</h3>
-        <div class="stat-row"><span>❤️ Max HP</span><b>${d.maxHp}</b></div>
-        <div class="stat-row"><span>⚡ Speed</span><b>${d.speed}</b></div>
-        <div class="stat-row"><span>🔵 Max Mana</span><b>${d.maxMana}</b></div>
+        <div class="stat-row"><span>❤️ Max HP</span><b>${formatK(d.maxHp)}</b></div>
+        <div class="stat-row"><span>⚡ Speed</span><b>${formatK(d.speed)}</b></div>
+        <div class="stat-row"><span>🔵 Max Mana</span><b>${formatK(d.maxMana)}</b></div>
         <h3>Sub Stats</h3>
-        <div class="stat-row"><span>💗 HP Regen</span><b>${d.hpRegen}</b></div>
+        <div class="stat-row"><span>💗 HP Regen</span><b>${formatK(d.hpRegen)}</b></div>
         <div class="stat-row"><span>💨 Evasion</span><b>${d.evasion}%</b></div>
-        <div class="stat-row"><span>💧 Mana Regen</span><b>${d.manaRegen}</b></div>
+        <div class="stat-row"><span>💧 Mana Regen</span><b>${formatK(d.manaRegen)}</b></div>
         <div class="stat-row"><span>👝 Potion Capacity</span><b>${potionCapacity()}</b></div>
         <h3>Combat</h3>
-        <div class="stat-row"><span>🗡️ Damage</span><b>${d.baseDmgMin.toLocaleString()}–${d.baseDmgMax.toLocaleString()}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
+        <div class="stat-row"><span>🗡️ Damage</span><b>${formatK(d.baseDmgMin)}–${formatK(d.baseDmgMax)}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
         <div class="stat-row"><span>⏱️ Attack Interval</span><b>${d.atkInterval}</b></div>
-        <div class="stat-row"><span>🛡️ Armor</span><b>${d.armor}</b></div>
+        <div class="stat-row"><span>🛡️ Armor</span><b>${formatK(d.armor)}</b></div>
         <div class="stat-row"><span>🌫️ Damage Reduction</span><b>${Math.round(d.dr * 100)}%</b></div>
         <div class="stat-row"><span>Resistances</span><b>⚔️${d.res.phys}% ✨${d.res.magic}% ☠️${d.res.poison}%</b></div>
-        <div class="stat-row"><span>Total kills</span><b>${c.kills.toLocaleString()}</b></div>
+        <div class="stat-row"><span>Total kills</span><b>${formatK(c.kills)}</b></div>
       </div>
       <div class="panel">
         <h3>Equipment</h3>
@@ -740,9 +802,9 @@ UI.renderInventory = function (el) {
     const matches = sellMatches(kind);
     if (!matches.length) { UI.toast('Nothing to sell'); return; }
     const gold = matches.reduce((s, i) => s + i.value, 0);
-    if (!confirm(`Sell ${matches.length} item${matches.length > 1 ? 's' : ''} for 🪙 ${gold.toLocaleString()}?`)) return;
+    if (!confirm(`Sell ${matches.length} item${matches.length > 1 ? 's' : ''} for 🪙 ${formatK(gold)}?`)) return;
     const r = sellAllOf(kind);
-    UI.toast(`Sold ${r.count} for 🪙 ${r.gold.toLocaleString()}`);
+    UI.toast(`Sold ${r.count} for 🪙 ${formatK(r.gold)}`);
   });
 };
 
@@ -773,7 +835,7 @@ UI.showInventorySettings = function () {
     saveGame();
     if (cb.checked) {
       const r = sweepAutoSell();
-      if (r.count) UI.toast(`Auto-sold ${r.count} matching item${r.count > 1 ? 's' : ''} for 🪙 ${r.gold.toLocaleString()}`);
+      if (r.count) UI.toast(`Auto-sold ${r.count} matching item${r.count > 1 ? 's' : ''} for 🪙 ${formatK(r.gold)}`);
     }
   });
 };
@@ -808,8 +870,8 @@ UI.itemStatsHtml = function (it, baseline) {
   const cand = statMapOf(it);
   const cls = key => baseline === undefined ? '' : cmpClsFor(cand, baseline, key);
   const runes = it.runes || [];
-  return `${it.dmgMin ? `<div class="istat ${cls('dmg')}">Damage: <b>${it.dmgMin.toLocaleString()}–${it.dmgMax.toLocaleString()}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
-    ${it.armor ? `<div class="istat ${cls('armor')}">Armor: <b>${it.armor.toLocaleString()}</b></div>` : ''}
+  return `${it.dmgMin ? `<div class="istat ${cls('dmg')}">Damage: <b>${formatK(it.dmgMin)}–${formatK(it.dmgMax)}</b>${it.magic ? ' (magic)' : ''}</div>` : ''}
+    ${it.armor ? `<div class="istat ${cls('armor')}">Armor: <b>${formatK(it.armor)}</b></div>` : ''}
     ${it.potionCap ? `<div class="istat ${cls('potionCap')}">Potion Capacity: <b>+${it.potionCap}</b> (HP &amp; Mana each)</div>` : ''}
     ${it.spd ? `<div class="istat ${cls('spd')}">Speed: <b>+${it.spd}</b></div>` : ''}
     ${it.atkSpd ? `<div class="istat">Attack Speed: <b>${it.atkSpd < 0.8 ? 'Very Fast' : it.atkSpd < 1 ? 'Fast' : it.atkSpd === 1 ? 'Normal' : it.atkSpd <= 1.2 ? 'Slow' : 'Very Slow'}</b> (×${it.atkSpd})</div>` : ''}
@@ -866,7 +928,7 @@ function statLabel(key) {
 }
 function fmtDelta(v) {
   const r = Math.round(v * 100) / 100;
-  return (r > 0 ? '+' : '') + r.toLocaleString();
+  return (r > 0 ? '+' : '') + formatK(r);
 }
 
 // Net stat deltas between a candidate item and whatever it would
@@ -944,7 +1006,7 @@ UI.renderShop = function (el) {
     <div class="panel">
       <h3>🛒 ${esc(shopName)}
         <span class="filters">
-          <button class="btn btn-tiny" onclick="restockShop()" ${G.gold < restockCost() ? 'disabled' : ''}>♻ New stock (🪙 ${restockCost()})</button>
+          <button class="btn btn-tiny btn-sq" onclick="restockShop()" title="New stock (🪙 ${formatK(restockCost())})" ${G.gold < restockCost() ? 'disabled' : ''}>♻</button>
         </span>
       </h3>
       <p class="hint">Wares are generated for area level ${shopIlvl()} and priced at 6× their sell value. Free new stock arrives whenever you return from an adventure.</p>
@@ -958,7 +1020,7 @@ UI.renderShop = function (el) {
             <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
             <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${usable ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
-            <div class="shop-price ${afford ? '' : 'poor'}">🪙 ${it.price.toLocaleString()}</div>
+            <div class="shop-price ${afford ? '' : 'poor'}">🪙 ${formatK(it.price)}</div>
           </div>`;
         }).join('')}
       </div>
@@ -994,7 +1056,7 @@ UI.showShopItem = function (uid) {
     ${statsHtml}
     ${UI.compareBlockHtml(it, targets, baseline)}
     <div class="modal-actions">
-      <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${it.price.toLocaleString()})</button>
+      <button class="btn btn-primary" ${afford ? '' : 'disabled'} onclick="buyShopItem(${it.uid});UI.closeModal()">Buy (🪙 ${formatK(it.price)})</button>
       ${equipActions.join('')}
       <button class="btn" onclick="UI.closeModal()">Close</button>
     </div>`);
@@ -1008,8 +1070,8 @@ UI.renderTavern = function (el) {
   if (!G.tavern.active) G.tavern.active = [];
   const t = G.tavern;
   const rewardLineHtml = (r, itemRarity) => [
-    r.gold ? `🪙 ${r.gold.toLocaleString()}` : '',
-    r.xp ? `✨ ${r.xp.toLocaleString()} XP` : '',
+    r.gold ? `🪙 ${formatK(r.gold)}` : '',
+    r.xp ? `✨ ${formatK(r.xp)} XP` : '',
     itemRarity ? `<span style="color:${DATA.RARITIES[itemRarity].color}">${cap(itemRarity)} item</span>` : '',
   ].filter(Boolean).join(' + ');
   const activeCard = (q, idx) => {
@@ -1021,7 +1083,7 @@ UI.renderTavern = function (el) {
       </div>
       <div class="quest-desc">${esc(q.desc)}</div>
       <div class="quest-reward">${q.ready ? 'Reward' : 'Reward (approx.)'}: ${rewardLineHtml(reward, q.rewardSpec.item)}</div>
-      <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${(q.progress || 0).toLocaleString()} / ${q.target.toLocaleString()}</span></div>
+      <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${formatK(q.progress || 0)} / ${formatK(q.target)}</span></div>
       ${q.ready
         ? `<button class="btn btn-primary btn-small" onclick="claimQuestReward(${idx})">🎁 Claim Reward</button>`
         : `<button class="btn btn-tiny danger" onclick="if(confirm('Abandon this quest? Progress is lost.'))abandonQuest(${idx})">✖ Abandon</button>`}
@@ -1328,8 +1390,8 @@ UI.playerCardHtml = function () {
       <div class="hero-card">
         <div class="hero-name">${esc(c.name)}</div>
         <div class="hero-sub">Lv ${c.level} ${className(c)}</div>
-        <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${Math.round(c.hp).toLocaleString()}/${d.maxHp.toLocaleString()}</span></div>
-        <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${Math.round(c.mana).toLocaleString()}/${d.maxMana.toLocaleString()}</span></div>
+        <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${formatK(Math.round(c.hp))}/${formatK(d.maxHp)}</span></div>
+        <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${formatK(Math.round(c.mana))}/${formatK(d.maxMana)}</span></div>
         <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
       </div>
       <div class="effects-grid">
@@ -1372,7 +1434,7 @@ UI.bestiaryTierRow = function (base, level, tier) {
   const hp = Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp));
   const dmg = Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg));
   const tierIcon = { normal: '⚪', rare: '🔷', epic: '🟣', miniboss: '🩷', legendary: '🔶' }[tier];
-  return `<div class="bestiary-tier-row"><span>${tierIcon} ${TIER_UI_LABEL[tier]}</span><span>❤️ ~${hp.toLocaleString()} HP</span><span>⚔️ ~${dmg.toLocaleString()} dmg</span></div>`;
+  return `<div class="bestiary-tier-row"><span>${tierIcon} ${TIER_UI_LABEL[tier]}</span><span>❤️ ~${formatK(hp)} HP</span><span>⚔️ ~${formatK(dmg)} dmg</span></div>`;
 };
 
 UI.showBestiary = function (level, pageIdx) {
@@ -1401,7 +1463,7 @@ UI.showBestiary = function (level, pageIdx) {
       <div class="item-sub">A rare bonus encounter (${(ELF_CHANCE * 100).toFixed(0)}% chance instead of a normal fight) — doesn't count toward the quest's 1,111 kills.</div>
       <p class="prelude-text">He never attacks and flees after at most 5 hits. Every 25% of his HP you knock off shakes an item loose from his bag; killing him outright before he flees spills the whole thing.</p>
       <div class="bestiary-tiers">
-        ${Object.entries(ELF_TYPES).map(([id, t]) => `<div class="bestiary-tier-row"><span style="color:${t.color}">🧝 ${esc(t.name)}</span><span>❤️ ~${Math.round(39 * t.hpMult * enemyHpScale(level)).toLocaleString()} HP</span><span>${t.weight}% of elf sightings</span></div>`).join('')}
+        ${Object.entries(ELF_TYPES).map(([id, t]) => `<div class="bestiary-tier-row"><span style="color:${t.color}">🧝 ${esc(t.name)}</span><span>❤️ ~${formatK(Math.round(39 * t.hpMult * enemyHpScale(level)))} HP</span><span>${t.weight}% of elf sightings</span></div>`).join('')}
       </div>
       <p class="prelude-text">Golden is the common baseline. Emerald and Diamond are progressively rarer, tougher, and carry noticeably better loot odds on both the 25%-HP bag drops and the final kill drop.</p>`;
   } else {
@@ -1567,10 +1629,10 @@ UI.enemyPanelHtml = function () {
         <div class="enemy-sub">${e.tier !== 'normal' ? `${esc(enemyTierLabel(e))} · ` : ''}Lv ${e.level}
           ${(e.affixes || []).map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
         </div>
-        <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${Math.max(0, Math.round(e.hp))}/${e.maxHp}</span></div>
+        <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${formatK(Math.max(0, Math.round(e.hp)))}/${formatK(e.maxHp)}</span></div>
         <div class="enemy-stats">
           ${e.tier === 'elf' ? `<span>🎒 Hits: ${f.elfHits || 0}/5 — he never fights back!</span>` : `
-          <span title="damage">🗡️ ${e.dmg.toLocaleString()}</span>
+          <span title="damage">🗡️ ${formatK(e.dmg)}</span>
           <span title="speed — gauge gained per round">⚡ ${e.spd}</span>
           <span title="attack">${esc(e.attack)} (${e.atkType})</span>`}
           ${e.stunned > 0 ? '<span>💫 stunned</span>' : ''}
@@ -1646,7 +1708,7 @@ UI.showResults = function (run, level) {
     <div class="item-sub">📖 ${esc(chapter.title)} · 🧭 Quest ${info.questNum}: ${esc(info.quest.name)} — 🗺️ ${esc(info.location)}</div>
     ${run.outcome === 'defeated' && run.killedByHit ? `
       <h4>☠️ Killing blow</h4>
-      <p class="hint">${run.killedByHit.icon} ${esc(run.killedByHit.label)} — ${run.killedByHit.amount.toLocaleString()} damage</p>` : ''}
+      <p class="hint">${run.killedByHit.icon} ${esc(run.killedByHit.label)} — ${formatK(run.killedByHit.amount)} damage</p>` : ''}
     ${run.outcome === 'defeated' && run.killedBy && run.killedBy.length ? `
       <h4>💀 The pack that got you
         <button class="btn btn-tiny" onclick="UI.closeModal();UI.showBestiary(${level})">🐾 View in Bestiary</button>
@@ -1658,9 +1720,9 @@ UI.showResults = function (run, level) {
             <div class="enemy-sub">${e.tier !== 'normal' ? `${esc(enemyTierLabel(e))} · ` : ''}Lv ${e.level}
               ${e.affixes.map(a => `<span class="affix-badge" style="color:${DATA.SPECIALTIES[a].color}" title="${esc(DATA.SPECIALTIES[a].name)} — ${esc(DATA.SPECIALTIES[a].desc)}">${DATA.SPECIALTIES[a].icon} ${esc(DATA.SPECIALTIES[a].name)}</span>`).join('')}
             </div>
-            <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${e.hp.toLocaleString()}/${e.maxHp.toLocaleString()}</span></div>
+            <div class="bar enemy-hp"><div style="width:${Math.max(0, e.hp / e.maxHp * 100)}%"></div><span>${formatK(e.hp)}/${formatK(e.maxHp)}</span></div>
             <div class="enemy-stats">
-              <span title="damage">🗡️ ${e.dmg.toLocaleString()}</span>
+              <span title="damage">🗡️ ${formatK(e.dmg)}</span>
               <span title="speed — gauge gained per round">⚡ ${e.spd}</span>
               <span title="attack">${esc(e.attack)} (${e.atkType})</span>
             </div>
@@ -1671,14 +1733,14 @@ UI.showResults = function (run, level) {
     ${isBoss && run.partReward ? `
       <h4>🎁 Quest Reward</h4>
       <div class="quest-reward-box">
-        <span class="gold">🪙 ${run.partReward.gold.toLocaleString()}</span>
+        <span class="gold">🪙 ${formatK(run.partReward.gold)}</span>
         <span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>
       </div>` : ''}
     <h4>Battle report</h4>
     <div class="results-grid">
-      <div class="res-box"><b>⚔️ ${Math.round(run.dmgDealt).toLocaleString()}</b><span>damage dealt</span></div>
-      <div class="res-box"><b>🩸 ${Math.round(run.dmgTaken).toLocaleString()}</b><span>damage taken</span></div>
-      <div class="res-box"><b>${run.xp.toLocaleString()}</b><span>XP${run.levelUps ? ` (+${run.levelUps} level${run.levelUps > 1 ? 's' : ''}!)` : ''}</span></div>
+      <div class="res-box"><b>⚔️ ${formatK(Math.round(run.dmgDealt))}</b><span>damage dealt</span></div>
+      <div class="res-box"><b>🩸 ${formatK(Math.round(run.dmgTaken))}</b><span>damage taken</span></div>
+      <div class="res-box"><b>${formatK(run.xp)}</b><span>XP${run.levelUps ? ` (+${run.levelUps} level${run.levelUps > 1 ? 's' : ''}!)` : ''}</span></div>
       <div class="res-box"><b>🧪 ${run.potions.hp + run.potions.mana}${run.potions.scroll ? ` · 📜 ${run.potions.scroll}` : ''}</b><span>potions / scrolls found</span></div>
     </div>
     <h4>Creatures slain — ${totalKills}</h4>
@@ -1691,7 +1753,7 @@ UI.showResults = function (run, level) {
     </div>
     <h4>Spoils</h4>
     <div class="results-grid results-grid-2">
-      <div class="res-box"><b class="gold">🪙 ${run.gold.toLocaleString()}</b><span>gold</span></div>
+      <div class="res-box"><b class="gold">🪙 ${formatK(run.gold)}</b><span>gold</span></div>
       <div class="res-box"><b>📦 ${run.items.length}</b><span>items dropped</span></div>
     </div>
     ${dropChips.length ? `<div class="drop-chips">${dropChips.join(' · ')}</div>` : ''}
