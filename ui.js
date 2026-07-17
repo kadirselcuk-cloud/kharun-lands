@@ -509,7 +509,7 @@ UI.renderCityHub = function (el) {
   const questReady = !!(G.tavern && G.tavern.active && G.tavern.active.some(q => q.ready));
   el.innerHTML = `
     <div class="subtabs">
-      <button data-sub="shop" class="${activeCitySub === 'shop' ? 'active' : ''}">🛒 Shop</button>
+      <button data-sub="shop" class="${activeCitySub === 'shop' ? 'active' : ''}">⚒️ Blacksmith</button>
       <button data-sub="tavern" class="${activeCitySub === 'tavern' ? 'active' : ''} ${questReady ? 'tab-notify' : ''}">🍺 Tavern</button>
     </div>
     <div id="city-sub-content"></div>`;
