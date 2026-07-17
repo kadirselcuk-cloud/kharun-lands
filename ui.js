@@ -1069,10 +1069,12 @@ UI.renderTavern = function (el) {
   if (!G.tavern) genTavernBoard();
   if (!G.tavern.active) G.tavern.active = [];
   const t = G.tavern;
-  const rewardLineHtml = (r, itemRarity) => [
+  const RUNE_SOURCE_LABEL = { miniboss: 'Rune', legendary: 'Elder Rune' };
+  const rewardLineHtml = (r, spec) => [
     r.gold ? `🪙 ${formatK(r.gold)}` : '',
     r.xp ? `✨ ${formatK(r.xp)} XP` : '',
-    itemRarity ? `<span style="color:${DATA.RARITIES[itemRarity].color}">${cap(itemRarity)} item</span>` : '',
+    spec.item ? `<span style="color:${DATA.RARITIES[spec.item].color}">${cap(spec.item)}+ item</span>` : '',
+    spec.rune ? `<span style="color:${DATA.RARITIES[spec.rune === 'legendary' ? 'rare' : 'magical'].color}">🪨 ${RUNE_SOURCE_LABEL[spec.rune]}+</span>` : '',
   ].filter(Boolean).join(' + ');
   const activeCard = (q, idx) => {
     const reward = q.ready ? q.finalReward : questRewardPreview(q.rewardSpec.goldMult, q.rewardSpec.xpMult);
@@ -1082,7 +1084,7 @@ UI.renderTavern = function (el) {
         <span class="quest-tag">${q.ready ? 'READY' : 'ACTIVE'}</span>
       </div>
       <div class="quest-desc">${esc(q.desc)}</div>
-      <div class="quest-reward">${q.ready ? 'Reward' : 'Reward (approx.)'}: ${rewardLineHtml(reward, q.rewardSpec.item)}</div>
+      <div class="quest-reward">${q.ready ? 'Reward' : 'Reward (approx.)'}: ${rewardLineHtml(reward, q.rewardSpec)}</div>
       <div class="bar quest-bar"><div style="width:${Math.min(100, (q.progress || 0) / q.target * 100)}%"></div><span>${formatK(q.progress || 0)} / ${formatK(q.target)}</span></div>
       ${q.ready
         ? `<button class="btn btn-primary btn-small" onclick="claimQuestReward(${idx})">🎁 Claim Reward</button>`
@@ -1096,7 +1098,7 @@ UI.renderTavern = function (el) {
     <div class="quest-card">
       <div class="quest-head">${q.icon} <b>${esc(q.name)}</b></div>
       <div class="quest-desc">${esc(q.desc)}</div>
-      <div class="quest-reward">Reward (approx.): ${rewardLineHtml(preview, q.rewardSpec.item)}</div>
+      <div class="quest-reward">Reward (approx.): ${rewardLineHtml(preview, q.rewardSpec)}</div>
       <button class="btn btn-primary btn-small" ${full ? 'disabled' : ''} onclick="acceptQuest(${idx})">${full ? 'Two quests active' : 'Accept'}</button>
     </div>`;
   };
@@ -1107,6 +1109,11 @@ UI.renderTavern = function (el) {
       ${t.active.length ? `<h4>Your current quests (${t.active.length}/2)</h4>${t.active.map((q, i) => activeCard(q, i)).join('')}` : ''}
       <h4>Quest board</h4>
       ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => boardCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}
+      <h4>🎲 Gambling Den</h4>
+      <p class="hint">Bet gold on a dice roll-off against the house: roll higher and double your stake, roll lower and lose it, tie and your gold's returned. True 50/50 odds — no house edge.</p>
+      <div class="dice-bets">
+        ${DICE_BET_TIERS.map(b => `<button class="btn btn-small" ${G.gold < b ? 'disabled' : ''} onclick="playDice(${b})">🎲 Bet 🪙${formatK(b)}</button>`).join('')}
+      </div>
     </div>`;
 };
 

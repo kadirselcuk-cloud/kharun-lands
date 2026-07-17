@@ -18,6 +18,61 @@
   (`MAJOR.MINOR+1.0`); MAJOR is only bumped when the user explicitly says
   so — never infer a major bump from how big a change feels.
 
+## Tavern: Gambling Den, quest board size, and reward buffs (game.js/ui.js)
+
+- **Dice gambling** (`playDice(bet)`, game.js; `.dice-bets` row in
+  `UI.renderTavern`, ui.js): fixed stake tiers `DICE_BET_TIERS = [10, 50,
+  200, 1000]` (chosen over free-form input so a misclick can't wipe out
+  a fortune), 1d6-vs-house-1d6, **true 50/50 odds with no house edge**
+  (explicit user choice over a house-edge or a push-your-luck design) —
+  win nets `+bet`, lose nets `-bet`, tie is a no-op push. Feedback is
+  toast-only, matching the existing quest-claim pattern; no new modal.
+- **Quest board raised 6 -> 8** (`genTavernBoard`'s loop bound in
+  game.js). The 2-active-quest cap was deliberately left at 2 — not
+  part of the request, and the ambiguity was resolved conservatively.
+- **Rewards "much better"**: resolved via clarifying question to "double
+  the current gold/XP" — `questRewardAmounts`/`questRewardPreview` base
+  coefficients doubled again on top of 1.3.0's earlier ~30% bump. The
+  `goldR` helper inside `genQuest` (the Debt of Honor quest's gold-to-
+  *earn* target, not its reward) was deliberately left alone — doubling
+  it would make that quest harder, not more rewarding.
+- **Kill_miniboss/kill_legendary quests reward Runes, not items** per
+  explicit request: Crownsnatcher's `rewardSpec` is now `rune:
+  'miniboss'`, Head of the Beast's is `rune: 'legendary'`. Both route
+  through the existing `makeRune(ilvl, source)` and its
+  `RUNE_BONUS_RANGE` table (`miniboss: [2,4]`, `legendary: [3,5]`) —
+  which *already* guaranteed miniboss-source runes are Rune-tier-or-
+  better and legendary-source runes are Elder-Rune-tier-or-better (one
+  tier above), so "miniboss min = Rune, legendary min = one better" per
+  the request needed zero new tuning — just wiring `claimQuestReward` to
+  call `makeRune` instead of `makeItem` for these two reward specs.
+- **Item-reward rarity floor raised to Rare, escalating toward Legendary
+  at higher areas**, per an explicit "at least rare, better legendaries
+  as you go higher" request: new `questItemRarity(minRarity, area)` +
+  `QUEST_ITEM_RARITY_ORDER = ['rare','epic','legendary']` (game.js).
+  Starts at the quest type's own baseline (bumped from `'magical'` to
+  `'rare'` for Potion Tester/Pack Rat; kill_epic/gold/level_clear quests
+  that were already `'rare'`/`'epic'` keep their higher floor) and rolls
+  a chance to climb one tier at a time — `upChance` scales linearly from
+  10% at area 1 to 70% at area 100. This specific curve/shape was an
+  assumed default (not confirmed with the user), since "better
+  legendaries as you go higher" didn't specify a formula. Rolled fresh
+  in `claimQuestReward` at claim time (reads the *current* area), not
+  pre-baked at ready-time the way gold/xp are.
+- `rewardLineHtml` (ui.js, `UI.renderTavern`) now takes the whole
+  `rewardSpec`/`finalReward` object instead of a bare item-rarity
+  string, so a quest can show an item floor ("Rare+ item") and a rune
+  reward ("🪨 Rune+" / "🪨 Elder Rune+", colored via each source's floor
+  rune-tier rarity) on the same line without one crowding out the other.
+- Verified end-to-end via a headless-Chromium (Playwright) pass driving
+  the existing `node server.js` at :3111 — confirmed the board renders
+  exactly 8 cards, item rewards show Rare+/Epic+ labels, a forced-ready
+  Crownsnatcher + Head of the Beast both claim into an actual rune in
+  inventory meeting their guaranteed floor (verified the rolled
+  rarity/bonus-count directly), and 20 scripted dice bets at a fixed
+  stake all resolved to exactly +bet/-bet/0 with no other outcome and no
+  console errors.
+
 ## Battle arena layout (`.player-row` in style.css / `UI.playerCardHtml` in ui.js)
 
 Row order, left to right: `.next-action-box` → `.hero-card` → `.effects-grid`.

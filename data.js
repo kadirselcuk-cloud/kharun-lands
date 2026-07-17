@@ -5,12 +5,19 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.3.1';
+DATA.VERSION = '1.4.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.4.0', notes: [
+    'New Tavern Gambling Den: bet gold on a dice roll-off against the house — roll higher to double your stake, lower and lose it, tie and it\'s returned. True 50/50 odds, no house edge.',
+    'Tavern quest board expanded from 6 to 8 quests at a time.',
+    'Tavern rewards buffed across the board — gold and XP payouts roughly doubled.',
+    'Crownsnatcher (slay a Mini Boss) and Head of the Beast (slay a Legendary) quests now reward a Rune instead of a plain item — Crownsnatcher guarantees at least a Rune, Head of the Beast guarantees at least an Elder Rune.',
+    'Tavern item rewards never roll below Rare anymore, and have a growing chance to climb toward Epic/Legendary the further into the game you are.',
+  ] },
   { v: '1.3.1', notes: [
     'City hub\'s Shop sub-tab is now labeled Blacksmith.',
   ] },

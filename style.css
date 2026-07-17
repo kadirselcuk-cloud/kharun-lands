@@ -709,6 +709,7 @@ small { color: var(--dim); }
 .quest-card .bar { flex: none; }
 .quest-bar { height: 18px; } .quest-bar > div { background: linear-gradient(180deg, #d9a94c, #8a611b); }
 .quest-card .btn { align-self: flex-start; }
+.dice-bets { display: flex; flex-wrap: wrap; gap: 8px; }
 
 /* log elf color */
 .log-encounter.tier-elf, .log-kill.tier-elf { color: #8fd96c; font-weight: 700; }
