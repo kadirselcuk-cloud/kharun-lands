@@ -7,6 +7,16 @@
   than guessing silently. If the user doesn't answer, proceed with the
   most conservative/reasonable default and say explicitly what was assumed.
 - Commit automatically after changes; only push when explicitly asked.
+- Every update that ships gets a changelog entry — no exceptions, even for
+  a one-line UI tweak. Bump `DATA.VERSION` in data.js, add a matching entry
+  to `DATA.CHANGELOG` (data.js — the in-game 📋 Changelog modal, player-
+  facing wording, no code/variable names), add the mirrored dev-facing
+  entry to VERSION.md (implementation detail included), and bump the
+  `?v=` query string on the three script tags in index.html to the new
+  version. Bugfixes/design-only/UX-only changes bump FIX
+  (`MAJOR.MINOR.FIX+1`); gameplay/content/feature changes bump MINOR
+  (`MAJOR.MINOR+1.0`); MAJOR is only bumped when the user explicitly says
+  so — never infer a major bump from how big a change feels.
 
 ## Battle arena layout (`.player-row` in style.css / `UI.playerCardHtml` in ui.js)
 

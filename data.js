@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.3.0';
+DATA.VERSION = '1.3.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.3.1', notes: [
+    'City hub\'s Shop sub-tab is now labeled Blacksmith.',
+  ] },
   { v: '1.3.0', notes: [
     'Advanced Classes: at level 25, choose one of two paths per class (e.g. Warrior -> Knight or Mercenary), each unlocking a new active + passive skill; at level 50 your path automatically evolves to its final form, unlocking a second passive and a stronger Ultimate.',
     'Major combat rebalance: fixed an armor-mitigation bug that let physical damage taken trend toward zero at higher levels; monster HP/damage and weapon damage now scale together so difficulty stays consistent through the whole game instead of trailing off.',

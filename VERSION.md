@@ -14,6 +14,12 @@ game at runtime.
 
 ---
 
+## 1.3.1 (fix)
+
+- City hub's Shop sub-tab button relabeled "⚒️ Blacksmith" (`UI.renderCityHub`
+  in ui.js). Purely the menu label — `data-sub="shop"`, `renderShop`,
+  `showShopItem`, and every other internal name stay `shop`.
+
 ## 1.3.0 (minor)
 
 - **Advanced Classes**: at level 25 each base class picks one of two paths
