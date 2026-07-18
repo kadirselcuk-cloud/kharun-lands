@@ -5,12 +5,27 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.4.3';
+DATA.VERSION = '1.6.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.6.0', notes: [
+    'New city location: The Arena. Once per quest level (until you clear that quest or take on its Arena), a captured, empowered group of the level\'s own beasts awaits — either a Miniboss+Epic pair, three Epics, or six Rares, all with 50% more HP and 2 of them forced dangerous (a specialty affix). Win for gold plus a rune; lose and that level\'s Arena is gone for good, so it\'s one shot.',
+  ] },
+  { v: '1.5.0', notes: [
+    'New city shop: the Enchanter. The Enchantment Table re-forges an item to your current level (give it a matching rune — Faded Rune for Magical, Rune for Rare, a 4-bonus Elder Rune for Epic, a 5-bonus Elder Rune for Legendary — and the rune is consumed). The Rune Forge merges 3 same-tier runes into one better rune at your current level — Tiers 1-4 have a 50% chance the runes shatter instead, but Legendary-tier runes always succeed.',
+    'Tavern quest board: fixed a bug where accepting a quest would leave the board stuck below its full 8 offers until your next trip home — it now always backfills to 8.',
+    '20 new Tavern quest types: socket runes, sell items, fell a chapter boss, find Epic+ items, earn gold selling, hunt specific specialty creatures (Poisonous/Frozen/Burning/Vampiric/Explosive/Golem/Charming/Regenerating/Berserk/Spectral/any Abnormal), enchant items, forge runes, cast skills, and best Sneaky Elves.',
+    'Attack and enemy gauges now visibly fill toward the next round instead of snapping forward each tick.',
+    'The Skills screen shows a preview of your next rank\'s effect for any skill you\'ve already learned.',
+    'Healing Light now recovers 30% of Max HP at Rank 1, scaling up to 50% at Rank 10 (up from 19%-46%).',
+    'Minnie\'s Sacred Vigil ward now reduces damage taken by 10% at Rank 1, scaling up to 40% at Rank 10 (up from 1%-10%).',
+    'Minnie\'s class-exclusive Legendary weapons and offhands (Arcane Staff/Wand/Scepter, Arcane Orb, Spell Tome) can now roll 1-3 different bonus skill ranks (+1 to +3 each) — rarer at low levels, more common by the end of Chapter 10.',
+    'Regenerating creatures can no longer heal forever — once they\'ve regenerated their own max HP worth of damage in a fight, the regeneration stops.',
+    'Removed the Reflective ward. Replaced with Charming: a 50% chance each round that a charming enemy stops you from attacking or casting on your turn.',
+  ] },
   { v: '1.4.3', notes: [
     'Victory/defeat results screen: items are no longer clickable, auto-sold items now show as their own "Auto-sold" summary, and the victory screen can only be dismissed with Continue (no more accidental X/backdrop closes).',
     'Fixed: items that are unusable by your class/weight sometimes weren\'t auto-sold — Tavern quest rewards and guaranteed quest-clear rewards now respect your auto-sell settings too, not just items found while adventuring.',
@@ -398,7 +413,7 @@ DATA.CHAPTERS = [
       objective: 'Climb the ridge and confront whoever — or whatever — has been observing the group\'s every move since the vault.',
       outro: ['It\'s not a person. It\'s a Ridgeborn Sentinel, a construct-creature grown from the same corruption as everything below, built and tasked specifically to watch and report. Destroying it triggers a final psychic backlash — a vision, brief and shared by all three, of a marsh three hundred years younger, a king\'s border-wall, and a knife in the dark.'],
       setup: 'Sets up Quest 10: the chapter\'s true threat reveals itself, drawn by the sentinel\'s destruction.',
-      boss: { name: 'Ridgeborn Sentinel', attack: 'Reporting Pulse', atkType: 'magic', res: { phys: 45, magic: 35, poison: 70 }, hp: 1.4, dmg: 1.2, spd: 0.9, specialties: ['golem', 'reflective'] },
+      boss: { name: 'Ridgeborn Sentinel', attack: 'Reporting Pulse', atkType: 'magic', res: { phys: 45, magic: 35, poison: 70 }, hp: 1.4, dmg: 1.2, spd: 0.9, specialties: ['golem', 'charm'] },
       creatures: [
         { name: 'Ridge Creeper', attack: 'Scuttling Slash', atkType: 'phys', res: { phys: 20, magic: 10, poison: 35 }, hp: 1.0, dmg: 1.0, spd: 1.1 },
         { name: 'Watching Eye', attack: 'Focused Beam', atkType: 'magic', res: { phys: 30, magic: 40, poison: 50 }, hp: 0.8, dmg: 1.3, spd: 1.0 },
@@ -627,7 +642,7 @@ DATA.CHAPTERS = [
       objective: 'Breach the master\'s vault and secure whatever he was protecting.',
       outro: ['A Vault Warden, an ancient construct clearly older than the guild that inherited it, activates to defend records that were never guild property to begin with. Inside: original correspondence — not with a client, but with something calling itself Vorrhak\'s Voice, a servant-intelligence acting on behalf of a demon the records finally name outright.'],
       setup: 'Sets up Quest 7: the group now has the demon\'s name, and it changes everything Minnie thought she knew.',
-      boss: { name: 'Vault Warden', attack: 'Ancient Ward-Fist', atkType: 'phys', res: { phys: 50, magic: 35, poison: 70 }, hp: 1.5, dmg: 1.1, spd: 0.7, specialties: ['golem', 'reflective'] },
+      boss: { name: 'Vault Warden', attack: 'Ancient Ward-Fist', atkType: 'phys', res: { phys: 50, magic: 35, poison: 70 }, hp: 1.5, dmg: 1.1, spd: 0.7, specialties: ['golem', 'charm'] },
       creatures: [
         { name: 'Vault Skitterling', attack: 'Lock-Pick Claws', atkType: 'phys', res: { phys: 25, magic: 15, poison: 40 }, hp: 0.8, dmg: 1.0, spd: 1.3 },
         { name: 'Record-Moth Swarm', attack: 'Paper-Dust Cloud', atkType: 'poison', res: { phys: 5, magic: 20, poison: 50 }, hp: 0.6, dmg: 1.1, spd: 1.5 },
@@ -780,7 +795,7 @@ DATA.CHAPTERS = [
       objective: 'Investigate the wall ruins and clear whatever\'s using its broken sections as a nest.',
       outro: ['A Wall-Bound Aberration, a horror born from centuries of leaking, unstable ward-magic pooling in the wall\'s cracks, attacks from inside the stone itself. Its death stabilizes a long stretch of the wall, and in the newly-quiet section, they find a sealed alcove — untouched, clearly built for one purpose: to hold something safe until a specific bloodline came looking for it.'],
       setup: 'Sets up Quest 9: the wall was built with contingencies, and one of them was meant for exactly this moment.',
-      boss: { name: 'Wall-Bound Aberration', attack: 'Strike From the Stone', atkType: 'magic', res: { phys: 50, magic: 40, poison: 70 }, hp: 1.4, dmg: 1.3, spd: 0.8, specialties: ['golem', 'reflective'] },
+      boss: { name: 'Wall-Bound Aberration', attack: 'Strike From the Stone', atkType: 'magic', res: { phys: 50, magic: 40, poison: 70 }, hp: 1.4, dmg: 1.3, spd: 0.8, specialties: ['golem', 'charm'] },
       creatures: [
         { name: 'Crack-Dweller Skitterer', attack: 'Mortar-Dust Bite', atkType: 'phys', res: { phys: 35, magic: 15, poison: 50 }, hp: 0.9, dmg: 1.0, spd: 1.2 },
         { name: 'Ward-Leak Wisp', attack: 'Unstable Discharge', atkType: 'magic', res: { phys: 45, magic: 30, poison: 60 }, hp: 0.7, dmg: 1.3, spd: 1.2 },
@@ -997,7 +1012,7 @@ DATA.CHAPTERS = [
       objective: 'Clear the crossing\'s guardian so both parties can move on safely.',
       outro: ['A Crossing Sentinel, an animated suit of old ceremonial armor bound by lingering corruption, tests both parties at once in a chaotic, multi-front fight before finally falling. Kage\'s party heads for the records office with a promise, half-joking, half-not, to come running if things get loud. Minnie\'s group heads for the tower.'],
       setup: 'Sets up Quest 5: alone again, the real weight of Fallcrest settles back onto Kharun\'s shoulders.',
-      boss: { name: 'Crossing Sentinel', attack: 'Ceremonial Halberd Arc', atkType: 'phys', res: { phys: 50, magic: 30, poison: 70 }, hp: 1.4, dmg: 1.2, spd: 0.8, specialties: ['golem', 'reflective'] },
+      boss: { name: 'Crossing Sentinel', attack: 'Ceremonial Halberd Arc', atkType: 'phys', res: { phys: 50, magic: 30, poison: 70 }, hp: 1.4, dmg: 1.2, spd: 0.8, specialties: ['golem', 'charm'] },
       creatures: [
         { name: 'Animated Gauntlet', attack: 'Disembodied Grip', atkType: 'phys', res: { phys: 45, magic: 20, poison: 70 }, hp: 0.8, dmg: 1.1, spd: 1.2 },
         { name: 'Banner-Cloth Phantom', attack: 'Smothering Drape', atkType: 'magic', res: { phys: 50, magic: 25, poison: 65 }, hp: 0.7, dmg: 1.2, spd: 1.2 },
@@ -1107,7 +1122,7 @@ DATA.CHAPTERS = [
       objective: 'Cross the resonance chamber and silence whatever\'s amplifying the disturbance.',
       outro: ['A Resonant Horror, a corrupted crystalline creature that feeds on and amplifies magical vibration, nearly deafens the group before falling. Its death quiets the chamber enough for Minnie to notice something structural: the resonance wasn\'t natural. It was a ward-network, deliberately tuned to detect intruders, and it\'s been reporting the group\'s presence deeper into the caverns since they arrived.'],
       setup: 'Sets up Quest 3: whatever\'s deeper in already knows they\'re coming.',
-      boss: { name: 'Resonant Horror', attack: 'Deafening Harmonic', atkType: 'magic', res: { phys: 45, magic: 40, poison: 65 }, hp: 1.3, dmg: 1.3, spd: 0.9, specialties: ['magical', 'reflective'] },
+      boss: { name: 'Resonant Horror', attack: 'Deafening Harmonic', atkType: 'magic', res: { phys: 45, magic: 40, poison: 65 }, hp: 1.3, dmg: 1.3, spd: 0.9, specialties: ['magical', 'charm'] },
       creatures: [
         { name: 'Hum-Tuned Crystalline', attack: 'Vibration Pulse', atkType: 'magic', res: { phys: 40, magic: 35, poison: 60 }, hp: 0.9, dmg: 1.2, spd: 1.0 },
         { name: 'Chamber-Floor Creeper', attack: 'Tooth-Rattle Bite', atkType: 'phys', res: { phys: 30, magic: 20, poison: 45 }, hp: 1.0, dmg: 1.1, spd: 1.0 },
@@ -1173,7 +1188,7 @@ DATA.CHAPTERS = [
       objective: 'Force the masters\' door and defend Minnie while she works to unlock it without destroying the ward-work entirely.',
       outro: ['A Threshold Sentinel, a construct keyed specifically to test academy-trained mages before allowing passage, attacks Minnie directly the moment she begins the unlocking working, forcing Kharun and Pars to hold the line around her. When the door finally gives, it doesn\'t lead further down — it opens onto a ledge overlooking a vast cavern below, and at the bottom of that cavern, unmistakable even from this height, are the sealed gates of the Academy of Aldergate itself.'],
       setup: 'Sets up Quest 9: the academy is finally, visibly in sight, and something is waiting between the group and the descent.',
-      boss: { name: 'Threshold Sentinel', attack: 'Mage-Keyed Counterstrike', atkType: 'magic', res: { phys: 45, magic: 40, poison: 70 }, hp: 1.4, dmg: 1.3, spd: 0.9, specialties: ['reflective', 'resistant'] },
+      boss: { name: 'Threshold Sentinel', attack: 'Mage-Keyed Counterstrike', atkType: 'magic', res: { phys: 45, magic: 40, poison: 70 }, hp: 1.4, dmg: 1.3, spd: 0.9, specialties: ['charm', 'resistant'] },
       creatures: [
         { name: 'Ward-Signature Wisp', attack: 'Authorship Test', atkType: 'magic', res: { phys: 40, magic: 35, poison: 60 }, hp: 0.7, dmg: 1.3, spd: 1.2 },
         { name: 'Seal-Line Crawler', attack: 'Boundary Snap', atkType: 'phys', res: { phys: 35, magic: 25, poison: 55 }, hp: 1.0, dmg: 1.1, spd: 1.0 },
@@ -1271,7 +1286,7 @@ DATA.CHAPTERS = [
       objective: 'Climb the scrying tower and clear whatever\'s guarding its upper chamber.',
       outro: ['A Tower-Bound Sentinel, one of the academy\'s own defense constructs, still loyally active after months of isolation, initially attacks them on sight before Minnie manages to shout a master-level command phrase that makes it hesitate, then stand down entirely, recognizing her authority. At the top, they find a working scrying station, recently used, tuned to a very specific frequency — one Minnie recognizes as her own former mentor\'s personal signature.'],
       setup: 'Sets up Quest 6: Minnie\'s own mentor is close, possibly still alive, actively working against the demon from wherever they\'ve holed up.',
-      boss: { name: 'Tower-Bound Sentinel', attack: 'Loyal Defense Protocol', atkType: 'phys', res: { phys: 50, magic: 35, poison: 70 }, hp: 1.5, dmg: 1.2, spd: 0.8, specialties: ['golem', 'reflective'] },
+      boss: { name: 'Tower-Bound Sentinel', attack: 'Loyal Defense Protocol', atkType: 'phys', res: { phys: 50, magic: 35, poison: 70 }, hp: 1.5, dmg: 1.2, spd: 0.8, specialties: ['golem', 'charm'] },
       creatures: [
         { name: 'Stair-Guard Construct', attack: 'Step-Denial Sweep', atkType: 'phys', res: { phys: 45, magic: 25, poison: 65 }, hp: 1.1, dmg: 1.1, spd: 0.8 },
         { name: 'Preserved-Hall Wisp', attack: 'Refuge-Ward Snap', atkType: 'magic', res: { phys: 40, magic: 30, poison: 60 }, hp: 0.7, dmg: 1.2, spd: 1.2 },
@@ -1436,7 +1451,7 @@ DATA.CHAPTERS = [
       objective: 'Destroy the Backlash Construct without disrupting the masters\' fragile remaining strength.',
       outro: ['It\'s a delicate, dangerous fight — every stray spell risks destabilizing the well further, forcing careful, precise combat instead of raw power. When it finally falls, silence settles over the chamber. Corwin, barely standing, gives the signal: it\'s time.'],
       setup: 'Sets up Quest 9: the ritual begins, and Vorrhak makes its true, final effort to stop it.',
-      boss: { name: 'Backlash Construct', attack: 'Overflow Discharge', atkType: 'magic', res: { phys: 45, magic: 40, poison: 70 }, hp: 1.5, dmg: 1.3, spd: 0.9, specialties: ['reflective', 'golem'] },
+      boss: { name: 'Backlash Construct', attack: 'Overflow Discharge', atkType: 'magic', res: { phys: 45, magic: 40, poison: 70 }, hp: 1.5, dmg: 1.3, spd: 0.9, specialties: ['charm', 'golem'] },
       creatures: [
         { name: 'Overflow Sparkling', attack: 'Stray-Magic Arc', atkType: 'magic', res: { phys: 35, magic: 35, poison: 60 }, hp: 0.7, dmg: 1.2, spd: 1.3 },
         { name: 'Strain-Given Form', attack: 'Months-of-Effort Slam', atkType: 'phys', res: { phys: 45, magic: 25, poison: 60 }, hp: 1.2, dmg: 1.1, spd: 0.8 },
@@ -1514,7 +1529,7 @@ DATA.CHAPTERS = [
       objective: 'Investigate the throne\'s hidden ward-work while defending against whatever Vorrhak\'s presence has drawn into the throne room.',
       outro: ['A Throne-Bound Wraith, the lingering echo of the very ward-magic the old king wove into his own seat of power as a last contingency, misidentifies the group as threats and attacks before Minnie manages to calm it with the right phrase. Once pacified, it shows them the truth: the king left a final message, keyed to activate only when his bloodline and the demon\'s trail were both present in this room at once. That moment is now.'],
       setup: 'Sets up Quest 4: the old king speaks, in echo, for the first time in three centuries.',
-      boss: { name: 'Throne-Bound Wraith', attack: 'Contingency Ward-Lash', atkType: 'magic', res: { phys: 55, magic: 35, poison: 70 }, hp: 1.3, dmg: 1.3, spd: 1.1, specialties: ['spectral', 'reflective'] },
+      boss: { name: 'Throne-Bound Wraith', attack: 'Contingency Ward-Lash', atkType: 'magic', res: { phys: 55, magic: 35, poison: 70 }, hp: 1.3, dmg: 1.3, spd: 1.1, specialties: ['spectral', 'charm'] },
       creatures: [
         { name: 'Seat-of-Power Echo', attack: 'Royal Ward-Snap', atkType: 'magic', res: { phys: 45, magic: 30, poison: 65 }, hp: 0.8, dmg: 1.2, spd: 1.1 },
         { name: 'Cracked-Dais Skitterer', attack: 'Throne-Split Dart', atkType: 'phys', res: { phys: 35, magic: 20, poison: 50 }, hp: 0.9, dmg: 1.1, spd: 1.2 },
@@ -1569,7 +1584,7 @@ DATA.CHAPTERS = [
       objective: 'Hold the threshold and prevent Vorrhak\'s remaining servants from widening the tear before the group can reach the demon itself.',
       outro: ['A Tear-Bound Guardian, the last true servant Vorrhak has left, thrown into the fight with everything it has to buy its master time to fully recover from the escape, fights with genuine desperation rather than confidence — the tide has turned, and even it seems to know it. Its defeat leaves the tear undefended, and beyond it, weakened, cornered, furious, waits Vorrhak itself.'],
       setup: 'Sets up Quest 9: the final confrontation is at hand, but Vorrhak gets one last word before the fighting starts.',
-      boss: { name: 'Tear-Bound Guardian', attack: 'Master\'s Last Defense', atkType: 'magic', res: { phys: 45, magic: 40, poison: 65 }, hp: 1.5, dmg: 1.4, spd: 1.0, specialties: ['resistant', 'reflective'] },
+      boss: { name: 'Tear-Bound Guardian', attack: 'Master\'s Last Defense', atkType: 'magic', res: { phys: 45, magic: 40, poison: 65 }, hp: 1.5, dmg: 1.4, spd: 1.0, specialties: ['resistant', 'charm'] },
       creatures: [
         { name: 'Tear-Edge Widener', attack: 'Reality-Pick Scratch', atkType: 'magic', res: { phys: 40, magic: 35, poison: 60 }, hp: 0.8, dmg: 1.2, spd: 1.2 },
         { name: 'Desperation Spawnling', attack: 'Tide-Turned Snap', atkType: 'phys', res: { phys: 30, magic: 25, poison: 50 }, hp: 0.9, dmg: 1.2, spd: 1.2 },
@@ -1772,8 +1787,8 @@ mage: mkSkills([
     desc: r => `Rain destruction: ${175 + 18 * r}% damage to ALL enemies.`,
     mult: r => 1.75 + 0.18 * r, cost: () => 32, cd: 3, aoe: true, magic: true },
   { id: 'm_heal', cat: 'heal', name: 'Healing Light', icon: '💚', minLvl: 3,
-    desc: r => `Mend wounds: recover ${16 + 3 * r}% of Max HP.`,
-    healPct: r => 0.16 + 0.03 * r, cost: () => 14, cd: 3 },
+    desc: r => `Mend wounds: recover ${Math.round((0.30 + (r - 1) * (0.20 / 9)) * 100)}% of Max HP.`,
+    healPct: r => 0.30 + (r - 1) * (0.20 / 9), cost: () => 14, cd: 3 },
   { id: 'm_buff', cat: 'buff', name: 'Arcane Power', icon: '🔮', minLvl: 4,
     desc: r => `+${14 + 3.5 * r}% damage, +${1 * r} Intelligence and a +${2 * r}% Damage Reduction ward for 5 rounds.`,
     buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, dr: 0.02 * r, rounds: 5 }), cost: () => 15, cd: 4 },
@@ -1806,8 +1821,8 @@ mage: mkSkills([
     desc: r => `Radiant light damages ALL enemies for ${160 + 16 * r}% magic damage and weakens them (-${Math.round((0.12 + 0.02 * r) * 100)}% damage, -${2 * r}% resistances) while shielding you with +${Math.round((0.02 + 0.015 * r) * 100)}% Damage Reduction, all for 5 rounds.`,
     mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: 5 }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: 5 }), cost: () => 20, cd: 3 },
   { id: 'm_p_radiant_pass1', cat: 'passive3', path: 'radiant', name: 'Sacred Vigil', icon: '🕯️', minLvl: 25,
-    desc: r => `Passive: +${2 * r}% Max HP, +${1 * r}% Damage Reduction, +${(0.3 * r).toFixed(1)} HP Regen.`,
-    passive: r => ({ hpPct: 0.02 * r, dr: 0.01 * r, hpRegen: 0.3 * r }) },
+    desc: r => `Passive: +${2 * r}% Max HP, +${Math.round((0.10 + (r - 1) * (0.30 / 9)) * 100)}% Damage Reduction (Minnie's ward), +${(0.3 * r).toFixed(1)} HP Regen.`,
+    passive: r => ({ hpPct: 0.02 * r, dr: 0.10 + (r - 1) * (0.30 / 9), hpRegen: 0.3 * r }) },
   { id: 'm_p_radiant_pass2', cat: 'passive4', path: 'radiant', name: 'Divine Radiance', icon: '🌞', minLvl: 50, req: 'm_p_radiant_pass1',
     desc: r => `Passive: +${2 * r}% damage, +${1.5 * r}% all resistances, +${(0.3 * r).toFixed(1)} Mana Regen.`,
     passive: r => ({ dmgPct: 0.02 * r, resAll: 1.5 * r, manaRegen: 0.3 * r }) },
@@ -1836,7 +1851,7 @@ DATA.CAT_LABEL = {
 // this table is just name/icon/color/tooltip for display + lookup.
 // ------------------------------------------------------------
 DATA.SPECIALTIES = {
-  regen:      { name: 'Regenerating', icon: '🌿', color: '#6ccb8f', desc: 'Regenerates 3% of max HP every round.' },
+  regen:      { name: 'Regenerating', icon: '🌿', color: '#6ccb8f', desc: 'Regenerates 3% of max HP every round, up to 100% of its max HP total.' },
   vampiric:   { name: 'Vampiric',     icon: '🩸', color: '#c23d6b', desc: 'Heals itself for 25% of the damage it deals to you.' },
   resistant:  { name: 'Resistant',    icon: '🛡️', color: '#6c9bff', desc: '+20% resistance to all damage types.' },
   resilient:  { name: 'Resilient',    icon: '🦴', color: '#9aa0b5', desc: 'Takes 20% less damage from all sources.' },
@@ -1847,7 +1862,7 @@ DATA.SPECIALTIES = {
   frozen:     { name: 'Frozen',       icon: '❄️', color: '#6cd4ff', desc: '25% chance per attack to slow your attack gauge.' },
   burning:    { name: 'Burning',      icon: '🔥', color: '#ff8b3d', desc: '25% chance per attack to ignite you over time.' },
   evasive:    { name: 'Evasive',      icon: '💨', color: '#b9bdcc', desc: '25% chance to fully evade your attacks.' },
-  reflective: { name: 'Reflective',   icon: '🪞', color: '#4ecdc4', desc: 'Its ward sends damage back at you, scaled to this level\'s danger.' },
+  charm:      { name: 'Charming',     icon: '💘', color: '#ff6bcb', desc: 'A 50% chance each round that its charm prevents you from attacking or casting.' },
   enraged:    { name: 'Enraged',      icon: '😡', color: '#ff4d4d', desc: 'Attacks faster and harder as its HP drops.' },
   berserk:    { name: 'Berserk',      icon: '🪓', color: '#d94f4f', desc: 'Deals more damage but takes more as its HP drops.' },
   cursed:     { name: 'Cursed',       icon: '🕯️', color: '#7a5cff', desc: 'Attacks weaken your damage output for a few rounds.' },

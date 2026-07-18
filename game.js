@@ -91,6 +91,7 @@ function newGame(clsId, slotIdx) {
     unlocked: 1,         // highest unlocked area
     progress: {},        // areaLevel -> kills in that level (0..1111)
     bossKilled: {},      // areaLevel -> true
+    arenaResult: {},      // areaLevel -> 'won' | 'lost'
     totals: {
       adventures: 0, kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
       killsBySpecies: {}, bossesKilled: 0, deaths: 0,
@@ -182,6 +183,7 @@ function loadGame(slotIdx) {
     if (!t.itemsByRarity) t.itemsByRarity = { normal: 0, magical: 0, rare: 0, epic: 0, legendary: 0 };
   }
   if (!G.potions) G.potions = { hp: 0, mana: 0 };
+  if (!G.arenaResult) G.arenaResult = {};
   if (G.char.advancedClass === undefined) G.char.advancedClass = null;
   if (G.char.tier3Seen === undefined) G.char.tier3Seen = false;
   if (!G.shop || !G.shop.stock) genShopStock();
@@ -562,6 +564,38 @@ function rollAffixes(count, ilvl, clsId, item) {
   return out;
 }
 
+// Minnie's (mage) class-exclusive weapons/offhands: legendary-rarity Arcane
+// Staff/Wand/Scepter/Orb/Tome additionally guarantee 1-3 DISTINCT +skill
+// affixes (each +1..+3, same shape/behavior as the generic 'skill' affix —
+// see rollAffixes above) on top of the normal roll, gated to legendary
+// rarity to match the game's existing "ultra rare" convention (critStrike/
+// doubleStrike/spellstrike are also legendary-only). The skill count scales
+// with ilvl (1-100, i.e. chapter 1 through the end of chapter 10):
+// 90/9/1% chance of 1/2/3 skills at ilvl 1, sliding to 50/30/20% at ilvl 100.
+function minnieWeaponSkillCount(ilvl) {
+  const t = Math.max(0, Math.min(1, (ilvl - 1) / 99));
+  const p3 = 0.01 + (0.20 - 0.01) * t;
+  const p2 = 0.09 + (0.30 - 0.09) * t;
+  const r = Math.random();
+  if (r < p3) return 3;
+  if (r < p3 + p2) return 2;
+  return 1;
+}
+function rollMinnieWeaponSkills(ilvl) {
+  const n = minnieWeaponSkillCount(ilvl);
+  const pool = Object.values(DATA.SKILLS.mage);
+  const used = new Set();
+  const out = [];
+  let guard = 0;
+  while (out.length < n && guard++ < 50) {
+    const s = pick(pool);
+    if (used.has(s.id)) continue;
+    used.add(s.id);
+    out.push({ id: 'skill', v: rint(1, 3), skillId: s.id, skillName: s.name });
+  }
+  return out;
+}
+
 function affixText(a) {
   const def = DATA.AFFIXES.find(x => x.id === a.id);
   return def ? def.fmt(a.v, a.skillName) : '';
@@ -629,6 +663,9 @@ function makeItem(ilvl, rarity, clsHint) {
 
   const [aMin, aMax] = DATA.RARITIES[it.rarity].affixes;
   it.affixes = rollAffixes(rollItemStatCount(aMin, aMax, ilvl), ilvl, clsHint, it);
+  if (it.rarity === 'legendary' && it.classes && it.classes.length === 1 && it.classes[0] === 'mage' && (it.slot === 'weapon' || it.slot === 'offhand')) {
+    it.affixes = it.affixes.concat(rollMinnieWeaponSkills(ilvl));
+  }
   it.name = buildItemName(it);
   // Value scales with rarity (as before) and now also with how many
   // stats actually rolled — a well-rolled Epic is worth noticeably more
@@ -688,16 +725,10 @@ const RUNE_TIERS = {
 const MYTHIC_RUNE_CHANCE = 0.015;
 const MYTHIC_RUNE_BONUSES = 4;
 // Prefix/suffix are generated from randomly chosen bonus stats.
-function makeRune(ilvl, source) {
-  let n, tier;
-  if (chance(MYTHIC_RUNE_CHANCE)) {
-    n = MYTHIC_RUNE_BONUSES;
-    tier = { baseName: 'Mythic Rune', rarity: 'legendary' };
-  } else {
-    const range = RUNE_BONUS_RANGE[source] || RUNE_BONUS_RANGE.normal;
-    n = rint(...range);
-    tier = RUNE_TIERS[n];
-  }
+// Shared by makeRune (random source-tier roll) and the Rune Forge (which
+// forces a specific bonus count instead of rolling one from a source tier).
+function buildRune(n, ilvl, tierOverride) {
+  const tier = tierOverride || RUNE_TIERS[n];
   const bonuses = rollAffixes(n, ilvl);
   // A single-bonus rune (e.g. a Faded Rune) must only get ONE of
   // prefix/suffix — giving both from the same lone bonus reads as two
@@ -717,6 +748,104 @@ function makeRune(ilvl, source) {
     bonuses,
     value: 15 + ilvl * 2 + n * 10,
   };
+}
+function makeRune(ilvl, source) {
+  if (chance(MYTHIC_RUNE_CHANCE)) return buildRune(MYTHIC_RUNE_BONUSES, ilvl, { baseName: 'Mythic Rune', rarity: 'legendary' });
+  const range = RUNE_BONUS_RANGE[source] || RUNE_BONUS_RANGE.normal;
+  return buildRune(rint(...range), ilvl);
+}
+// A rune's forge/enchant "tier" (1-5, matching RUNE_TIERS) is just its
+// bonus count — except Mythic Runes, which always carry exactly 4 bonuses
+// (MYTHIC_RUNE_BONUSES) but are the rarest rune in the game, so they're
+// treated as tier 5 (top tier) for matching purposes rather than tier 4.
+function runeTier(rune) {
+  if (rune.baseName === 'Mythic Rune') return 5;
+  return rune.bonuses.length;
+}
+
+// ------------------------------------------------------------
+// The Enchanter (city shop): Enchantment Table + Rune Forge
+// ------------------------------------------------------------
+
+// Which rune tier an item's rarity requires to be re-enchanted — the rune
+// must match, not just meet a floor: magical->Faded Rune(1), rare->Rune(2),
+// epic->second-best Elder Rune(4), legendary->best Elder Rune(5). Normal
+// items have no affixes to speak of and aren't enchantable.
+const ENCHANT_RUNE_TIER = { magical: 1, rare: 2, epic: 4, legendary: 5 };
+
+function baseStatsFor(it) {
+  if (it.slot === 'weapon') return DATA.WEAPON_BASES.find(b => b.id === it.base);
+  if (it.slot === 'offhand') return DATA.OFFHAND_BASES.find(b => b.id === it.base);
+  if (DATA.ARMOR_BASES[it.slot]) return DATA.ARMOR_BASES[it.slot][it.weight];
+  return DATA.JEWELRY_BASES[it.slot];
+}
+
+// Re-rolls each existing affix's VALUE at a new ilvl while keeping the same
+// affix ids (and the same granted skill, for the 'skill' affix) — an
+// "enchant" powers an item up to the current level without gambling away
+// the stats the player already built around.
+function rerollAffixValues(affixes, ilvl) {
+  return (affixes || []).map(a => {
+    const def = DATA.AFFIXES.find(x => x.id === a.id);
+    if (!def) return a;
+    const entry = { id: a.id, v: def.roll(ilvl) };
+    if (a.id === 'skill') { entry.skillId = a.skillId; entry.skillName = a.skillName; }
+    return entry;
+  });
+}
+
+function reenchantItem(itemUid, runeUid) {
+  let item = G.inventory.find(i => i.uid === itemUid && i.type === 'item');
+  if (!item) item = equippedItems().find(i => i.uid === itemUid);
+  if (!item) return { ok: false, why: 'Item not found' };
+  const need = ENCHANT_RUNE_TIER[item.rarity];
+  if (!need) return { ok: false, why: `${DATA.RARITIES[item.rarity].name} items can't be enchanted` };
+  const rune = G.inventory.find(i => i.uid === runeUid && i.type === 'rune');
+  if (!rune) return { ok: false, why: 'Rune not found' };
+  if (runeTier(rune) !== need) return { ok: false, why: `A ${DATA.RARITIES[item.rarity].name} item needs a matching-tier rune` };
+
+  G.inventory = G.inventory.filter(i => i.uid !== rune.uid);
+  const newIlvl = Math.max(1, G.area);
+  const base = baseStatsFor(item);
+  const rar = DATA.RARITIES[item.rarity];
+  item.ilvl = newIlvl;
+  if (item.slot === 'weapon' || (item.slot === 'offhand' && base && base.dmg)) {
+    item.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(newIlvl) * rar.mult));
+    item.dmgMax = Math.max(item.slot === 'weapon' ? 2 : 1, Math.round(base.dmg[1] * dmgScale(newIlvl) * rar.mult));
+  }
+  if (item.armor !== undefined && base && base.armor) {
+    item.armor = Math.max(1, Math.round(base.armor * itemScale(newIlvl) * rar.mult));
+  }
+  if (item.slot === 'belt') item.potionCap = beltPotionCap(newIlvl);
+  item.affixes = rerollAffixValues(item.affixes, newIlvl);
+  item.value = Math.max(1, Math.round((2 + newIlvl * 1.5) * rar.value * (1 + item.affixes.length * 0.12)));
+  questEvent('enchant_item');
+  saveGame(); UI.refresh();
+  return { ok: true, item };
+}
+
+// Merge 3 same-tier runes into 1 rune one tier higher, at the current
+// ilvl. Tiers 1-4 have a 50% chance the merge fails and destroys all 3;
+// legendary-tier (5, including Mythic) merges never fail and reforge into
+// a fresh (non-Mythic) legendary-tier rune. The 3 input runes are always
+// consumed, win or lose.
+function forgeRunes(uids) {
+  if (!uids || uids.length !== 3) return { ok: false, why: 'Select exactly 3 runes' };
+  const runes = uids.map(id => G.inventory.find(i => i.uid === id && i.type === 'rune')).filter(Boolean);
+  if (runes.length !== 3) return { ok: false, why: 'Select exactly 3 runes' };
+  const tier = runeTier(runes[0]);
+  if (runes.some(r => runeTier(r) !== tier)) return { ok: false, why: 'Runes must all be the same tier' };
+  const uidSet = new Set(uids);
+  G.inventory = G.inventory.filter(i => !uidSet.has(i.uid));
+  const success = tier >= 5 || chance(0.5);
+  let newRune = null;
+  if (success) {
+    newRune = buildRune(Math.min(5, tier + 1), Math.max(1, G.area));
+    G.inventory.push(newRune);
+    questEvent('forge_rune');
+  }
+  saveGame(); UI.refresh();
+  return { ok: true, success, rune: newRune };
 }
 
 // --- equip rules ---
@@ -775,6 +904,8 @@ function sellItem(uid) {
   G.gold += value;
   G.totals.itemsSold++; G.totals.goldFromSales += value;
   G.inventory.splice(idx, 1);
+  questEvent('item_sold');
+  questEvent('sell_value', value);
   saveGame(); UI.refresh();
 }
 
@@ -797,6 +928,8 @@ function sellAllOf(kind) {
   const uids = new Set(sel.map(s => s.uid));
   G.inventory = G.inventory.filter(i => !uids.has(i.uid));
   G.gold += gold;
+  G.totals.itemsSold += sel.length; G.totals.goldFromSales += gold;
+  if (sel.length) { questEvent('item_sold', sel.length); questEvent('sell_value', gold); }
   saveGame(); UI.refresh();
   return { count: sel.length, gold };
 }
@@ -810,6 +943,7 @@ function socketRune(runeUid, itemUid) {
   target.runes.push(G.inventory[rIdx]);
   G.inventory.splice(rIdx, 1);
   G.totals.runesSocketed++;
+  questEvent('socket_rune');
   clampVitals(); saveGame(); UI.refresh();
 }
 
@@ -939,6 +1073,26 @@ function genQuest() {
     () => { const n = rint(40, 80); return { type: 'kill_any', icon: '🛡️', name: 'Clear the Roads', desc: `A caravan master needs the roads swept clear: fell ${n} creatures of any kind blocking the way.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4 } }; },
     () => { const n = rint(10, 18); return { type: 'item_any', icon: '🎒', name: 'Pack Rat', desc: `A quartermaster is buying anything shiny: bring back ${n} items of any kind found on adventure.`, target: n, rewardSpec: { goldMult: 3, xpMult: 3, item: 'rare' } }; },
     () => { const n = rint(2, 4); return { type: 'level_clear', icon: '🗺️', name: 'Trailblazer', desc: `A cartographer wants fresh ground broken: clear ${n} Quests to help fill in the map.`, target: n, rewardSpec: { goldMult: 7, xpMult: 8, item: 'epic' } }; },
+    () => { const n = rint(3, 6); return { type: 'socket_rune', icon: '🪨', name: 'Rune Hunter', desc: `A rune-smith mutters about wasted potential: socket ${n} runes into your gear.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(8, 15); return { type: 'item_sold', icon: '🧺', name: "Fence's Errand", desc: `A fence at the market wants inventory moving: sell ${n} items.`, target: n, rewardSpec: { goldMult: 6, xpMult: 3 } }; },
+    () => { const n = rint(1, 2); return { type: 'chapter_boss', icon: '💀', name: 'Boss Breaker', desc: `Veteran adventurers dare you to prove yourself: fell ${n} chapter boss${n > 1 ? 'es' : ''}.`, target: n, rewardSpec: { goldMult: 9, xpMult: 9, rune: 'legendary' } }; },
+    () => { const n = rint(2, 4); return { type: 'item_epic', icon: '🗝️', name: 'Treasure Vault', desc: `A vault-keeper is cataloguing wonders: bring back ${n} EPIC-or-better item${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 6, xpMult: 6, item: 'epic' } }; },
+    () => { const n = goldR(5); return { type: 'sell_value', icon: '🏷️', name: "Merchant's Favor", desc: `The merchant's guild wants coin flowing: earn ${formatK(n)} gold selling your finds.`, target: n, rewardSpec: { goldMult: 0, xpMult: 6, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_poisonous', icon: '☠️', name: 'Poison Purge', desc: `A healer begs for relief from the venom: cull ${n} Poisonous creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_frozen', icon: '❄️', name: 'Frost Warden', desc: `The frost is creeping into the village: destroy ${n} Frozen creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_burning', icon: '🔥', name: 'Cinder Watch', desc: `Fires keep starting in the wilds: put down ${n} Burning creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_vampiric', icon: '🩸', name: 'Bloodhound', desc: `A grieving hunter wants the bleeders dead: slay ${n} Vampiric creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_explosive', icon: '💥', name: 'Powder Keg', desc: `Too many things go boom out there: defuse ${n} Explosive creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(8, 15); return { type: 'kill_abnormal', icon: '🌀', name: 'Ward Breaker', desc: `Something abnormal is spreading: end ${n} creatures bearing a specialty ward.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_golem', icon: '🗿', name: 'Golem Crusher', desc: `The old quarry is haunted by living stone: smash ${n} Golem creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_charm', icon: '💘', name: 'Charmbreaker', desc: `A jilted apprentice wants payback: destroy ${n} Charming creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_regen', icon: '🌿', name: 'Regen Ender', desc: `A frustrated duelist swears these things never stay dead: finish ${n} Regenerating creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(1, 3); return { type: 'enchant_item', icon: '✨', name: "Enchanter's Apprentice", desc: `The enchanter needs a demonstration: re-enchant ${n} item${n > 1 ? 's' : ''} at the Enchantment Table.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'epic' } }; },
+    () => { const n = rint(1, 3); return { type: 'forge_rune', icon: '🔨', name: 'Rune Smith', desc: `The Rune Forge is hungry for work: forge ${n} new rune${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, rune: 'miniboss' } }; },
+    () => { const n = rint(15, 30); return { type: 'skill_cast', icon: '🌟', name: 'Skillful Caster', desc: `A traveling instructor wants proof of technique: cast ${n} skills in combat.`, target: n, rewardSpec: { goldMult: 3, xpMult: 4 } }; },
+    () => { const n = rint(2, 4); return { type: 'elf_encounter', icon: '🧝', name: 'Elf Chaser', desc: `A fed-up quartermaster wants those thieving elves dealt with: resolve ${n} Sneaky Elf encounter${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_berserk', icon: '🪓', name: "Berserker's Bane", desc: `A battle-scarred veteran wants the maddened put down: slay ${n} Berserk creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_spectral', icon: '👻', name: 'Spectral Hunt', desc: `A priest needs the restless put to rest: banish ${n} Spectral creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
   ];
   return Object.assign(pick(makers)(), { progress: 0, ready: false });
 }
@@ -965,6 +1119,18 @@ function acceptQuest(idx) {
   if (!q) return;
   G.tavern.active.push(q);
   G.tavern.board.splice(idx, 1);
+  // The board stays at a full 8 offers regardless of how many you've
+  // accepted — backfill the freed slot immediately with a fresh,
+  // non-duplicate-type quest instead of leaving a gap until the next town
+  // return (retreat()) regenerates the whole board from scratch.
+  const seen = new Set(G.tavern.board.map(b => b.type));
+  let guard = 0;
+  while (guard++ < 40) {
+    const nq = genQuest();
+    if (seen.has(nq.type)) continue;
+    G.tavern.board.push(nq);
+    break;
+  }
   saveGame(); UI.refresh();
   UI.toast(`Quest accepted: ${q.name}`);
 }
@@ -1178,11 +1344,11 @@ const TIER_CONF = {
 // A single scalar for "how tough is this dungeon level", deliberately
 // independent of any specific creature's rolled maxHp/dmg (which vary by
 // species/RNG/tier) and of the player's own damage output. Ward-style
-// specialties (Explosive, Reflective) key off this instead, so their
+// specialties (Explosive) key off this instead, so their
 // damage scales with the level the player is on rather than snowballing
 // with player gear, a lucky enemy roll, or that specific enemy's tier HP.
 function levelDifficulty(level) { return 11.7 * enemyDmgScale(level); }
-// Explosive/Reflective ward damage still scales up for tougher company —
+// Explosive ward damage still scales up for tougher company —
 // applied on top of levelDifficulty, not blended with TIER_CONF.dmg.
 const WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 };
 
@@ -1284,6 +1450,12 @@ function applyAffixStatMods(c) {
   c.xp = Math.round(c.xp * (1 + 0.20 * c.affixes.length));
 }
 
+// opts.hpMult scales maxHp beyond the tier's own curve (used by the Arena's
+// "+50% HP" captives); opts.forceAffixes, when present (even as an empty
+// array), overrides the normal per-tier random specialty roll entirely —
+// also Arena-only, so a forced-abnormal captive gets exactly the affix(es)
+// given and a non-forced one gets exactly none, instead of both being
+// subject to AFFIX_CHANCE's independent per-creature roll.
 function makeCreature(level, tier, opts) {
   const info = areaInfo(level);
   // The quest's Legendary boss is the story's named creature for that
@@ -1291,15 +1463,16 @@ function makeCreature(level, tier, opts) {
   const isQuestBoss = tier === 'legendary';
   const base = isQuestBoss ? info.quest.boss : pick(creaturesForLevel(level));
   const conf = TIER_CONF[tier];
+  const hpMult = (opts && opts.hpMult) || 1;
   const c = {
     tier, level,
     species: base.name, attack: base.attack, atkType: base.atkType,
     res: { ...base.res },
-    maxHp: Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp * (0.9 + Math.random() * 0.2))),
+    maxHp: Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp * (0.9 + Math.random() * 0.2) * hpMult)),
     dmg: Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
     xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp)),   // x10 vs previous (was /10)
-    gauge: 0, stunned: 0, dead: false,
+    gauge: 0, stunned: 0, dead: false, regenTotal: 0,
   };
   c.hp = c.maxHp;
   if (tier === 'normal') c.name = base.name;
@@ -1309,10 +1482,108 @@ function makeCreature(level, tier, opts) {
   if (tier !== 'normal') {
     for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
-  // Quest bosses use their story-picked specialties; everything else rolls.
-  c.affixes = isQuestBoss ? (base.specialties || []).slice() : rollSpecialties(tier, opts && opts.isChapterBoss);
+  // Quest bosses use their story-picked specialties; everything else rolls
+  // (unless forceAffixes overrides it).
+  c.affixes = isQuestBoss ? (base.specialties || []).slice()
+    : (opts && opts.forceAffixes) ? opts.forceAffixes.slice()
+    : rollSpecialties(tier, opts && opts.isChapterBoss);
   applyAffixStatMods(c);
   return c;
+}
+
+// ------------------------------------------------------------
+// City Arena — a one-shot, per-level bonus fight against a captured group
+// of the quest's own local beasts, tougher than anything the normal 1-in-11
+// encounter pattern throws at you. Available for the player's current level
+// (G.area) as long as that level's story quest isn't cleared yet
+// (!G.bossKilled[level]) and the Arena hasn't already been resolved there
+// (!G.arenaResult[level] — set to 'won' on victory or 'lost' on defeat;
+// defeat forfeits that level's challenge for good, per explicit request).
+// ------------------------------------------------------------
+const ARENA_COMPS = {
+  mb_epic: ['miniboss', 'epic'],
+  epics3: ['epic', 'epic', 'epic'],
+  rares6: ['rare', 'rare', 'rare', 'rare', 'rare', 'rare'],
+};
+const ARENA_HP_MULT = 1.5;
+// Rune reward tier scales with which comp was drawn — the miniboss+epic
+// pairing is the single toughest option, so it earns the best rune floor.
+const ARENA_RUNE_SOURCE = { mb_epic: 'miniboss', epics3: 'epic', rares6: 'rare' };
+
+// Builds the captive group: +50% HP across the board, and exactly 2 of the
+// beasts forced abnormal (1 specialty each) — the rest get none, rather
+// than also being subject to the normal per-tier AFFIX_CHANCE roll, so the
+// group always has precisely 2 anomalies, never more or fewer. Every beast
+// is flagged isEscort so its kill doesn't touch the level's own 1111-kill
+// story counter (handleKill only advances G.progress for non-escort kills)
+// — the Arena is deliberately outside that pattern entirely.
+function makeArenaGroup(level) {
+  const compId = pick(Object.keys(ARENA_COMPS));
+  const tiers = ARENA_COMPS[compId];
+  const forcedIdx = new Set();
+  const pool = tiers.map((_, i) => i);
+  while (forcedIdx.size < Math.min(2, tiers.length)) {
+    forcedIdx.add(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  }
+  const enemies = tiers.map((tier, i) => {
+    const e = makeCreature(level, tier, {
+      hpMult: ARENA_HP_MULT,
+      forceAffixes: forcedIdx.has(i) ? [pick(AFFIX_IDS)] : [],
+    });
+    e.isEscort = true;
+    return e;
+  });
+  return { compId, enemies };
+}
+
+function grantArenaReward(level, run) {
+  const gold = Math.round((80 + level * 25) * (0.85 + Math.random() * 0.3));
+  const rune = makeRune(level, ARENA_RUNE_SOURCE[run.arenaComp] || 'rare');
+  G.gold += gold;
+  G.totals.goldFound += gold;
+  G.inventory.push(rune);
+  G.totals.itemsFound++;
+  G.totals.itemsByRarity[rune.rarity] = (G.totals.itemsByRarity[rune.rarity] || 0) + 1;
+  run.arenaReward = { gold, rune };
+  log('loot', `🏛️ Arena victory! Reward: 🪙 ${formatK(gold)} + ${rune.icon} ${rune.name}`);
+}
+
+// Starts a stand-alone Arena fight against G.area's captive group. Reuses
+// the exact same ADV/fight machinery as a normal adventure (pause/retreat/
+// speed controls, the Battle Arena panel, playerAct/adventureTick all work
+// unmodified) but skips straight to a single pre-built encounter instead of
+// going through nextCreatureTier's 1-in-11/1-in-111 pattern — adventureTick
+// and retreat() both check ADV.isArena to route the outcome differently
+// (see the all-enemies-dead branch in adventureTick and the 'defeated'/
+// 'arena_won' handling in retreat).
+function startArenaFight(level) {
+  if (ADV) return;
+  if (G.bossKilled[level] || G.arenaResult[level]) return;
+  const d = derive();
+  G.char.hp = d.maxHp; G.char.mana = d.maxMana;
+  LOG = [];
+  const { compId, enemies } = makeArenaGroup(level);
+  ADV = {
+    level, d,
+    scroll: 0, potCd: { hp: 0, mana: 0 }, queued: null, lastAction: null,
+    speedMs: G.settings.advSpeed || 1200, tempSpeedOverride: null,
+    isArena: true,
+    fight: {
+      enemies, cds: {}, buffs: [], enemyDmgDown: 0, enemyResDown: 0,
+      debuffRounds: 0, debuffApplied: false, round: 0, playerGauge: 0,
+      playerDots: {}, playerSlow: null, cursedDebuff: null, corrosiveDebuff: null,
+    },
+    run: {
+      kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
+      gold: 0, xp: 0, items: [], autoSold: [], potions: { hp: 0, mana: 0, scroll: 0 },
+      dmgDealt: 0, dmgTaken: 0,
+      levelUps: 0, bossDefeated: false, outcome: null,
+      arenaComp: compId,
+    },
+  };
+  log('sys', `🏛️ You step into the Arena to face a captured horde: ${enemies.map(e => e.name).join(', ')}!`);
+  UI.refresh();
+  advTimer = setInterval(adventureTick, ADV.speedMs);
 }
 
 // ------------------------------------------------------------
@@ -1447,6 +1718,7 @@ function dropItem(lvl, rarity, run) {
   G.totals.itemsFound++;
   G.totals.itemsByRarity[rarity] = (G.totals.itemsByRarity[rarity] || 0) + 1;
   if (rarity !== 'normal') questEvent('item_magic');
+  if (rarity === 'epic' || rarity === 'legendary') questEvent('item_epic');
   questEvent('item_any');
   if (shouldAutoSell(it)) {
     run.gold += it.value; G.gold += it.value;
@@ -1681,13 +1953,6 @@ function playerHit(fight, enemy, skill, r) {
   if (d.weaponSlow && chance(d.weaponSlow.chance / 100)) {
     enemy.slow = { pct: d.weaponSlow.pct / 100, rounds: d.weaponSlow.rounds };
   }
-  if (hasAffix(enemy, 'reflective')) {
-    const reflect = Math.max(1, Math.round(levelDifficulty(enemy.level) * (WARD_TIER_MULT[enemy.tier] || 1)));
-    G.char.hp -= reflect;
-    ADV.run.dmgTaken += reflect;
-    fight.lastHit = { icon: '🪞', label: `${enemy.name.split(' — ')[0]}'s reflective ward`, amount: reflect };
-    log('enemy', `🪞 ${enemy.name.split(' — ')[0]}'s reflective ward sends ${reflect} damage back at you!`);
-  }
   if (enemy.tier === 'elf') fight.elfHits = (fight.elfHits || 0) + 1;
   return dmg;
 }
@@ -1738,6 +2003,15 @@ function enemyHit(fight, enemy) {
 function playerAct(fight) {
   const c = G.char;
   const d = ADV.d;
+  // Charm specialty: 50% chance, rolled once per player turn (not per swing),
+  // that a charming enemy prevents you from attacking or casting entirely.
+  if (fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'charm')) && chance(0.5)) {
+    const charmer = fight.enemies.find(e => e.hp > 0 && hasAffix(e, 'charm'));
+    const shortName = charmer.name.split(' — ')[0];
+    log('player', `💘 ${shortName}'s charm stops you from acting this turn!`);
+    ADV.lastAction = { side: 'player', icon: '💘', txt: `Charmed by ${shortName}!` };
+    return;
+  }
   const attacks = 1 + (fight.buffs.some(b => b.extraHit) ? 1 : 0) + (d.doubleStrike && chance(d.doubleStrike / 100) ? 1 : 0);
   for (let i = 0; i < attacks; i++) {
     const alive = fight.enemies.filter(e => e.hp > 0);
@@ -1747,6 +2021,7 @@ function playerAct(fight) {
     const cost = skillCost(skill);
     if (cost) c.mana -= cost;
     if (skill.cd) fight.cds[skill.id] = skill.cd + 1;
+    if (skill.cat !== 'basic') questEvent('skill_cast');
 
     if (skill.healPct) {
       let heal = Math.round(d.maxHp * skill.healPct(r));
@@ -1870,6 +2145,14 @@ function handleKill(e, run) {
   rollLoot(e, run);
   questEvent('kill_' + e.tier);
   questEvent('kill_any');
+  // Specialty/abnormality bounty quests: fires one event per specialty the
+  // creature had (a creature can carry several), plus a catch-all for "any
+  // specialty" and chapter-boss kills specifically.
+  if (e.affixes && e.affixes.length) {
+    questEvent('kill_abnormal');
+    for (const aff of e.affixes) questEvent('kill_' + aff);
+  }
+  if (e.isChapterBoss) questEvent('chapter_boss');
 }
 
 // ------------------------------------------------------------
@@ -1972,23 +2255,36 @@ function setPackSize(n) {
 function retreat(reason) {
   const run = ADV.run;
   run.outcome = reason;
+  run.isArena = !!ADV.isArena;
   clearInterval(advTimer); advTimer = null;
   log('sys', reason === 'boss' ? '🏆 The boss has fallen! You return home in triumph.' :
-    reason === 'defeated' ? '💀 You fall in battle... and wake up at home, aching but alive.' :
+    reason === 'arena_won' ? '🏛️ The Arena crowd roars — you\'ve won this city\'s challenge!' :
+    reason === 'defeated' ? (run.isArena ? '💀 The Arena\'s captives overpower you — you wake up at home, aching but alive.' : '💀 You fall in battle... and wake up at home, aching but alive.') :
     reason === 'stalemate' ? '🏳️ The battle drags on forever — you disengage and slip away.' :
     reason === 'done' ? '🏁 Nothing left to fight here.' :
     '🏳️ You retreat in good order.');
   // Falling in battle resets the level: all kill progress there is lost.
-  // (Loot, gold and XP are kept — retreat manually to keep progress!)
+  // (Loot, gold and XP are kept — retreat manually to keep progress!) An
+  // Arena defeat is different: it doesn't touch the level's own story
+  // progress at all (Arena kills never advanced it in the first place,
+  // via isEscort) — instead it forfeits that level's Arena challenge for
+  // good, per an explicit "one attempt only" request. Arena victory sets
+  // the same flag the other way; a manual retreat/stalemate leaves the
+  // challenge untouched either way, so backing out mid-fight isn't
+  // punished the same way an actual loss is.
   if (reason === 'defeated') {
-    run.progressLost = G.progress[ADV.level] || 0;
-    G.progress[ADV.level] = 0;
-    if (run.progressLost) log('sys', `☠️ Defeat wipes your progress here — ${run.progressLost} kills lost. Level ${ADV.level} restarts from the beginning.`);
+    if (run.isArena) {
+      G.arenaResult[ADV.level] = 'lost';
+    } else {
+      run.progressLost = G.progress[ADV.level] || 0;
+      G.progress[ADV.level] = 0;
+      if (run.progressLost) log('sys', `☠️ Defeat wipes your progress here — ${run.progressLost} kills lost. Level ${ADV.level} restarts from the beginning.`);
+    }
     // Snapshot the final encounter before ADV/fight get torn down below, so
     // the results modal can show which pack the player fell to (full specs,
     // same fields the live battle arena's enemy cards show) and what the
     // actual killing blow was (fight.lastHit, kept up to date at every
-    // player-HP-loss site: enemy basic attacks, DOTs, Explosive, Reflective).
+    // player-HP-loss site: enemy basic attacks, DOTs, Explosive).
     if (ADV.fight) {
       run.killedBy = ADV.fight.enemies.map(e => ({
         name: e.name, tier: e.tier, species: e.species, level: e.level,
@@ -2000,6 +2296,7 @@ function retreat(reason) {
       run.killedByHit = ADV.fight.lastHit || null;
     }
   }
+  if (reason === 'arena_won') G.arenaResult[ADV.level] = 'won';
   questEvent('gold', run.gold);   // gold-earning quests tally on return
   G.totals.dmgDealt += run.dmgDealt;
   G.totals.dmgTaken += run.dmgTaken;
@@ -2176,9 +2473,15 @@ function adventureTick() {
 
   autoUsePotions();
 
-  // Regenerating specialty: passive heal every round regardless of actions
+  // Regenerating specialty: passive heal every round regardless of actions,
+  // capped at 100% of maxHp in total lifetime healing — once a creature has
+  // regenerated its own max HP worth of damage, it stops regenerating.
   for (const e of f.enemies) {
-    if (e.hp > 0 && hasAffix(e, 'regen')) e.hp = Math.min(e.maxHp, e.hp + Math.max(1, Math.round(e.maxHp * 0.03)));
+    if (e.hp > 0 && hasAffix(e, 'regen') && (e.regenTotal || 0) < e.maxHp) {
+      const heal = Math.min(Math.max(1, Math.round(e.maxHp * 0.03)), e.maxHp - (e.regenTotal || 0));
+      e.hp = Math.min(e.maxHp, e.hp + heal);
+      e.regenTotal = (e.regenTotal || 0) + heal;
+    }
   }
 
   // ATB gauges: Speed (from Dexterity) fills the gauge; the weapon's
@@ -2218,9 +2521,11 @@ function adventureTick() {
       gainXp(e.xp, run); run.xp += e.xp;
       log('kill', `🧝 The elf collapses — his whole bag spills open!`, { tier: 'elf' });
       ADV.fight = null;
+      questEvent('elf_encounter');
     } else if (f.elfHits >= 5) {
       log('sys', `🧝 After 5 hits the elf scurries off laughing, bag ${Math.round(lost * 100)}% lighter.`);
       ADV.fight = null;
+      questEvent('elf_encounter');
     }
     saveGame();
     UI.refreshAdventure();
@@ -2244,6 +2549,11 @@ function adventureTick() {
   if (!f.enemies.some(e => e.hp > 0)) {
     const wasBoss = f.enemies.some(e => e.tier === 'legendary');
     ADV.fight = null;
+    if (ADV.isArena) {
+      grantArenaReward(level, run);
+      retreat('arena_won');
+      return;
+    }
     if (wasBoss) {
       G.bossKilled[level] = true;
       if (level < MAX_LEVEL_AREA && G.unlocked <= level) {

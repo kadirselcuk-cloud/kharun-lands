@@ -6,8 +6,10 @@
 const UI = {};
 let activeTab = 'adventure';       // adventure | character | city | journal
 let activeCharSub = 'character';   // character | skills | inventory
-let activeCitySub = 'shop';        // shop | tavern
+let activeCitySub = 'shop';        // shop | tavern | enchanter | arena
 let tavernView = 'board';          // board | gamble — which Tavern sub-panel is shown, defaults to the quest board
+let enchanterView = 'table';       // table | forge — which Enchanter sub-panel is shown, defaults to the Enchantment Table
+let forgeSelected = [];            // uids of runes picked for the Rune Forge (max 3), ephemeral UI state
 let lastDiceRoll = null;           // {you, house, result, bet} of the most recent dice roll, or null if never played — ephemeral, not saved
 let diceRolling = false;           // true while the dice-roll animation is mid-spin, guards against overlapping rolls
 let invFilter = 'all';     // all | usable
@@ -509,7 +511,7 @@ UI.renderCharacterHub = function (el) {
 };
 
 // ------------------------------------------------------------
-// City hub: Shop / Tavern sub-tabs
+// City hub: Shop / Tavern / Enchanter / Arena sub-tabs
 // ------------------------------------------------------------
 UI.renderCityHub = function (el) {
   const questReady = !!(G.tavern && G.tavern.active && G.tavern.active.some(q => q.ready));
@@ -517,11 +519,15 @@ UI.renderCityHub = function (el) {
     <div class="subtabs">
       <button data-sub="shop" class="${activeCitySub === 'shop' ? 'active' : ''}">⚒️ Blacksmith</button>
       <button data-sub="tavern" class="${activeCitySub === 'tavern' ? 'active' : ''} ${questReady ? 'tab-notify' : ''}">🍺 Tavern</button>
+      <button data-sub="enchanter" class="${activeCitySub === 'enchanter' ? 'active' : ''}">🔮 Enchanter</button>
+      <button data-sub="arena" class="${activeCitySub === 'arena' ? 'active' : ''}">🏛️ Arena</button>
     </div>
     <div id="city-sub-content"></div>`;
   el.querySelectorAll('.subtabs button').forEach(b => b.onclick = () => { activeCitySub = b.dataset.sub; UI.refresh(); });
   const sc = $('#city-sub-content');
   if (activeCitySub === 'tavern') UI.renderTavern(sc);
+  else if (activeCitySub === 'enchanter') UI.renderEnchanter(sc);
+  else if (activeCitySub === 'arena') UI.renderArena(sc);
   else UI.renderShop(sc);
 };
 
@@ -721,6 +727,7 @@ UI.renderSkills = function (el) {
                 <span class="skill-rank">${rank > 0 ? `Rank ${rank}/${MAX_RANK}${eff > rank ? ` <span class="bonus">(+${eff - rank} gear)</span>` : ''}` : '—'}</span>
               </div>
               <div class="skill-desc">${s.desc(Math.max(1, eff))}</div>
+              ${rank > 0 && rank < MAX_RANK ? `<div class="skill-next">Next (Rank ${rank + 1}): ${s.desc(Math.min(eff + 1, MAX_RANK * 2))}</div>` : ''}
               <div class="skill-meta">
                 ${skillCost(s) ? `Cost: ${skillCost(s)} mana · ` : s.passive ? 'Passive · ' : 'Free · '}
                 ${s.cd ? `Cooldown: ${s.cd} rounds · ` : ''}
@@ -1193,6 +1200,127 @@ UI.playDice = function (bet) {
 };
 
 // ------------------------------------------------------------
+// The Enchanter: Enchantment Table (re-enchant) / Rune Forge (merge)
+// ------------------------------------------------------------
+UI.setEnchanterView = function (view) { enchanterView = view; forgeSelected = []; UI.refresh(); };
+
+const ENCHANT_TIER_LABEL = { 1: 'Faded Rune', 2: 'Rune', 3: 'Elder Rune (rare)', 4: 'Elder Rune (epic)', 5: 'Elder Rune (legendary)' };
+
+UI.pickEnchantTarget = function (runeUid) {
+  const rune = G.inventory.find(i => i.uid === runeUid && i.type === 'rune');
+  if (!rune) return;
+  const tier = runeTier(rune);
+  const pool = [...equippedItems(), ...G.inventory.filter(i => i.type === 'item')];
+  const targets = pool.filter(i => ENCHANT_RUNE_TIER[i.rarity] === tier);
+  if (!targets.length) {
+    const need = Object.keys(ENCHANT_RUNE_TIER).find(k => ENCHANT_RUNE_TIER[k] === tier);
+    UI.modal(`<h3>🔮 No matching items</h3><p class="hint">A ${esc(ENCHANT_TIER_LABEL[tier])} only enchants ${cap(need)} items. Find or equip one first.</p><div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
+    return;
+  }
+  UI.modal(`
+    <h3>🔮 Enchant with ${rune.icon} ${esc(rune.name)}…</h3>
+    <div class="socket-targets">
+      ${targets.map(t => `<button class="btn socket-target" onclick="reenchantItem(${t.uid},${runeUid});UI.closeModal()">
+        ${itemIconHtml(t)} <span style="color:${DATA.RARITIES[t.rarity].color}">${esc(t.name)}</span>
+        <small>ilvl ${t.ilvl} → ${Math.max(1, G.area)}${equippedItems().includes(t) ? ' · equipped' : ''}</small>
+      </button>`).join('')}
+    </div>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Cancel</button></div>`);
+};
+
+UI.toggleForgeRune = function (uid) {
+  const i = forgeSelected.indexOf(uid);
+  if (i >= 0) forgeSelected.splice(i, 1);
+  else if (forgeSelected.length < 3) forgeSelected.push(uid);
+  UI.refresh();
+};
+
+UI.doForgeRunes = function () {
+  const r = forgeRunes(forgeSelected);
+  forgeSelected = [];
+  if (!r.ok) { UI.toast(r.why || 'Forge failed'); UI.refresh(); return; }
+  UI.toast(r.success ? `🔨 Forge succeeded! ${r.rune.icon} ${r.rune.name}` : '💥 The runes shattered in the forge...');
+};
+
+UI.renderEnchanter = function (el) {
+  const runes = G.inventory.filter(i => i.type === 'rune');
+  const tableHtml = `
+    <p class="hint">Give the Enchanter an item and a matching rune: the rune is consumed, and the item is reforged to your current level — same stats, freshly rolled to match. Magical items need a Faded Rune, Rare need a Rune, Epic need a 4-bonus Elder Rune, Legendary need a 5-bonus Elder Rune.</p>
+    ${runes.length ? `<div class="inv-grid">${runes.map(r => `
+      <div class="inv-item rar-${r.rarity}" onclick="UI.pickEnchantTarget(${r.uid})">
+        <div class="inv-icon">${itemIconHtml(r)}</div>
+        <div class="inv-name" style="color:${DATA.RARITIES[r.rarity].color}">${esc(r.name)}</div>
+        <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
+      </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet — they drop from tough kills, or come out of the Rune Forge.</p>'}`;
+  const selTiers = new Set(forgeSelected.map(u => runeTier(G.inventory.find(i => i.uid === u))));
+  const forgeHtml = `
+    <p class="hint">Merge 3 runes of the same tier into one better rune, forged fresh at your current level. Tiers 1-4 have a 50% chance the runes shatter instead; legendary-tier (5, Mythic included) runes never fail.</p>
+    <div class="forge-selected">Selected: ${forgeSelected.length}/3${forgeSelected.length === 3 && selTiers.size > 1 ? ' <span class="no">— must all be the same tier</span>' : ''}</div>
+    <button class="btn btn-primary btn-small" ${forgeSelected.length !== 3 || selTiers.size > 1 ? 'disabled' : ''} onclick="UI.doForgeRunes()">🔨 Forge</button>
+    ${runes.length ? `<div class="inv-grid">${runes.map(r => `
+      <div class="inv-item rar-${r.rarity} ${forgeSelected.includes(r.uid) ? 'selected' : ''}" onclick="UI.toggleForgeRune(${r.uid})">
+        <div class="inv-icon">${itemIconHtml(r)}</div>
+        <div class="inv-name" style="color:${DATA.RARITIES[r.rarity].color}">${esc(r.name)}</div>
+        <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
+      </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet.</p>'}`;
+  el.innerHTML = `
+    <div class="panel">
+      <h3>🔮 The Enchanter's Workshop</h3>
+      <div class="subtabs">
+        <button class="${enchanterView === 'table' ? 'active' : ''}" onclick="UI.setEnchanterView('table')">🔮 Enchantment Table</button>
+        <button class="${enchanterView === 'forge' ? 'active' : ''}" onclick="UI.setEnchanterView('forge')">🔨 Rune Forge</button>
+      </div>
+      ${enchanterView === 'forge' ? forgeHtml : tableHtml}
+    </div>`;
+};
+
+// ------------------------------------------------------------
+// City Arena — a one-shot bonus fight against a captured, empowered group
+// of the current level's own local beasts. Always keyed to G.area (same
+// convention as the Blacksmith's stock/Tavern's rewards), gated off once
+// that level's story quest is cleared (G.bossKilled) or the Arena there
+// has already been resolved either way (G.arenaResult: 'won'/'lost').
+// ------------------------------------------------------------
+UI.renderArena = function (el) {
+  const level = G.area;
+  const info = areaInfo(level);
+  const result = G.arenaResult[level];
+  const beaten = !!G.bossKilled[level];
+  const busy = !!ADV;
+  let bodyHtml;
+  if (beaten) {
+    bodyHtml = `<p class="hint">${esc(info.location)}'s Arena has moved on — this quest's story is already cleared here.</p>`;
+  } else if (result === 'won') {
+    bodyHtml = `<p class="hint">🏆 You already conquered ${esc(info.location)}'s Arena challenge — the Arena Master still nods respectfully whenever you pass.</p>`;
+  } else if (result === 'lost') {
+    bodyHtml = `<p class="hint">💀 The captured beasts here bested you. This level's Arena challenge is forfeit for good — the next quest's Arena awaits.</p>`;
+  } else {
+    bodyHtml = `
+      <p class="hint">A caged, snarling group of ${esc(info.location)}'s own beasts awaits — either a Miniboss and an Epic, three Epics, or six Rares, all fattened with 50% more HP and 2 of them forced abnormal. One shot only: win and claim gold plus a rune; lose and this level's challenge is gone for good.</p>
+      <button class="btn btn-primary btn-big" ${busy ? 'disabled' : ''} onclick="UI.enterArena()">🏛️ Enter the Arena</button>
+      ${busy ? '<p class="hint">Finish or retreat from your current fight first.</p>' : ''}`;
+  }
+  el.innerHTML = `
+    <div class="panel">
+      <h3>🏛️ The Arena — ${esc(info.location)}</h3>
+      <div class="item-sub">📖 ${esc(info.chapter.title)} · 🧭 Quest ${info.questNum}: ${esc(info.quest.name)}</div>
+      ${bodyHtml}
+    </div>`;
+};
+
+// Same "jump to the fight" pattern as the tab bar's own Adventure click
+// (UI.showGame) — start the Arena fight, switch to the Adventure tab, and
+// scroll straight to the Battle Arena panel so the fight is immediately
+// visible instead of requiring a second manual tab click.
+UI.enterArena = function () {
+  startArenaFight(G.area);
+  activeTab = 'adventure';
+  UI.refresh();
+  const arena = document.querySelector('.battle-arena');
+  if (arena) arena.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+// ------------------------------------------------------------
 // Journal tab: one page at a time (Prologue / a chapter / Epilogue),
 // stepped through with ◀/▶ next to the title — same picker pattern as
 // the Adventure tab's level picker (.area-picker/.area-info). Parts
@@ -1464,6 +1592,9 @@ UI.playerCardHtml = function () {
   const c = G.char;
   const d = ADV ? ADV.d : derive();
   const gaugePct = ADV && ADV.fight ? Math.min(100, ADV.fight.playerGauge / (d.atkInterval || 100) * 100) : 0;
+  const gaugeDur = ADV && ADV.speedMs ? ADV.speedMs : 1200;
+  const nextPlayerGauge = ADV && ADV.fight ? ADV.fight.playerGauge + d.speed * (ADV.fight.playerSlow ? (1 - ADV.fight.playerSlow.pct) : 1) : 0;
+  const gaugeNextPct = ADV && ADV.fight ? Math.min(100, nextPlayerGauge / (d.atkInterval || 100) * 100) : 0;
   const nextSkill = UI.nextActionSkill();
   const effects = UI.playerEffects();
   return `
@@ -1474,7 +1605,7 @@ UI.playerCardHtml = function () {
         <div class="hero-sub">Lv ${c.level} ${className(c)}</div>
         <div class="bar hp-bar"><div style="width:${Math.max(0, c.hp / d.maxHp * 100)}%"></div><span>${formatK(Math.round(c.hp))}/${formatK(d.maxHp)}</span></div>
         <div class="bar mana-bar"><div style="width:${Math.max(0, c.mana / d.maxMana * 100)}%"></div><span>${formatK(Math.round(c.mana))}/${formatK(d.maxMana)}</span></div>
-        <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="width:${gaugePct}%"></div></div>
+        <div class="bar enemy-gauge" title="attack gauge — swings every ${d.atkInterval} (weapon ×${d.atkFactor})"><div style="--from:${gaugePct}%;--to:${gaugeNextPct}%;--gauge-dur:${gaugeDur}ms"></div></div>
       </div>
       <div class="effects-grid">
         ${effects.map(e => `<div class="effect-icon" title="${esc(e.label)}">${e.icon}<span class="effect-rounds">${e.rounds}</span></div>`).join('')}
@@ -1702,9 +1833,13 @@ UI.enemyPanelHtml = function () {
   const f = ADV.fight;
   const used = f.enemies.reduce((s, e) => s + (TIER_CELLS[e.tier] || 1), 0);
   const placeholders = Math.max(0, 6 - used);
+  const gaugeDur = ADV.speedMs || 1200;
   return `<div class="round-ind">Round ${f.round} · your gauge ${Math.round(f.playerGauge)}/100 (+${ADV.d.speed}/round)</div>
     <div class="enemy-cards">
-    ${f.enemies.map(e => `
+    ${f.enemies.map(e => {
+      const gFrom = Math.min(100, e.gauge);
+      const gTo = e.hp > 0 ? Math.min(100, e.gauge + effectiveEnemySpd(e)) : gFrom;
+      return `
       <div class="enemy-card ${e.hp <= 0 ? 'dead' : ''} ${enemyCardClass(e)}">
         <div class="enemy-name" style="color:${enemyColor(e)}">${e.hp <= 0 ? '☠️ ' : ''}${esc(e.name)}</div>
         <div class="enemy-sub">${e.tier !== 'normal' ? `${esc(enemyTierLabel(e))} · ` : ''}Lv ${e.level}
@@ -1719,8 +1854,9 @@ UI.enemyPanelHtml = function () {
           ${e.stunned > 0 ? '<span>💫 stunned</span>' : ''}
         </div>
         <div class="enemy-stats res" title="resistances">⚔️ ${e.res.phys}% · ✨ ${e.res.magic}% · ☠️ ${e.res.poison}%</div>
-        <div class="bar enemy-gauge" title="action gauge"><div style="width:${Math.min(100, e.gauge)}%"></div></div>
-      </div>`).join('')}
+        <div class="bar enemy-gauge" title="action gauge"><div style="--from:${gFrom}%;--to:${gTo}%;--gauge-dur:${gaugeDur}ms"></div></div>
+      </div>`;
+    }).join('')}
     ${'<div class="enemy-placeholder"></div>'.repeat(placeholders)}
     </div>`;
 };
@@ -1770,7 +1906,10 @@ UI.showResults = function (run, level) {
   const totalKills = k.normal + k.rare + k.epic + (k.miniboss || 0) + k.legendary;
   const outcomeTxt = {
     boss: '🏆 VICTORY! The Legendary Boss has fallen!',
-    defeated: `💀 You fell in battle — the level resets!${run.progressLost ? ` ${run.progressLost} kills of progress lost.` : ''} Loot and XP are yours to keep.`,
+    arena_won: '🏛️ ARENA VICTORY! The captured beasts are defeated!',
+    defeated: run.isArena
+      ? '💀 The Arena\'s captives overpower you — this level\'s challenge is forfeit. Loot and XP are yours to keep.'
+      : `💀 You fell in battle — the level resets!${run.progressLost ? ` ${run.progressLost} kills of progress lost.` : ''} Loot and XP are yours to keep.`,
     stalemate: '🏳️ The battle dragged on forever; you slipped away.',
     manual: '🏳️ You chose to retreat — progress is kept.',
     done: '🏁 Nothing left to fight here.',
@@ -1819,6 +1958,13 @@ UI.showResults = function (run, level) {
           ? `<span class="reward-item">🪙 ${formatK(run.partReward.item.value)} <small>(auto-sold ${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)})</small></span>`
           : `<span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>`}
       </div>` : ''}
+    ${run.outcome === 'arena_won' && run.arenaReward ? `
+      <h4>🏛️ Arena Reward</h4>
+      <div class="quest-reward-box">
+        <span class="gold">🪙 ${formatK(run.arenaReward.gold)}</span>
+        <span class="reward-item" style="color:${DATA.RARITIES[run.arenaReward.rune.rarity].color}">${run.arenaReward.rune.icon} ${esc(run.arenaReward.rune.name)}</span>
+      </div>
+      <p class="part-end-story">🏛️ The Arena Master grins: "You won this city's challenge to the arena — try your luck in the next city!"</p>` : ''}
     <h4>Battle report</h4>
     <div class="results-grid">
       <div class="res-box"><b>⚔️ ${formatK(Math.round(run.dmgDealt))}</b><span>damage dealt</span></div>

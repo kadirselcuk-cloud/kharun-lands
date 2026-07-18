@@ -434,3 +434,90 @@ touch the same code.
   leaving unusable gear sitting in inventory; the pre-existing non-boss
   results modal (retreat/defeat/stalemate) still closes normally via its
   `✕`. No console errors in any pass.
+
+## City: The Arena (one-shot per-level bonus fight)
+
+4th City sub-tab (`UI.renderArena`/`UI.enterArena`, ui.js), same
+`.subtabs` pattern as Blacksmith/Tavern/Enchanter. Sprang from an
+exploratory "what other shops could the city have" question, then a
+detailed follow-up spec plus 4 clarifying-question answers that resolved
+the ambiguous parts (anomaly meaning, reward content, retry-on-loss,
+kill-tracking).
+
+- **Granularity resolved from the spec itself, not asked**: "Once per
+  level, until that level is beaten (Chapter and Area)" + the "next
+  city" flavor line together read as: one challenge per quest level
+  (1-100, keyed to `G.area` like everything else city-side), with
+  "city" just flavor language for each quest's own `info.location` —
+  not a literal 10-cities-per-chapter concept. Available while
+  `!G.bossKilled[level] && !G.arenaResult[level]`.
+- **"2 anomalies" per clarifying answer**: individual creatures here
+  can only ever carry 1 specialty affix outside Legendary (`AFFIX_CHANCE`
+  caps rare/epic/miniboss at 0-or-1) — so "2 anomalies" means exactly 2
+  of the *group* are forced-abnormal, not 2 affixes stacked on one
+  creature. `makeCreature` (game.js) gained `opts.forceAffixes` (an
+  explicit override array, bypassing `rollSpecialties` entirely — even
+  `[]` counts, so the non-forced beasts get *zero* chance of an
+  incidental 3rd anomaly) and `opts.hpMult` (multiplies the tier's own
+  HP formula; Arena uses 1.5, i.e. the requested "+50% HP"). New
+  `makeArenaGroup(level)` picks one of `ARENA_COMPS` (`mb_epic: ['miniboss',
+  'epic']`, `epics3: [3x 'epic']`, `rares6: [6x 'rare']`), forces exactly
+  `min(2, group size)` of them via `forceAffixes`, the rest get `[]`.
+- **Reward, per clarifying answer** ("guaranteed Rune, not item"):
+  `grantArenaReward` grants gold (`(80 + level*25) * jitter`, a bit
+  richer than `grantPartClearReward`'s formula since these fights are
+  tougher) plus one `makeRune` at a tier keyed to which comp was drawn —
+  `ARENA_RUNE_SOURCE = {mb_epic:'miniboss', epics3:'epic', rares6:'rare'}`
+  — so the toughest comp (miniboss+epic) earns the best guaranteed rune
+  floor via the existing `RUNE_BONUS_RANGE` table, no new tuning needed
+  there.
+- **Retry, per clarifying answer** ("one attempt only — lose once and
+  it's gone"): `G.arenaResult[level]` is set to `'lost'` only on an
+  actual HP-to-0 defeat; a manual retreat or a 400-round stalemate
+  leaves it untouched (the challenge stays available) — the "one shot"
+  language was read as applying to a real loss, not to backing out of a
+  fight you can reconsider.
+- **Kill tracking, per clarifying answer** ("yes, count them like any
+  other kill"): every Arena beast is flagged `isEscort = true`.
+  `isEscort` already existed as exactly this switch — `handleKill` only
+  advances `G.progress[level]` (the level's own 1111-kill story counter)
+  for non-escort kills, but still runs the full normal kill pipeline
+  otherwise (`G.totals.kills`/`killsBySpecies`, XP, `rollLoot`, the
+  `kill_rare`/`kill_epic`/`kill_miniboss`/`kill_<specialty>` Tavern
+  quest-progress events) — so Arena kills count everywhere *except* the
+  level's own story pattern and `G.bossKilled` (which Arena never sets;
+  it never uses the `legendary` tier).
+- **Engine reuse over new plumbing**: `ADV` is a singleton keyed to
+  `G.area`/`G.progress`/`G.bossKilled` writes in `retreat()` — rather
+  than build a parallel fight system, `startArenaFight(level)` builds
+  the exact same `ADV`/`fight`/`run` shape `startAdventure()` does (so
+  pause/retreat/speed controls, the Battle Arena panel, and
+  `adventureTick`/`playerAct` all work completely unmodified) with one
+  added flag, `ADV.isArena: true`, and a pre-built single encounter
+  instead of going through `nextCreatureTier`. Two call sites branch on
+  it: `adventureTick`'s all-enemies-dead check (grants the reward and
+  calls `retreat('arena_won')` before the normal `wasBoss` branch can
+  run) and `retreat()` itself (snapshots `run.isArena` up front, skips
+  the `G.progress` wipe on an Arena defeat, sets `G.arenaResult`
+  instead).
+- **`UI.showResults`**: `arena_won` gets its own outcome text and a
+  "🏛️ Arena Reward" box with the requested Arena Master line verbatim
+  ("You won this city's challenge to the arena — try your luck in the
+  next city!"); an Arena defeat gets outcome text that doesn't claim
+  "the level resets" (untrue for Arena — only a real story-quest defeat
+  does that). Neither counts as `isBoss` (`=== 'boss'` only), so both
+  render as an ordinary closable results modal via the existing
+  non-boss button branch — no new modal-closability logic needed beyond
+  what 1.4.3's bug batch already added.
+- Tried adding the Tavern's `.tab-notify` breathing highlight to the
+  Arena's City sub-tab for an available challenge; explicitly asked to
+  remove it, so the Arena sub-tab button has no notify state — reaching
+  it is purely up to the player noticing the tab.
+- Verified via a headless-Chromium (Playwright) pass: all four panel
+  states (available/won/lost/quest-already-cleared) render the right
+  text; entering the Arena produces a real fight with the expected comp/
+  forced-affix-count/`isEscort`/HP-multiplier; forcing a win (zeroed
+  enemy HP) produced the correct `G.arenaResult`, gold, rune, and Arena
+  Reward box, and returned `ADV` to `null`; per-kill loot from the
+  escort-flagged beasts still rolled on top of the guaranteed reward.
+  No console errors.

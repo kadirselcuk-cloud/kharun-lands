@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3111 2>&1)",
-      "Bash(cd \"c:\\GitMain\\Kharun-Lands\" && node -c game.js && node -c ui.js && node -c data.js && echo OK)"
+      "Bash(cd \"c:\\GitMain\\Kharun-Lands\" && node -c game.js && node -c ui.js && node -c data.js && echo OK)",
+      "Bash(node -c game.js)",
+      "Bash(node -c ui.js)",
+      "Bash(node -c data.js)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }

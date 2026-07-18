@@ -14,6 +14,192 @@ game at runtime.
 
 ---
 
+## 1.6.0 (minor)
+
+**The Arena** — new 4th City sub-tab (`UI.renderArena`/`UI.enterArena`,
+ui.js; `activeCitySub === 'arena'`, same `.subtabs` pattern as Blacksmith/
+Tavern/Enchanter). Full design writeup in CLAUDE.md "City: The Arena
+(one-shot per-level bonus fight)" — summary:
+
+- Always keyed to the player's current `G.area`, same convention as the
+  Blacksmith's stock. Available whenever `!G.bossKilled[level] &&
+  !G.arenaResult[level]`; `G.arenaResult` (new save field, `newGame`/
+  `loadGame` migration) is `'won'`/`'lost'`, set once the fight resolves
+  either way — a loss forfeits that level's Arena for good (explicit
+  "one attempt only" answer), a manual retreat or 400-round stalemate
+  does not consume the attempt.
+- `makeCreature` (game.js) gained two new opts: `hpMult` (multiplies
+  the tier's own HP formula — Arena uses 1.5) and `forceAffixes` (an
+  explicit array that bypasses the normal per-tier random specialty
+  roll entirely, even as `[]`). New `makeArenaGroup(level)` picks one of
+  `ARENA_COMPS` (`mb_epic`/`epics3`/`rares6`), forces exactly 2 of the
+  group to carry 1 specialty each via `forceAffixes` and the rest to
+  carry none — guaranteeing precisely 2 anomalies regardless of group
+  size, rather than layering the normal independent per-creature chance
+  on top. Every Arena beast is flagged `isEscort` so its kill doesn't
+  advance the level's own 1111-kill story counter (`handleKill` only
+  bumps `G.progress` for non-escort kills) — kills still count toward
+  `G.totals.kills`/`killsBySpecies` and fire the normal `kill_rare`/
+  `kill_epic`/`kill_miniboss` Tavern quest-progress events, and still
+  roll normal per-kill loot via the existing `rollLoot` path, on top of
+  a guaranteed win reward.
+- `startArenaFight(level)` (game.js) builds the same `ADV`/`fight`/`run`
+  shape `startAdventure()` does, just with `isArena: true` and a
+  pre-built single encounter instead of going through
+  `nextCreatureTier`'s 1-in-11/1-in-111 pattern — reuses the entire
+  existing combat engine (pause/retreat/speed controls, `playerAct`,
+  death resolution) unmodified.
+- `adventureTick`'s all-enemies-dead branch checks `ADV.isArena` before
+  the normal `wasBoss` branch: grants `grantArenaReward` (gold +
+  `makeRune` at a tier keyed to which comp was fought —
+  `ARENA_RUNE_SOURCE = {mb_epic:'miniboss', epics3:'epic',
+  rares6:'rare'}`, gold reward decision was explicitly "guaranteed Rune,
+  not item") and calls `retreat('arena_won')`.
+- `retreat()` now snapshots `run.isArena = !!ADV.isArena` up front and
+  branches the `reason === 'defeated'` progress-wipe: normal defeats
+  still reset `G.progress[level]` to 0 as before, but an Arena defeat
+  sets `G.arenaResult[level] = 'lost'` instead and leaves story progress
+  completely untouched (Arena kills never touched it in the first
+  place). `reason === 'arena_won'` sets `G.arenaResult[level] = 'won'`.
+- `UI.showResults` (ui.js): new `arena_won` outcome text + a dedicated
+  "🏛️ Arena Reward" box (gold + rune) with the requested Arena Master
+  flavor line ("You won this city's challenge to the arena — try your
+  luck in the next city!"); Arena defeats get their own outcome text
+  (no "the level resets" — that's not true for Arena losses). Both
+  Arena outcomes fall through the existing non-boss button branch
+  (`isBoss` stays scoped to `outcome === 'boss'` only) so they're a
+  normal closable modal, unlike the boss-victory modal.
+- Per explicit request, the Arena's City sub-tab does **not** get the
+  `.tab-notify` breathing highlight the Tavern's ready-quest state uses
+  — tried it, asked to remove it, reverted.
+- Verified via a headless-Chromium (Playwright) pass: the Arena panel
+  renders the right flavor/location text and gates correctly across all
+  three states (available/won/lost) plus the "quest already cleared"
+  state; entering the Arena builds a real fight (confirmed comp,
+  forced-affix count, `isEscort`, HP values) and jumps straight to the
+  Battle Arena panel; forcing a win via zeroed enemy HP produced the
+  correct `G.arenaResult`, gold, and rune, closed `ADV`, and rendered
+  the Arena Reward box with the Arena Master line; per-kill loot from
+  the 3 escort-flagged epics still rolled normally on top of the
+  guaranteed reward. No console errors.
+
+## 1.5.0 (minor)
+
+Large batch: a new city shop, 20 new quest types, a quest-board bug fix, a
+gauge-fill animation, a skill next-rank preview, three balance reworks, and
+Reflective -> Charm. See CLAUDE.md for the fuller per-feature writeup where
+noted below; summary:
+
+- **The Enchanter** (new city sub-tab, `UI.renderEnchanter`/`activeCitySub
+  === 'enchanter'`, ui.js): two views toggled like the Tavern's Board/Gamble
+  pattern (`enchanterView`, default `'table'`).
+  - **Enchantment Table** — `reenchantItem(itemUid, runeUid)` (game.js):
+    bumps `item.ilvl` to `G.area`, rerolls the item's base stat (dmg/armor/
+    potionCap, via a new `baseStatsFor(it)` slot->base lookup) and every
+    existing affix's *value* at the new ilvl while keeping the same affix
+    ids (`rerollAffixValues`, new helper) — "same stats, new numbers", not a
+    re-roll of which stats you have. Rune requirement is exact-match, not a
+    floor: `ENCHANT_RUNE_TIER = { magical:1, rare:2, epic:4, legendary:5 }`
+    against a new `runeTier(rune)` helper (bonus count, except Mythic Runes
+    which are hard-coded to 5 despite carrying 4 bonuses — treated as
+    top-tier since they're the rarest rune in the game). Consumes the rune;
+    no gold cost — not specified by the request, so the literal "give an
+    item and a rune" was implemented as free. Item name is left unchanged
+    (only value/ilvl/stats update) — renaming a player's owned gear on
+    reforge felt like an unwanted side effect, not requested.
+  - **Rune Forge** — `forgeRunes(uids)` (game.js): requires exactly 3 runes
+    of the *same* tier (explicit user choice over "any 3, uses highest").
+    Tiers 1-4: 50% chance all 3 are destroyed with nothing gained; tier 5
+    (legendary-colored Elder Rune, Mythic included): always succeeds,
+    reforging into a fresh non-Mythic tier-5 rune at current ilvl — Mythic
+    itself is never a forge output, it stays an independent, much rarer
+    roll. `makeRune` was refactored to extract a shared `buildRune(n, ilvl,
+    tierOverride)` so the Forge's forced-tier path and the normal
+    source-tier-random path share the same naming/construction logic.
+- **Quest board bug fix**: `acceptQuest` (game.js) spliced the accepted
+  quest out of `G.tavern.board` but never backfilled it, so the board sat
+  at 6-7 visible offers (instead of the intended constant 8) until the next
+  `retreat()` fully regenerated it. Fixed by pushing one fresh,
+  non-duplicate-type quest into the board immediately after every accept.
+- **20 new quest types** appended to `genQuest`'s `makers` array (game.js,
+  now 31 total): rune socketing, item selling (single + bulk), a
+  chapter-boss bounty, Epic+ item finds, gold-from-selling, ten
+  specialty-targeted kill quests (Poisonous/Frozen/Burning/Vampiric/
+  Explosive/Golem/Charm/Regen/Berserk/Spectral) plus a catch-all "any
+  specialty" bounty, Enchanter Table/Rune Forge usage, skill casts, and
+  Sneaky Elf encounters. Wired via new one-line `questEvent(...)` calls at
+  each action's existing site (`handleKill` now loops `e.affixes` firing
+  one event per specialty + a `kill_abnormal` catch-all + `chapter_boss`;
+  `sellItem`/`sellAllOf`; `socketRune`; `dropItem` for `item_epic`;
+  `playerAct` for `skill_cast` when `skill.cat !== 'basic'`; the elf-
+  encounter resolution branches). `sellAllOf` also picked up the
+  `G.totals.itemsSold`/`goldFromSales` tracking it was previously missing
+  (bulk-sell was silently not counting toward those totals — same class of
+  gap as the 1.4.3 auto-sell fix, fixed opportunistically while wiring the
+  new quest hook).
+- **Gauge-fill animation** (`ui.js`, `style.css`): the arena previously
+  re-rendered the gauge bar's final width every tick with no real
+  animation (the `.bar > div { transition: width .25s }` rule never
+  actually played, since `UI.refresh()` recreates the DOM node from scratch
+  every tick rather than mutating an existing one's style). Replaced with a
+  CSS `@keyframes` animation driven by `--from`/`--to`/`--gauge-dur` custom
+  properties computed fresh each render: `--from` is the actual current
+  gauge %, `--to` is a one-tick-ahead forecast (`d.speed`/
+  `effectiveEnemySpd(e)`, same formulas `adventureTick` itself uses),
+  `--gauge-dur` is `ADV.speedMs`. Because it's a real `animation` (not a
+  `transition`), it replays correctly on every freshly-created node,
+  and each tick's render always starts the animation from ground truth —
+  no interpolation-across-a-gauge-wrap problem.
+- **Skill next-rank preview** (`UI.renderSkills`, ui.js): for any skill
+  with `0 < rank < MAX_RANK`, shows `s.desc(min(eff+1, MAX_RANK*2))` under
+  the current description — reuses each skill's own pure `desc(r)`
+  function, no new data needed.
+- **Healing Light** (`data.js`): `healPct` changed from `0.16 + 0.03*r`
+  (19%@r1 -> 46%@r10) to `0.30 + (r-1)*(0.20/9)` (30%@r1 -> exactly
+  50%@r10). The request's "+2%/level" and "50% by level 10" starting from
+  30% don't reconcile exactly (30 + 2*9 = 48, not 50) — resolved by hitting
+  the two stated endpoints exactly via linear interpolation (~2.22%/rank
+  in practice) rather than the stated per-rank step, since the endpoints
+  read as the harder constraint.
+- **Minnie's ward** (`m_p_radiant_pass1` "Sacred Vigil", data.js): per
+  clarifying-question answer, repurposed this existing Radiant-path passive
+  (still costs a skill point, still gated behind the Radiant Advanced Class
+  path at level 25) rather than adding a new innate passive. `dr` changed
+  from `0.01*r` (1%@r1 -> 10%@r10) to `0.10 + (r-1)*(0.30/9)` (10%@r1 ->
+  exactly 40%@r10) — same endpoint-matching resolution as Healing Light.
+  hpPct/hpRegen on the same passive are untouched.
+- **Minnie's weapon skills** (`makeItem`, game.js): per clarifying-question
+  answer, base weapon/offhand damage was explicitly left unchanged. New
+  `rollMinnieWeaponSkills(ilvl)`/`minnieWeaponSkillCount(ilvl)` gate on
+  legendary-rarity, single-class (`classes.length===1 && classes[0]===
+  'mage'`) weapon/offhand items (Arcane Staff/Wand/Scepter/Orb/Tome are the
+  only bases meeting that), adding 1-3 *additional* `{id:'skill', v:
+  rint(1,3), skillId, skillName}` entries on top of the item's normal
+  affix roll — reuses the existing generic 'skill' affix shape/rendering
+  as-is, no new UI needed. Distinct skill ids enforced via a `used` Set.
+  Count distribution linearly interpolates 90/9/1% (1/2/3 skills) at ilvl 1
+  to 50/30/20% at ilvl 100 by `t = (ilvl-1)/99`. Gated to legendary rarity
+  specifically because "ultra rare" (the request's own description of
+  these skills) matches this game's existing convention for its rarest
+  affixes (critStrike/doubleStrike/spellstrike are all `minRarity:
+  'legendary'` too) — not stated explicitly, called out as an assumption.
+- **Regenerating cap** (`data.js`/`game.js`): new `regenTotal` field on
+  every creature (`makeCreature`), incremented by each regen tick and
+  capped so total lifetime regen healing can't exceed the creature's own
+  `maxHp` — once hit, `hasAffix(e,'regen')` checks are gated by `regenTotal
+  < maxHp` and simply stop firing.
+- **Reflective -> Charm**: removed `DATA.SPECIALTIES.reflective` and its
+  on-hit reflect-damage branch in `playerHit` (game.js) entirely, including
+  all 10 story-boss `specialties: [...]` arrays that referenced it
+  (data.js, swapped to `'charm'`). Added `DATA.SPECIALTIES.charm` +
+  a gate at the very top of `playerAct` (game.js): if any live enemy has
+  the `charm` affix, a 50% chance rolled once per player turn (not per
+  swing/multi-attack) skips the entire turn with no mana/cooldown spent —
+  modeled after the existing enemy-side `stunned` skip-turn pattern, since
+  there was no prior player-side "skip this turn" gate anywhere in the
+  codebase. `WARD_TIER_MULT`/`levelDifficulty` are untouched (Explosive
+  still uses them); only Reflective's own consumer was removed.
+
 ## 1.4.3 (fix)
 
 Bug batch — see CLAUDE.md "Bug batch: results modal, auto-sell gaps, tier

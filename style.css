@@ -257,6 +257,7 @@ small { color: var(--dim); }
 .skill-rank { font-size: .78rem; color: var(--dim); margin-left: auto; }
 .skill-rank .bonus { color: #6c9bff; }
 .skill-desc { font-size: .84rem; color: #b9bdcc; margin: 3px 0; }
+.skill-next { font-size: .76rem; color: var(--accent); margin: 0 0 3px; }
 .skill-meta { font-size: .72rem; color: var(--dim); }
 .skill-action { width: 92px; text-align: right; }
 .why { font-size: .72rem; color: var(--dim); }
@@ -273,6 +274,8 @@ small { color: var(--dim); }
 }
 .inv-item:hover { transform: translateY(-2px); filter: brightness(1.15); }
 .inv-item.unusable { opacity: .72; }
+.inv-item.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.forge-selected { margin: 6px 0; font-size: .85rem; color: var(--dim); }
 .inv-icon { font-size: 1.4rem; }
 .inv-name { font-size: .84rem; font-weight: 600; line-height: 1.2; margin: 2px 0; }
 .inv-sub { font-size: .72rem; color: var(--dim); }
@@ -629,7 +632,15 @@ small { color: var(--dim); }
 .enemy-hp { height: 15px; margin-bottom: 4px; }
 .enemy-hp > div { background: linear-gradient(180deg, #e0685f, #a33430); }
 .enemy-gauge { height: 5px; min-width: 0; margin-top: 4px; }
-.enemy-gauge > div { background: linear-gradient(180deg, #d9c34c, #a08a1b); }
+.enemy-gauge > div {
+  background: linear-gradient(180deg, #d9c34c, #a08a1b);
+  width: var(--to, 0%);
+  animation: gauge-fill-anim var(--gauge-dur, 1200ms) linear forwards;
+}
+@keyframes gauge-fill-anim {
+  from { width: var(--from, 0%); }
+  to { width: var(--to, 0%); }
+}
 .enemy-stats { display: flex; gap: 8px; flex-wrap: wrap; font-size: .72rem; color: #b9bdcc; }
 .enemy-stats.res { color: var(--dim); }
 
