@@ -17,6 +17,7 @@ let invType = 'all';       // all | rune | <slot>
 let invSort = 'rarity';    // rarity | type | value | name
 let journalPage = null;    // 'prologue' | chapter number | 'epilogue' — null defaults to the current chapter on next render
 let pendingNewSlot = 0;    // which save slot a freshly-picked class goes into
+let cheatSeq = { stage: 'city', count: 0 };   // tab-click gesture tracker for the hidden cheat console — ephemeral, not saved
 
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -453,6 +454,7 @@ UI.showGame = function () {
   document.querySelectorAll('#tabs button').forEach(b => {
     b.onclick = () => {
       activeTab = b.dataset.tab;
+      UI.trackCheatSequence(b.dataset.tab);
       UI.refresh();
       if (b.dataset.tab === 'adventure') {
         const arena = document.querySelector('.battle-arena');
@@ -461,6 +463,60 @@ UI.showGame = function () {
     };
   });
   UI.refresh();
+};
+
+// Hidden gesture: click City 5x in a row, then Character 5x in a row,
+// to open the cheat console. Any other tab click resets progress.
+UI.trackCheatSequence = function (tab) {
+  if (cheatSeq.stage === 'city') {
+    if (tab === 'city') {
+      cheatSeq.count++;
+      if (cheatSeq.count >= 5) cheatSeq = { stage: 'character', count: 0 };
+    } else {
+      cheatSeq = { stage: 'city', count: 0 };
+    }
+  } else { // stage === 'character'
+    if (tab === 'character') {
+      cheatSeq.count++;
+      if (cheatSeq.count >= 5) {
+        cheatSeq = { stage: 'city', count: 0 };
+        UI.showCheatDialog();
+      }
+    } else if (tab === 'city') {
+      cheatSeq = { stage: 'city', count: 1 };
+    } else {
+      cheatSeq = { stage: 'city', count: 0 };
+    }
+  }
+};
+
+UI.showCheatDialog = function () {
+  UI.modal(`
+    <h3>Cheat Console</h3>
+    <input type="text" id="cheat-input" class="cheat-input" autocomplete="off" spellcheck="false" autocapitalize="off">
+    <div class="modal-actions">
+      <button class="btn" onclick="UI.submitCheatCode()">Submit</button>
+      <button class="btn" onclick="UI.closeModal()">Cancel</button>
+    </div>
+  `);
+  const input = document.getElementById('cheat-input');
+  if (input) {
+    input.focus();
+    input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); UI.submitCheatCode(); } };
+  }
+};
+
+UI.submitCheatCode = function () {
+  const input = document.getElementById('cheat-input');
+  const code = input ? input.value.trim() : '';
+  let m, result = null;
+  if ((m = /^kgschar(\d{1,3})$/i.exec(code))) result = cheatGiveXpToLevel(parseInt(m[1], 10));
+  else if ((m = /^kgsarea(\d{1,3})$/i.exec(code))) result = cheatGoToArea(parseInt(m[1], 10));
+  else if (/^kgsitems$/i.test(code)) result = cheatFillLegendaryGear();
+  else if ((m = /^kgsrune(\d{1,3})$/i.exec(code))) result = cheatGiveRunes(parseInt(m[1], 10));
+  UI.closeModal();
+  if (result) UI.toast(result.msg);
+  else if (code) UI.toast('Unknown code');
 };
 
 // Unspent stat/skill points and a finished (unclaimed) Tavern quest each

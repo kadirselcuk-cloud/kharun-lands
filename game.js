@@ -617,22 +617,41 @@ function beltPotionCap(ilvl) {
   return rint(4, 8);
 }
 
-function makeItem(ilvl, rarity, clsHint) {
+const ARMOR_SLOT_NAMES = ['helmet', 'armor', 'gloves', 'pants', 'boots'];
+const JEWELRY_SLOT_NAMES = ['amulet', 'ring', 'cloak', 'belt'];
+
+// forceSlot (optional 4th param) pins the generated item to a specific
+// slot instead of letting `roll` pick a random category — used only by
+// the cheat console's "fill every slot" command (see cheatFillLegendaryGear
+// near the end of this file). Every normal call site omits it, so the
+// original random roll< thresholds are untouched.
+function makeItem(ilvl, rarity, clsHint, forceSlot) {
   const scale = itemScale(ilvl);
   const rar = DATA.RARITIES[rarity];
   const it = { uid: G ? G.itemSeq++ : rint(1, 1e9), ilvl, rarity, runes: [], sockets: 0, type: 'item' };
   const roll = Math.random();
 
-  if (roll < 0.30) { // weapon — damage rides the steeper dmgScale curve
-    const base = pick(DATA.WEAPON_BASES);
+  if (forceSlot === 'weapon' || (!forceSlot && roll < 0.30)) { // weapon — damage rides the steeper dmgScale curve
+    let bases = DATA.WEAPON_BASES;
+    if (forceSlot === 'weapon') {
+      const clsBases = clsHint ? bases.filter(b => !b.classes || b.classes.includes(clsHint)) : bases;
+      const oneHanded = clsBases.filter(b => b.hands === 1);
+      bases = oneHanded.length ? oneHanded : (clsBases.length ? clsBases : bases);
+    }
+    const base = pick(bases);
     it.slot = 'weapon'; it.base = base.id; it.icon = base.icon;
     it.baseName = base.name; it.hands = base.hands; it.classes = base.classes; it.magic = !!base.magic;
     it.atkSpd = base.atkSpd || 1;
     it.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(ilvl) * rar.mult));
     it.dmgMax = Math.max(2, Math.round(base.dmg[1] * dmgScale(ilvl) * rar.mult));
     it.sockets = rollSockets();
-  } else if (roll < 0.42) { // offhand
-    const base = pick(DATA.OFFHAND_BASES);
+  } else if (forceSlot === 'offhand' || (!forceSlot && roll < 0.42)) { // offhand
+    let bases = DATA.OFFHAND_BASES;
+    if (forceSlot === 'offhand' && clsHint) {
+      const clsBases = bases.filter(b => !b.classes || b.classes.includes(clsHint));
+      bases = clsBases.length ? clsBases : bases;
+    }
+    const base = pick(bases);
     it.slot = 'offhand'; it.base = base.id; it.icon = base.icon;
     it.baseName = base.name; it.classes = base.classes; it.weight = base.weight || null; it.magic = !!base.magic;
     if (base.armor) it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
@@ -641,16 +660,16 @@ function makeItem(ilvl, rarity, clsHint) {
       it.dmgMax = Math.max(1, Math.round(base.dmg[1] * dmgScale(ilvl) * rar.mult));
     }
     it.sockets = rollSockets();
-  } else if (roll < 0.80) { // armor piece
-    const slot = pick(['helmet', 'armor', 'gloves', 'pants', 'boots']);
-    const weight = pick(['heavy', 'medium', 'light']);
+  } else if (ARMOR_SLOT_NAMES.includes(forceSlot) || (!forceSlot && roll < 0.80)) { // armor piece
+    const slot = ARMOR_SLOT_NAMES.includes(forceSlot) ? forceSlot : pick(ARMOR_SLOT_NAMES);
+    const weight = (forceSlot && ({ warrior: 'heavy', rogue: 'medium', mage: 'light' })[clsHint]) || pick(['heavy', 'medium', 'light']);
     const base = DATA.ARMOR_BASES[slot][weight];
     it.slot = slot; it.base = `${slot}_${weight}`; it.icon = DATA.ARMOR_ICONS[slot];
     it.baseName = base.name; it.weight = weight;
     it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
     if (slot === 'helmet' || slot === 'armor') it.sockets = rollSockets();
   } else { // jewelry: amulet / ring / cloak / belt
-    const kind = pick(['amulet', 'ring', 'ring', 'cloak', 'belt']);
+    const kind = JEWELRY_SLOT_NAMES.includes(forceSlot) ? forceSlot : pick(['amulet', 'ring', 'ring', 'cloak', 'belt']);
     const base = DATA.JEWELRY_BASES[kind];
     it.slot = kind; it.base = kind; it.icon = base.icon; it.baseName = base.name;
     if (base.armor) it.armor = Math.max(1, Math.round(base.armor * scale * rar.mult));
@@ -2580,3 +2599,61 @@ function adventureTick() {
 
 // misc
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+// ------------------------------------------------------------
+// Cheat console — reachable only via a hidden UI gesture (see ui.js,
+// UI.trackCheatSequence/UI.showCheatDialog/UI.submitCheatCode). Deliberately
+// undocumented in DATA.CHANGELOG/VERSION.md/any in-game help per the request
+// that created this; each function just returns {ok, msg} for the dialog's
+// toast rather than logging to the adventure log.
+// ------------------------------------------------------------
+function cheatGiveXpToLevel(target) {
+  target = Math.max(1, Math.min(999, Math.round(target) || 0));
+  const c = G.char;
+  if (target <= c.level) return { ok: false, msg: `Already level ${c.level}` };
+  // Leveled up one rank at a time (rather than adding one huge precomputed
+  // sum) so float rounding on the astronomically large late-game XP curve
+  // can't accumulate across hundreds of terms and land a level short.
+  let guard = 0;
+  while (c.level < target && guard++ < 2000) {
+    gainXp(Math.max(0, xpForLevel(c.level) - c.xp));
+  }
+  saveGame(); UI.refresh();
+  return { ok: true, msg: `Leveled up to ${c.level}` };
+}
+
+function cheatGoToArea(target) {
+  target = Math.max(1, Math.min(MAX_LEVEL_AREA, Math.round(target) || 0));
+  if (ADV) return { ok: false, msg: 'Retreat from your current adventure first' };
+  G.unlocked = Math.max(G.unlocked, target);
+  G.area = target;
+  saveGame(); UI.refresh();
+  const info = areaInfo(target);
+  return { ok: true, msg: `Warped to Chapter ${chapterNumOf(target)}, Quest ${info.questNum}: ${info.location}` };
+}
+
+function cheatFillLegendaryGear() {
+  const ilvl = Math.max(1, G.area);
+  const cls = G.char.cls;
+  const eq = G.char.equip;
+  const replaced = [];
+  for (const slot of ['weapon', 'offhand', 'helmet', 'amulet', 'armor', 'cloak', 'belt', 'gloves', 'pants', 'boots']) {
+    if (eq[slot]) replaced.push(eq[slot]);
+    eq[slot] = makeItem(ilvl, 'legendary', cls, slot);
+  }
+  if (eq.ring1) replaced.push(eq.ring1);
+  eq.ring1 = makeItem(ilvl, 'legendary', cls, 'ring');
+  if (eq.ring2) replaced.push(eq.ring2);
+  eq.ring2 = makeItem(ilvl, 'legendary', cls, 'ring');
+  G.inventory.push(...replaced);   // bumped gear isn't destroyed, just unequipped
+  clampVitals(); saveGame(); UI.refresh();
+  return { ok: true, msg: `Equipped legendary gear (ilvl ${ilvl}) in every slot` };
+}
+
+function cheatGiveRunes(count) {
+  count = Math.max(1, Math.min(100, Math.round(count) || 0));
+  const ilvl = Math.max(1, G.area);
+  for (let i = 0; i < count; i++) G.inventory.push(makeRune(ilvl, 'legendary'));
+  saveGame(); UI.refresh();
+  return { ok: true, msg: `Added ${count} rune${count > 1 ? 's' : ''} to your inventory` };
+}

@@ -14,6 +14,39 @@ game at runtime.
 
 ---
 
+## 1.8.0 (minor)
+
+Hidden developer/debug console. Per the request that created it, the trigger
+gesture and the actual command syntax are intentionally NOT written down
+anywhere (not here, not in the in-game Changelog/help) — this entry only
+notes where the plumbing lives so a future session doesn't reinvent it.
+
+- Tab-click gesture tracked in `ui.js` (`cheatSeq` module var,
+  `UI.trackCheatSequence`, wired into the `#tabs button` `onclick` in
+  `UI.showGame`) opens `UI.showCheatDialog()` — a plain modal with one
+  text input, submitted via `UI.submitCheatCode()` (Enter key or the
+  Submit button).
+- Commands are matched by regex in `submitCheatCode` and dispatch to four
+  new functions at the end of `game.js`: `cheatGiveXpToLevel(target)`
+  (uses the existing `gainXp`/`xpForLevel` so stat/skill points award
+  normally), `cheatGoToArea(target)` (bumps `G.unlocked`/`G.area`,
+  blocked while `ADV` is active, same guard the ◀/▶ level picker uses),
+  `cheatFillLegendaryGear()`, and `cheatGiveRunes(count)`.
+- `cheatFillLegendaryGear` needed `makeItem` (game.js) to be able to
+  target a specific slot instead of always rolling one via its internal
+  `roll < 0.30/0.42/0.80` thresholds — added an optional 4th `forceSlot`
+  param. Every existing call site passes only 3 args, so the random-roll
+  behavior for normal drops/shop stock/quest rewards is untouched; when
+  forced to `'weapon'` it additionally filters to the class's 1-handed
+  bases (falling back to any class-appropriate base, then any base) so
+  the offhand slot stays fillable instead of landing a 2-hander that
+  would preclude it. Old equipment displaced by the fill is pushed back
+  into `G.inventory` rather than deleted.
+- Verified via `node --check` on all three script files, then in the
+  browser: performed the gesture, submitted one of each command, and
+  confirmed the character sheet/inventory/journal reflected the expected
+  level/area/gear/rune-count changes with no console errors.
+
 ## 1.7.0 (minor)
 
 Small punch list: skill/poison duration scaling, effects-grid readability,

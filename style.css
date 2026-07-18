@@ -387,6 +387,11 @@ small { color: var(--dim); }
 .socket-targets { display: flex; flex-direction: column; gap: 6px; max-height: 300px; overflow-y: auto; }
 .socket-target { text-align: left; }
 .equip-changes h4 { margin-bottom: 4px; }
+.cheat-input {
+  width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; font-size: .95rem; margin-top: 8px;
+}
+.cheat-input:focus { outline: none; border-color: var(--accent); }
 
 /* settings panels (inventory / combat / auto-use) */
 .settings-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }

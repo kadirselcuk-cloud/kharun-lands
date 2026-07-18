@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.7.0';
+DATA.VERSION = '1.8.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.8.0', notes: [
+    'Some behind-the-scenes developer tooling — nothing player-facing.',
+  ] },
   { v: '1.7.0', notes: [
     'Buff/debuff/poison skills now last longer as you rank them up, not just hit harder.',
     'Reworked Poison Weapon: both its damage and duration now scale with item level, from 2% max HP/round for 2 rounds up to 5% max HP/round for 8 rounds — a much better item level means a genuinely stronger poison, not just a slightly bigger number.',
