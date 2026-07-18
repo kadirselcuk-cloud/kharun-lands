@@ -14,6 +14,72 @@ game at runtime.
 
 ---
 
+## 1.7.0 (minor)
+
+Small punch list: skill/poison duration scaling, effects-grid readability,
+poison-affix rework, and two mobile layout bugs.
+
+- **Buff/debuff/poison durations now scale with rank**: new shared
+  `skillRounds(base, r)` helper (data.js, right after `mkSkills`) —
+  `base + Math.min(3, Math.floor((r - 1) / 3))`, i.e. +1 round every 3
+  ranks, capped at +3 so a gear-boosted rank (`effectiveRank` can exceed
+  `MAX_RANK=10`, up to 20) doesn't run away. Applied to every `rounds:`
+  literal across all 18 buff/debuff/`poisonDot` skill closures (both
+  base-class and Advanced-Class-path skills, all 3 classes) and their
+  matching `desc()` strings, which previously said e.g. "for 5 rounds"
+  unconditionally — magnitude (damage%, stat bonus, resist shred, poison
+  %) already scaled with rank on every one of these; duration was the
+  only thing still fixed. No formula/curve was specified in the request,
+  so this shape was picked as a reasonable default and flagged here as
+  an assumption rather than asked about, given explicit "just do it,
+  stop asking" feedback earlier this session.
+- **Poison Weapon affix reworked** (data.js, `DATA.AFFIXES`
+  `poisonWeapon`): previously `pct` scaled with ilvl (capped 4%) but
+  `rounds` was a flat `rint(2,4)` unrelated to item level. Per an
+  explicit "start with 2% per 2 turns up to 5% per 8 turns, ilvl growth
+  should affect rolls" request, both now scale together linearly from
+  ilvl 1 to ilvl 100: `pct: 0.02 + t*0.03`, `rounds: round(2 + t*6)`
+  where `t = clamp((ilvl-1)/99, 0, 1)`. Scoped to this ilvl-based affix
+  specifically, not the skill-based poisons (Venomous Strike/Shadow
+  Execution) — those scale with skill rank `r`, not item level, and
+  "ilvl growth" only applies to gear; their duration got the same
+  rank-based `skillRounds` treatment as every other buff/debuff/DOT
+  skill above, but their pct-per-rank curves were untouched.
+- **Effects-grid readability**: `.effect-icon` 28px -> 34px,
+  `.effects-grid` 60×124px -> 72×148px to match (style.css) — per an
+  explicit "boxes a little larger" request. `.effect-rounds` color
+  changed from white-at-.55-opacity (read as washed-out/faded) to fully
+  opaque dark (`#0e0f14`) with a light text-shadow halo instead of the
+  old dark one — inverse of the old white-on-dark-with-black-shadow
+  trick, so the number stays legible against any emoji icon underneath
+  instead of blending into it. Deliberately scoped to `.effect-rounds`
+  only, not the visually-similar `.icon-btn-cd` (skill/potion cooldown
+  overlay in the action bar) — that wasn't part of the complaint.
+- **Mobile layout, two bugs fixed** (style.css, both scoped to the
+  existing `max-width: 480px` convention already used elsewhere in this
+  file, desktop untouched):
+  - `h1` ("⚔️ KHARUN LANDS") shrinks from 2.4rem/2px letter-spacing to
+    1.7rem/1px on phones — at the base size it overflowed narrow
+    viewports and wrapped mid-title ("LANDS" alone on the next line).
+  - `.prelude-box`'s own 30px/34px padding plus the Skip/Back/Continue
+    buttons side-by-side didn't leave enough room on phones and the row
+    wrapped badly. `.prelude-box` padding reduced to 20px/16px, and
+    `.prelude-nav`/`.prelude-nav-side` switch to a stacked column
+    (`flex-direction: column; align-items: stretch`) so each button
+    goes full-width on its own row instead of competing for horizontal
+    space — affects the Prologue and Epilogue paged screens, which
+    share this exact markup/CSS.
+- Verified via a headless-Chromium (Playwright) pass: `Battle Shout`'s
+  `buff(r).rounds` returns 5/6/8/8 at r=1/4/10/20 (confirming the +1-
+  per-3-ranks-capped-at-+3 curve); `Venomous Strike`'s `poisonDot(r)`
+  goes 3->6 rounds r=1->10; the `poisonWeapon` affix's `roll(i)` returns
+  exactly `{pct:0.02, rounds:2}` at ilvl 1 and `{pct:0.05, rounds:8}` at
+  ilvl 100; `.effects-grid` measures 72×148px with `.effect-rounds` at
+  fully-opaque `rgb(14,15,20)`; at a 375px mobile viewport the title
+  renders as a single line at 343px width, and the Prologue's Skip/
+  Continue buttons and page indicator each render on their own full-
+  width row instead of wrapping mid-button. No console errors.
+
 ## 1.6.0 (minor)
 
 **The Arena** — new 4th City sub-tab (`UI.renderArena`/`UI.enterArena`,

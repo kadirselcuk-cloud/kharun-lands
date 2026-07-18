@@ -207,13 +207,14 @@ array in `UI.showCombatOptions` (ui.js).
   the Abnormal/specialty concept) — so `miniboss: 'Miniboss'` here is
   correct for both call sites; don't relabel it to "Abnormal" again.
 
-## Ward specialties: Explosive / Reflective (game.js)
+## Ward specialties: Explosive (game.js) — history, Reflective removed in 1.5.0
 
-Both used to scale off instance-specific numbers that could blow up
-unboundedly: Explosive was `round(e.maxHp * 0.08)` (and `maxHp` compounds
-at `1.5^(level-1)` via `enemyHpScale`, so this hit billions of damage by
-~level 50); Reflective was `round(dmg * 0.20)`, i.e. it scaled with the
-player's *own* damage output, so better gear made the punishment worse.
+Explosive and (the now-removed) Reflective used to scale off instance-
+specific numbers that could blow up unboundedly: Explosive was
+`round(e.maxHp * 0.08)` (and `maxHp` compounds at `1.5^(level-1)` via
+`enemyHpScale`, so this hit billions of damage by ~level 50); Reflective
+was `round(dmg * 0.20)`, i.e. it scaled with the player's *own* damage
+output, so better gear made the punishment worse.
 - Replaced both with `levelDifficulty(level) * (WARD_TIER_MULT[tier] ||
   1)`. `levelDifficulty(level) = 11.7 * enemyDmgScale(level)` (game.js,
   right after `TIER_CONF`) is a from-scratch scalar — same base constant
@@ -223,7 +224,9 @@ player's *own* damage output, so better gear made the punishment worse.
 - `WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 }`
   — miniboss intentionally shares legendary's 2x per the original request
   ("legendary creatures (including minibosses)"). Unlisted tiers (normal,
-  elf) fall back to 1x via `|| 1`.
+  elf) fall back to 1x via `|| 1`. Still shared by Explosive; Reflective's
+  own consumer was removed in 1.5.0 (see below) but this constant/helper
+  were left alone since Explosive still depends on them.
 - Both call sites use `e.level`/`enemy.level` (the enemy's own `level`
   field, set from the dungeon area level in `makeCreature`) — not
   `ADV.level` from outer scope — so this works the same whether called
@@ -233,7 +236,11 @@ player's *own* damage output, so better gear made the punishment worse.
   `playerHit()`/the death-resolution loop with synthetic enemies, and
   confirmed reflect/explosion damage is now identical regardless of the
   enemy's `maxHp` or the player's dealt damage, and matches
-  `levelDifficulty(level) * tierMult` exactly.
+  `levelDifficulty(level) * tierMult` exactly (verified prior to
+  Reflective's 1.5.0 removal).
+- **1.5.0: Reflective was removed and replaced with Charm.** See "Large
+  feature batch: Enchanter, 20 quests, gauge animation, Charm, balance
+  reworks (v1.5.0)" below for the Charm implementation.
 
 ## Topbar (`#topbar` in style.css)
 
@@ -435,6 +442,132 @@ touch the same code.
   results modal (retreat/defeat/stalemate) still closes normally via its
   `✕`. No console errors in any pass.
 
+## Large feature batch: Enchanter, 20 quests, gauge animation, Charm, balance reworks (v1.5.0)
+
+One request covering several unrelated systems — grouped here since they
+shipped together. Full dev-facing detail is in VERSION.md under 1.5.0;
+summary of the parts worth knowing when touching this code again:
+
+- **The Enchanter** — new City sub-tab (`UI.renderEnchanter`, ui.js;
+  `activeCitySub === 'enchanter'`), a `Board`/`Gamble`-style toggle
+  (`enchanterView`, default `'table'`) between:
+  - **Enchantment Table** (`reenchantItem(itemUid, runeUid)`, game.js):
+    bumps the item's `ilvl` to `G.area`, rerolls its base stat (dmg/armor/
+    potionCap via new `baseStatsFor(it)`) and every existing affix's
+    *value* at the new ilvl while keeping the same affix ids
+    (`rerollAffixValues`) — same stats, new numbers, not a re-roll of
+    which stats you have. The rune must match the item's rarity exactly
+    (`ENCHANT_RUNE_TIER = {magical:1, rare:2, epic:4, legendary:5}` against
+    a rune's `runeTier()`, which is bonus count except Mythic Runes are
+    hard-pinned to tier 5 despite carrying 4 bonuses, since they're the
+    rarest rune in the game). No gold cost — the request only said "give
+    an item and a rune", so that was taken literally. Item name is left
+    unchanged on purpose (only stats/value/ilvl update).
+  - **Rune Forge** (`forgeRunes(uids)`, game.js): requires exactly 3
+    same-tier runes (explicit "same-tier only" answer over "any 3, uses
+    highest"). Tiers 1-4: 50% chance all 3 are destroyed with nothing
+    gained; tier 5 (legendary-colored Elder Rune, Mythic included): always
+    succeeds, reforging a fresh non-Mythic tier-5 rune at current ilvl —
+    Mythic is never a forge *output*, only ever an independent rare roll
+    from `makeRune`. `makeRune` was refactored to extract a shared
+    `buildRune(n, ilvl, tierOverride)` so the Forge's forced-tier path and
+    the normal random-source path share naming/construction logic.
+- **Quest board bug fix**: `acceptQuest` (game.js) spliced the accepted
+  quest out of `G.tavern.board` but never backfilled the slot, so the
+  board visibly sat at 6-7 offers (not the intended constant 8) until the
+  next `retreat()` fully regenerated it. Fixed by immediately pushing one
+  fresh, non-duplicate-type quest into the board on every accept.
+- **20 new quest types** appended to `genQuest`'s `makers` array (game.js,
+  31 total now): rune socketing, item selling, a chapter-boss bounty,
+  Epic+ item finds, gold-from-selling, ten specialty-targeted kill quests
+  (Poisonous/Frozen/Burning/Vampiric/Explosive/Golem/Charm/Regen/Berserk/
+  Spectral) plus an "any specialty" catch-all, Enchanter usage (both the
+  Table and the Forge), skill casts, and Sneaky Elf encounters. All wired
+  through the existing generic `questEvent(kind, amt)` mechanism via new
+  one-line calls at each action's existing site — `handleKill` now loops
+  `e.affixes` firing one `kill_<specialty>` event per specialty plus
+  `kill_abnormal` and (for `e.isChapterBoss`) `chapter_boss`. `sellAllOf`
+  picked up the `G.totals.itemsSold`/`goldFromSales` tracking it had been
+  silently missing (same class of gap as the 1.4.3 auto-sell fix — fixed
+  opportunistically while wiring its new quest hook, not requested).
+- **Gauge-fill animation** (ui.js/style.css): the arena's attack/action
+  gauges previously re-rendered their final width every tick with no real
+  animation — the pre-existing `.bar > div { transition: width .25s }`
+  rule never actually played, because `UI.refresh()` recreates the DOM
+  node from scratch every tick instead of mutating an existing one's
+  style (a CSS `transition` only fires on a style change to an existing
+  element, not on a freshly-created one). Replaced with a CSS `@keyframes`
+  animation driven by `--from`/`--to`/`--gauge-dur` custom properties
+  computed fresh each render: `--from` is the actual current gauge %,
+  `--to` is a one-tick-ahead forecast using the same formulas
+  `adventureTick` itself uses (`d.speed`/`effectiveEnemySpd(e)`),
+  `--gauge-dur` is `ADV.speedMs`. Being a real `animation` (not a
+  `transition`) means it replays correctly on every freshly-created node,
+  and since each render always forecasts from *actual* ground truth, there's
+  no interpolation-across-a-gauge-wrap glitch when a gauge fires and resets.
+- **Skill next-rank preview** (`UI.renderSkills`, ui.js): any skill with
+  `0 < rank < MAX_RANK` now shows `s.desc(min(eff+1, MAX_RANK*2))` under
+  its current description — just reuses each skill's own pure `desc(r)`
+  function at rank+1, no new data needed.
+- **Healing Light** (`m_heal`, data.js): `healPct` changed from
+  `0.16 + 0.03*r` (19%@r1 → 46%@r10) to `0.30 + (r-1)*(0.20/9)` (30%@r1 →
+  exactly 50%@r10). The request's stated "+2%/level from 30% to 50% by
+  level 10" doesn't reconcile exactly (30 + 2×9 = 48, not 50) — resolved
+  by hitting the two stated endpoints exactly via linear interpolation
+  (≈2.22%/rank in practice) rather than the literal per-rank step, since
+  the endpoints read as the harder constraint. Same resolution applied to
+  Minnie's ward below.
+- **Minnie's damage-reduction ward**: per a clarifying-question answer,
+  repurposed the existing `m_p_radiant_pass1` "Sacred Vigil" passive
+  (Radiant Advanced Class path, still costs a skill point, still gated at
+  character level 25) rather than adding a brand-new innate passive — the
+  request described an "innate ward" but no such thing existed in the
+  code prior to this. `dr` changed from `0.01*r` (1%@r1 → 10%@r10) to
+  `0.10 + (r-1)*(0.30/9)` (10%@r1 → exactly 40%@r10); Sacred Vigil's
+  `hpPct`/`hpRegen` components are untouched.
+- **Minnie's weapon skills** (`makeItem`, game.js): per a clarifying-
+  question answer, base weapon/offhand damage was explicitly left
+  unchanged — only the skill-granting part shipped. New
+  `rollMinnieWeaponSkills(ilvl)`/`minnieWeaponSkillCount(ilvl)` gate on
+  legendary-rarity, single-class mage weapon/offhand items (Arcane Staff/
+  Wand/Scepter/Orb/Tome are the only bases meeting `classes.length===1 &&
+  classes[0]==='mage'`), adding 1-3 *additional* `{id:'skill', v:
+  rint(1,3), skillId, skillName}` entries on top of the item's normal
+  affix roll — reuses the existing generic `'skill'` affix shape/
+  rendering as-is (see `effectiveRank`/`allAffixesOf`), no new UI needed.
+  A `used` Set enforces distinct skill ids. Count distribution linearly
+  interpolates 90/9/1% (1/2/3 skills) at ilvl 1 to 50/30/20% at ilvl 100
+  via `t = (ilvl-1)/99`. Gated to legendary rarity specifically because
+  "ultra rare" (the request's own description of these skills) matches
+  this game's existing convention for its rarest affixes (critStrike/
+  doubleStrike/spellstrike are all `minRarity: 'legendary'` too) — this
+  gate was an assumption, not stated explicitly.
+- **Regenerating cap**: new `regenTotal` field on every creature
+  (`makeCreature`, game.js), incremented by each regen tick; once
+  `regenTotal >= maxHp` the `hasAffix(e,'regen')` heal simply stops firing
+  — a creature can never regenerate more than its own max HP in total
+  over one fight.
+- **Reflective → Charm**: see the "Ward specialties" section above for
+  the Explosive/Reflective history. `DATA.SPECIALTIES.reflective` and its
+  on-hit reflect-damage branch in `playerHit` were removed entirely,
+  including all 10 story-boss `specialties: [...]` arrays that referenced
+  it (data.js — swapped to `'charm'`). New `DATA.SPECIALTIES.charm` +
+  a gate at the very top of `playerAct` (game.js): if any live enemy has
+  the `charm` affix, a 50% chance rolled *once per player turn* (not once
+  per swing, so multi-attack turns from Double Strike/extra-hit buffs
+  aren't rolled multiple times) skips the entire turn with no mana/
+  cooldown spent. Modeled on the existing enemy-side `stunned` skip-turn
+  pattern (`enemyAct`) since there was no prior player-side "skip this
+  turn" gate anywhere in the codebase — Charm is the first one.
+  `WARD_TIER_MULT`/`levelDifficulty` are untouched (Explosive still uses
+  them); only Reflective's own consumer was removed.
+- Verified: `node --check` on all three script files; browser-console
+  spot checks of `minnieWeaponSkillCount` distribution at ilvl 1/50/100,
+  `runeTier`/`ENCHANT_RUNE_TIER` matching for each rarity, and
+  `forgeRunes` outcomes at tiers 1-5 (including the forced-success
+  legendary/Mythic path); confirmed the quest board stays at 8 through
+  repeated accept/abandon/claim cycles.
+
 ## City: The Arena (one-shot per-level bonus fight)
 
 4th City sub-tab (`UI.renderArena`/`UI.enterArena`, ui.js), same
@@ -521,3 +654,62 @@ kill-tracking).
   Reward box, and returned `ADV` to `null`; per-kill loot from the
   escort-flagged beasts still rolled on top of the guaranteed reward.
   No console errors.
+
+## Punch list: skill durations, poison, effects-grid, mobile layout
+
+A batch of 4 small requests, unrelated to each other beyond touching
+similar areas of the codebase.
+
+- **Buff/debuff/poison rounds scale with rank**: new `skillRounds(base,
+  r)` (data.js, right after `mkSkills`) = `base + Math.min(3,
+  Math.floor((r - 1) / 3))` — +1 round every 3 ranks, capped at +3 (`r`
+  can exceed `MAX_RANK=10` via gear, up to 20, so an uncapped curve
+  would run away). Applied to all 18 buff/debuff/`poisonDot` skills
+  across all 3 classes and their Advanced-Class paths, and their
+  matching `desc()` strings (previously hardcoded e.g. "for 5 rounds").
+  Magnitude already scaled with rank on every one of these; only
+  duration was fixed, until now. The curve itself wasn't specified in
+  the request — picked as a reasonable, capped default and documented
+  here as an assumption rather than asked about, since the user had
+  just explicitly asked not to be interrupted with more questions this
+  session.
+- **Poison Weapon affix reworked** (`DATA.AFFIXES.poisonWeapon`,
+  data.js): both `pct` and `rounds` now scale together with item level
+  (previously only `pct` scaled — capped at 4% — and `rounds` was a
+  flat unrelated `rint(2,4)`), from 2%/2 rounds at ilvl 1 to 5%/8
+  rounds at ilvl 100 (`t = clamp((ilvl-1)/99, 0, 1)`, `pct: 0.02 +
+  t*0.03`, `rounds: round(2 + t*6)`) — the exact numbers given in the
+  request. Deliberately scoped to this ilvl-based affix only, not
+  Venomous Strike/Shadow Execution (those scale with skill rank, not
+  item level — "ilvl growth" is gear-specific language) — their
+  duration got the same rank-based `skillRounds` treatment as every
+  other skill above, but their existing pct-per-rank curves were left
+  alone.
+- **Effects-grid made larger and more legible** (style.css):
+  `.effect-icon` 28px -> 34px, `.effects-grid` 60×124px -> 72×148px to
+  match. `.effect-rounds` color changed from white at .55 opacity (read
+  as washed-out) to fully-opaque dark `#0e0f14` with a light text-
+  shadow halo — the inverse of the old white-text/dark-shadow trick, so
+  it stays legible against any emoji icon color underneath. Scoped to
+  `.effect-rounds` only — the visually-similar `.icon-btn-cd` (skill/
+  potion cooldown overlay in the action bar) wasn't part of the
+  complaint and was left untouched.
+- **Two mobile layout bugs fixed** (style.css, both new `max-width:
+  480px` rules following the file's existing breakpoint convention,
+  desktop untouched): the `h1` title (2.4rem/2px letter-spacing)
+  overflowed narrow phones and wrapped mid-title ("LANDS" alone on the
+  next line) — shrinks to 1.7rem/1px below 480px. `.prelude-box`'s
+  30px/34px padding plus the Skip/Back/Continue buttons side-by-side
+  didn't leave room on phones and wrapped badly — padding reduced to
+  20px/16px and `.prelude-nav`/`.prelude-nav-side` switch to a stacked
+  column so each button gets its own full-width row; this markup/CSS is
+  shared by both the Prologue and Epilogue paged screens.
+- Verified via a headless-Chromium (Playwright) pass: `Battle Shout`'s
+  `buff(r).rounds` = 5/6/8/8 at r=1/4/10/20; `Venomous Strike`'s
+  `poisonDot(r).rounds` goes 3->6 at r=1->10; `poisonWeapon.roll(i)`
+  returns exactly `{pct:0.02,rounds:2}` at ilvl 1 and
+  `{pct:0.05,rounds:8}` at ilvl 100; `.effects-grid` measures 72×148px
+  with `.effect-rounds` computed color `rgb(14,15,20)`; at a 375px
+  mobile viewport the title renders as one line at 343px, and the
+  Prologue's Skip/Continue/page-indicator each land on their own
+  full-width row. No console errors.

@@ -5,12 +5,18 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.6.0';
+DATA.VERSION = '1.7.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.7.0', notes: [
+    'Buff/debuff/poison skills now last longer as you rank them up, not just hit harder.',
+    'Reworked Poison Weapon: both its damage and duration now scale with item level, from 2% max HP/round for 2 rounds up to 5% max HP/round for 8 rounds — a much better item level means a genuinely stronger poison, not just a slightly bigger number.',
+    'The active buff/debuff icons above your hero are bigger and their round-counter is easier to read.',
+    'Fixed the game title and the Prologue/Epilogue Skip/Back/Continue buttons overlapping or wrapping badly on mobile.',
+  ] },
   { v: '1.6.0', notes: [
     'New city location: The Arena. Once per quest level (until you clear that quest or take on its Arena), a captured, empowered group of the level\'s own beasts awaits — either a Miniboss+Epic pair, three Epics, or six Rares, all with 50% more HP and 2 of them forced dangerous (a specialty affix). Win for gold plus a rune; lose and that level\'s Arena is gone for good, so it\'s one shot.',
   ] },
@@ -1623,6 +1629,12 @@ DATA.CHAPTERS = [
 // All numeric params are functions of effective rank r (1..8).
 // ------------------------------------------------------------
 function mkSkills(list) { const o = {}; for (const s of list) o[s.id] = s; return o; }
+// Buff/debuff/poison durations grow modestly as a skill develops — +1
+// round every 3 ranks, capped at +3 so a heavily gear-boosted rank (r can
+// exceed MAX_RANK via the allSkills/per-skill affixes) doesn't run away.
+// Magnitude (damage%, stat bonus, resistance shred, poison %, etc.) already
+// scaled with rank on every one of these; duration didn't, until now.
+function skillRounds(base, r) { return base + Math.min(3, Math.floor((r - 1) / 3)); }
 
 DATA.SKILLS = {
 warrior: mkSkills([
@@ -1655,22 +1667,22 @@ warrior: mkSkills([
     desc: r => `Recover ${14 + 2.5 * r}% of Max HP.`,
     healPct: r => 0.14 + 0.025 * r, cost: () => 14, cd: 4 },
   { id: 'w_buff', cat: 'buff', name: 'Battle Shout', icon: '📯', minLvl: 4,
-    desc: r => `+${10 + 3 * r}% damage and +${1 * r} Strength for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.10 + 0.03 * r, str: 1 * r, rounds: 5 }), cost: () => 15, cd: 6 },
+    desc: r => `+${10 + 3 * r}% damage and +${1 * r} Strength for ${skillRounds(5, r)} rounds.`,
+    buff: r => ({ dmgPct: 0.10 + 0.03 * r, str: 1 * r, rounds: skillRounds(5, r) }), cost: () => 15, cd: 6 },
   { id: 'w_debuff', cat: 'debuff', name: 'Intimidate', icon: '😤', minLvl: 6,
-    desc: r => `Enemies deal ${10 + 2.5 * r}% less damage and lose ${2 * r}% resistances for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.10 + 0.025 * r, resDown: 2 * r, rounds: 4 }), cost: () => 12, cd: 5 },
+    desc: r => `Enemies deal ${10 + 2.5 * r}% less damage and lose ${2 * r}% resistances for ${skillRounds(4, r)} rounds.`,
+    debuff: r => ({ dmgDown: 0.10 + 0.025 * r, resDown: 2 * r, rounds: skillRounds(4, r) }), cost: () => 12, cd: 5 },
   { id: 'w_ult', cat: 'ult', name: 'Berserk', icon: '🔥', minLvl: 15,
-    desc: r => `ULTIMATE: +${25 + 6 * r}% damage and attack twice per round for 6 rounds.`,
-    buff: r => ({ dmgPct: 0.25 + 0.06 * r, extraHit: 1, rounds: 6 }), cost: () => 40, cd: 10 },
+    desc: r => `ULTIMATE: +${25 + 6 * r}% damage and attack twice per round for ${skillRounds(6, r)} rounds.`,
+    buff: r => ({ dmgPct: 0.25 + 0.06 * r, extraHit: 1, rounds: skillRounds(6, r) }), cost: () => 40, cd: 10 },
   { id: 'w_ult2', cat: 'ult2', name: 'Avatar of War', icon: '👹', minLvl: 25, req: 'w_ult',
-    desc: r => `ULTIMATE: Become war itself — ${380 + 40 * r}% damage to ALL enemies, and +${15 + 2.5 * r}% damage for 4 rounds.`,
-    mult: r => 3.8 + 0.4 * r, aoe: true, buff: r => ({ dmgPct: 0.15 + 0.025 * r, rounds: 4 }), cost: () => 60, cd: 12 },
+    desc: r => `ULTIMATE: Become war itself — ${380 + 40 * r}% damage to ALL enemies, and +${15 + 2.5 * r}% damage for ${skillRounds(4, r)} rounds.`,
+    mult: r => 3.8 + 0.4 * r, aoe: true, buff: r => ({ dmgPct: 0.15 + 0.025 * r, rounds: skillRounds(4, r) }), cost: () => 60, cd: 12 },
 
   // ===== Advanced Class — Knight -> Paladin (Protection & Armor) =====
   { id: 'w_p_knight_active', cat: 'buff', path: 'knight', name: 'Divine Protection', icon: '🛡️✨', minLvl: 25, req: 'w_buff',
-    desc: r => `Channel divine protection: +${Math.round((0.03 + 0.02 * r) * 100)}% Damage Reduction, +${2 * r}% all resistances, +${(0.3 * r).toFixed(1)} HP Regen for 6 rounds.`,
-    buff: r => ({ dr: 0.03 + 0.02 * r, resAll: 2 * r, hpRegen: 0.3 * r, rounds: 6 }), cost: () => 20, cd: 6 },
+    desc: r => `Channel divine protection: +${Math.round((0.03 + 0.02 * r) * 100)}% Damage Reduction, +${2 * r}% all resistances, +${(0.3 * r).toFixed(1)} HP Regen for ${skillRounds(6, r)} rounds.`,
+    buff: r => ({ dr: 0.03 + 0.02 * r, resAll: 2 * r, hpRegen: 0.3 * r, rounds: skillRounds(6, r) }), cost: () => 20, cd: 6 },
   { id: 'w_p_knight_pass1', cat: 'passive3', path: 'knight', name: 'Aegis Training', icon: '⚜️', minLvl: 25,
     desc: r => `Passive: +${2.5 * r} Armor, +${2 * r}% Damage Reduction, +${3 * r}% Max HP.`,
     passive: r => ({ armor: 2.5 * r, dr: 0.02 * r, hpPct: 0.03 * r }) },
@@ -1678,13 +1690,13 @@ warrior: mkSkills([
     desc: r => `Passive: +${2 * r}% Damage Reduction, reflect ${(1.5 * r).toFixed(1)}% of damage taken back at attackers, +${1.5 * r}% all resistances.`,
     passive: r => ({ dr: 0.02 * r, painReflect: 1.5 * r, resAll: 1.5 * r }) },
   { id: 'w_p_knight_ult', cat: 'ult', path: 'knight', name: 'Aegis of the Paladin', icon: '👼', minLvl: 50, req: 'w_ult',
-    desc: r => `ULTIMATE: Smite ALL enemies for ${220 + 22 * r}% damage and shield yourself with +${Math.round((0.05 + 0.03 * r) * 100)}% Damage Reduction for 4 rounds.`,
-    mult: r => 2.2 + 0.22 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.03 * r, rounds: 4 }), cost: () => 45, cd: 11 },
+    desc: r => `ULTIMATE: Smite ALL enemies for ${220 + 22 * r}% damage and shield yourself with +${Math.round((0.05 + 0.03 * r) * 100)}% Damage Reduction for ${skillRounds(4, r)} rounds.`,
+    mult: r => 2.2 + 0.22 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.03 * r, rounds: skillRounds(4, r) }), cost: () => 45, cd: 11 },
 
   // ===== Advanced Class — Mercenary -> Warlord (Damage & Disability) =====
   { id: 'w_p_merc_active', cat: 'debuff', path: 'mercenary', name: 'Crippling Blow', icon: '⛓️💥', minLvl: 25, req: 'w_debuff',
-    desc: r => `Crush a foe for ${180 + 18 * r}% damage, crippling them: -${Math.round((0.15 + 0.025 * r) * 100)}% damage dealt and -${3 * r}% resistances for 5 rounds.`,
-    mult: r => 1.8 + 0.18 * r, debuff: r => ({ dmgDown: 0.15 + 0.025 * r, resDown: 3 * r, rounds: 5 }), cost: () => 22, cd: 5 },
+    desc: r => `Crush a foe for ${180 + 18 * r}% damage, crippling them: -${Math.round((0.15 + 0.025 * r) * 100)}% damage dealt and -${3 * r}% resistances for ${skillRounds(5, r)} rounds.`,
+    mult: r => 1.8 + 0.18 * r, debuff: r => ({ dmgDown: 0.15 + 0.025 * r, resDown: 3 * r, rounds: skillRounds(5, r) }), cost: () => 22, cd: 5 },
   { id: 'w_p_merc_pass1', cat: 'passive3', path: 'mercenary', name: 'Bloodlust', icon: '🩸', minLvl: 25,
     desc: r => `Passive: +${1.5 * r}% Critical Strike chance (double damage), +${1.5 * r}% damage.`,
     passive: r => ({ critStrike: 1.5 * r, dmgPct: 0.015 * r }) },
@@ -1721,22 +1733,22 @@ rogue: mkSkills([
     desc: r => `Surge of vigor: recover ${13 + 2.5 * r}% of Max HP.`,
     healPct: r => 0.13 + 0.025 * r, cost: () => 14, cd: 4 },
   { id: 'r_buff', cat: 'buff', name: 'Deadly Focus', icon: '👁️', minLvl: 4,
-    desc: r => `+${12 + 3 * r}% damage and +${1 * r} Dexterity for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.12 + 0.03 * r, dex: 1 * r, rounds: 5 }), cost: () => 15, cd: 6 },
+    desc: r => `+${12 + 3 * r}% damage and +${1 * r} Dexterity for ${skillRounds(5, r)} rounds.`,
+    buff: r => ({ dmgPct: 0.12 + 0.03 * r, dex: 1 * r, rounds: skillRounds(5, r) }), cost: () => 15, cd: 6 },
   { id: 'r_debuff', cat: 'debuff', name: 'Expose Weakness', icon: '🎯', minLvl: 6,
-    desc: r => `Enemies lose ${2.5 * r}% resistances and deal ${8 + 2 * r}% less damage for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.08 + 0.02 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 12, cd: 5 },
+    desc: r => `Enemies lose ${2.5 * r}% resistances and deal ${8 + 2 * r}% less damage for ${skillRounds(4, r)} rounds.`,
+    debuff: r => ({ dmgDown: 0.08 + 0.02 * r, resDown: 2.5 * r, rounds: skillRounds(4, r) }), cost: () => 12, cd: 5 },
   { id: 'r_ult', cat: 'ult', name: 'Death Mark', icon: '💀', minLvl: 15,
-    desc: r => `ULTIMATE: Mark all enemies for death — ${300 + 30 * r}% damage and they lose ${3 * r}% resistances for 4 rounds.`,
-    mult: r => 3.0 + 0.3 * r, aoe: true, debuff: r => ({ resDown: 3 * r, dmgDown: 0, rounds: 4 }), cost: () => 40, cd: 10 },
+    desc: r => `ULTIMATE: Mark all enemies for death — ${300 + 30 * r}% damage and they lose ${3 * r}% resistances for ${skillRounds(4, r)} rounds.`,
+    mult: r => 3.0 + 0.3 * r, aoe: true, debuff: r => ({ resDown: 3 * r, dmgDown: 0, rounds: skillRounds(4, r) }), cost: () => 40, cd: 10 },
   { id: 'r_ult2', cat: 'ult2', name: 'Thousand Cuts', icon: '⚔️', minLvl: 25, req: 'r_ult',
-    desc: r => `ULTIMATE: ${420 + 42.5 * r}% damage to ALL enemies and attack twice per round for 4 rounds.`,
-    mult: r => 4.2 + 0.425 * r, aoe: true, buff: r => ({ extraHit: 1, rounds: 4 }), cost: () => 60, cd: 12 },
+    desc: r => `ULTIMATE: ${420 + 42.5 * r}% damage to ALL enemies and attack twice per round for ${skillRounds(4, r)} rounds.`,
+    mult: r => 4.2 + 0.425 * r, aoe: true, buff: r => ({ extraHit: 1, rounds: skillRounds(4, r) }), cost: () => 60, cd: 12 },
 
   // ===== Advanced Class — Assassin -> Ninja (Dagger/Exotic Weapons, Poison) =====
   { id: 'r_p_assassin_active', cat: 'attack2', path: 'assassin', name: 'Venomous Strike', icon: '🗡️☠️', minLvl: 25, req: 'r_atk2',
-    desc: r => `Strike with venom for ${280 + 28 * r}% damage, poisoning the target for ${(1 + r * 0.2).toFixed(1)}% of their max HP/round for 3 rounds.`,
-    mult: r => 2.8 + 0.28 * r, pierce: 0.5, poisonDot: r => ({ pct: 0.01 + r * 0.002, rounds: 3 }), cost: () => 24, cd: 4 },
+    desc: r => `Strike with venom for ${280 + 28 * r}% damage, poisoning the target for ${(1 + r * 0.2).toFixed(1)}% of their max HP/round for ${skillRounds(3, r)} rounds.`,
+    mult: r => 2.8 + 0.28 * r, pierce: 0.5, poisonDot: r => ({ pct: 0.01 + r * 0.002, rounds: skillRounds(3, r) }), cost: () => 24, cd: 4 },
   { id: 'r_p_assassin_pass1', cat: 'passive3', path: 'assassin', name: 'Exotic Mastery', icon: '🔪', minLvl: 25,
     desc: r => `Passive: +${2 * r}% Critical Strike chance, +${1 * r}% chance to strike twice.`,
     passive: r => ({ critStrike: 2 * r, doubleStrike: 1 * r }) },
@@ -1744,8 +1756,8 @@ rogue: mkSkills([
     desc: r => `Passive: +${(0.5 * r).toFixed(1)}% Lifesteal, +${2 * r}% damage.`,
     passive: r => ({ lifesteal: 0.5 * r, dmgPct: 0.02 * r }) },
   { id: 'r_p_assassin_ult', cat: 'ult', path: 'assassin', name: 'Shadow Execution', icon: '🌑🗡️', minLvl: 50, req: 'r_ult',
-    desc: r => `ULTIMATE: Vanish and strike ALL enemies for ${320 + 32 * r}% damage, poisoning them for ${(1.5 + r * 0.3).toFixed(1)}% of their max HP/round for 4 rounds.`,
-    mult: r => 3.2 + 0.32 * r, aoe: true, poisonDot: r => ({ pct: 0.015 + r * 0.003, rounds: 4 }), cost: () => 50, cd: 11 },
+    desc: r => `ULTIMATE: Vanish and strike ALL enemies for ${320 + 32 * r}% damage, poisoning them for ${(1.5 + r * 0.3).toFixed(1)}% of their max HP/round for ${skillRounds(4, r)} rounds.`,
+    mult: r => 3.2 + 0.32 * r, aoe: true, poisonDot: r => ({ pct: 0.015 + r * 0.003, rounds: skillRounds(4, r) }), cost: () => 50, cd: 11 },
 
   // ===== Advanced Class — Hunter -> Sniper (Bows/Crossbows, Ranged Damage) =====
   { id: 'r_p_hunter_active', cat: 'attack2', path: 'hunter', name: 'Kill Shot', icon: '🏹🎯', minLvl: 25, req: 'r_atk2',
@@ -1790,14 +1802,14 @@ mage: mkSkills([
     desc: r => `Mend wounds: recover ${Math.round((0.30 + (r - 1) * (0.20 / 9)) * 100)}% of Max HP.`,
     healPct: r => 0.30 + (r - 1) * (0.20 / 9), cost: () => 14, cd: 3 },
   { id: 'm_buff', cat: 'buff', name: 'Arcane Power', icon: '🔮', minLvl: 4,
-    desc: r => `+${14 + 3.5 * r}% damage, +${1 * r} Intelligence and a +${2 * r}% Damage Reduction ward for 5 rounds.`,
-    buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, dr: 0.02 * r, rounds: 5 }), cost: () => 15, cd: 4 },
+    desc: r => `+${14 + 3.5 * r}% damage, +${1 * r} Intelligence and a +${2 * r}% Damage Reduction ward for ${skillRounds(5, r)} rounds.`,
+    buff: r => ({ dmgPct: 0.14 + 0.035 * r, int: 1 * r, dr: 0.02 * r, rounds: skillRounds(5, r) }), cost: () => 15, cd: 4 },
   { id: 'm_debuff', cat: 'debuff', name: 'Curse of Weakness', icon: '🕯️', minLvl: 6,
-    desc: r => `Enemies deal ${12 + 2.5 * r}% less damage and lose ${2.5 * r}% resistances for 4 rounds.`,
-    debuff: r => ({ dmgDown: 0.12 + 0.025 * r, resDown: 2.5 * r, rounds: 4 }), cost: () => 12, cd: 3 },
+    desc: r => `Enemies deal ${12 + 2.5 * r}% less damage and lose ${2.5 * r}% resistances for ${skillRounds(4, r)} rounds.`,
+    debuff: r => ({ dmgDown: 0.12 + 0.025 * r, resDown: 2.5 * r, rounds: skillRounds(4, r) }), cost: () => 12, cd: 3 },
   { id: 'm_ult', cat: 'ult', name: 'Elemental Fury', icon: '🌩️', minLvl: 15,
-    desc: r => `ULTIMATE: ${340 + 32.5 * r}% damage to ALL enemies and +${20 + 4 * r}% damage for 4 rounds.`,
-    mult: r => 3.4 + 0.325 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.04 * r, rounds: 4 }), cost: () => 40, cd: 6 },
+    desc: r => `ULTIMATE: ${340 + 32.5 * r}% damage to ALL enemies and +${20 + 4 * r}% damage for ${skillRounds(4, r)} rounds.`,
+    mult: r => 3.4 + 0.325 * r, aoe: true, magic: true, buff: r => ({ dmgPct: 0.20 + 0.04 * r, rounds: skillRounds(4, r) }), cost: () => 40, cd: 6 },
   { id: 'm_ult2', cat: 'ult2', name: 'Apocalypse', icon: '☀️', minLvl: 25, req: 'm_ult',
     desc: r => `ULTIMATE: ${460 + 45 * r}% damage to ALL enemies, ignoring half their magic resistance.`,
     mult: r => 4.6 + 0.45 * r, aoe: true, magic: true, pierce: 0.5, cost: () => 60, cd: 8 },
@@ -1818,8 +1830,8 @@ mage: mkSkills([
 
   // ===== Advanced Class — Radiant -> Archon (Protection, Healing, CC, AOE) =====
   { id: 'm_p_radiant_active', cat: 'debuff', path: 'radiant', name: 'Radiant Ward', icon: '✨🛡️', minLvl: 25, req: 'm_debuff', magic: true,
-    desc: r => `Radiant light damages ALL enemies for ${160 + 16 * r}% magic damage and weakens them (-${Math.round((0.12 + 0.02 * r) * 100)}% damage, -${2 * r}% resistances) while shielding you with +${Math.round((0.02 + 0.015 * r) * 100)}% Damage Reduction, all for 5 rounds.`,
-    mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: 5 }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: 5 }), cost: () => 20, cd: 3 },
+    desc: r => `Radiant light damages ALL enemies for ${160 + 16 * r}% magic damage and weakens them (-${Math.round((0.12 + 0.02 * r) * 100)}% damage, -${2 * r}% resistances) while shielding you with +${Math.round((0.02 + 0.015 * r) * 100)}% Damage Reduction, all for ${skillRounds(5, r)} rounds.`,
+    mult: r => 1.6 + 0.16 * r, aoe: true, debuff: r => ({ dmgDown: 0.12 + 0.02 * r, resDown: 2 * r, rounds: skillRounds(5, r) }), buff: r => ({ dr: 0.02 + 0.015 * r, rounds: skillRounds(5, r) }), cost: () => 20, cd: 3 },
   { id: 'm_p_radiant_pass1', cat: 'passive3', path: 'radiant', name: 'Sacred Vigil', icon: '🕯️', minLvl: 25,
     desc: r => `Passive: +${2 * r}% Max HP, +${Math.round((0.10 + (r - 1) * (0.30 / 9)) * 100)}% Damage Reduction (Minnie's ward), +${(0.3 * r).toFixed(1)} HP Regen.`,
     passive: r => ({ hpPct: 0.02 * r, dr: 0.10 + (r - 1) * (0.30 / 9), hpRegen: 0.3 * r }) },
@@ -1827,8 +1839,8 @@ mage: mkSkills([
     desc: r => `Passive: +${2 * r}% damage, +${1.5 * r}% all resistances, +${(0.3 * r).toFixed(1)} Mana Regen.`,
     passive: r => ({ dmgPct: 0.02 * r, resAll: 1.5 * r, manaRegen: 0.3 * r }) },
   { id: 'm_p_radiant_ult', cat: 'ult', path: 'radiant', name: 'Radiant Nova', icon: '🌟💥', minLvl: 50, req: 'm_ult', magic: true,
-    desc: r => `ULTIMATE: Unleash a nova of radiant energy on ALL enemies for ${300 + 30 * r}% magic damage and shield yourself with +${Math.round((0.05 + 0.025 * r) * 100)}% Damage Reduction for 5 rounds.`,
-    mult: r => 3.0 + 0.3 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.025 * r, rounds: 5 }), cost: () => 48, cd: 7 },
+    desc: r => `ULTIMATE: Unleash a nova of radiant energy on ALL enemies for ${300 + 30 * r}% magic damage and shield yourself with +${Math.round((0.05 + 0.025 * r) * 100)}% Damage Reduction for ${skillRounds(5, r)} rounds.`,
+    mult: r => 3.0 + 0.3 * r, aoe: true, buff: r => ({ dr: 0.05 + 0.025 * r, rounds: skillRounds(5, r) }), cost: () => 48, cd: 7 },
 ]),
 };
 
@@ -2029,8 +2041,14 @@ DATA.AFFIXES = [
   // while monster HP grows on a much steeper curve, so it would trivialize
   // to irrelevance within a handful of levels. Same fix as the poison-DOT
   // skills (Venomous Strike / Shadow Execution).
+  // Per an explicit "poison is too low" request: both pct AND rounds now
+  // scale together with ilvl (previously only pct scaled, and rounds was
+  // a flat random 2-4 unrelated to item level) — 2% max HP/round for 2
+  // rounds at ilvl 1, up to 5% max HP/round for 8 rounds at ilvl 100, so
+  // a "better roll" genuinely means a stronger AND longer poison instead
+  // of just a slightly bigger number.
   { id: 'poisonWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
-    roll: i => ({ pct: Math.min(0.04, 0.008 + i * 0.0003), rounds: rint(2, 4) }),
+    roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return { pct: 0.02 + t * 0.03, rounds: Math.round(2 + t * 6) }; },
     fmt: v => `30% chance to Poison for ${(v.pct * 100).toFixed(1)}% max HP/round for ${v.rounds} Rounds` },
   // Weapon Slow: weapon-only, rare+. v is a compound value {chance, pct, rounds}.
   { id: 'slowWeapon', w: 3, weaponOnly: true, minRarity: 'rare',

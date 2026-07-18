@@ -7,7 +7,18 @@
       "Bash(node -c ui.js)",
       "Bash(node -c data.js)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(dir /s)",
+      "Bash(powershell -Command \"Get-ChildItem -Name\")",
+      "Bash(curl -s http://localhost:3111/ -o /dev/null -w \"index.html: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3111/data.js)",
+      "Bash(curl -s http://localhost:3111/game.js -o /dev/null -w \"game.js: %{http_code}\\\\n\")",
+      "Bash(curl -s http://localhost:3111/ui.js -o /dev/null -w \"ui.js: %{http_code}\\\\n\")",
+      "Bash(node \"C:\\\\Users\\\\GEYLAN~1.SEL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--GitMain-Kharun-Lands\\\\9057dfdb-8e02-4181-8fe8-3e9369cd9adc\\\\scratchpad\\\\verify.js\")",
+      "Bash(python3 -c ' *)",
+      "Bash(node -e ' *)",
+      "Read(//c/Users/GEYLAN~1.SEL/AppData/Local/Temp/claude/c--GitMain-Kharun-Lands/637509b8-4c22-4230-870b-e19e5835a8bb/scratchpad/pw/**)",
+      "Bash(node drive_punchlist.js)"
     ]
   }
 }
