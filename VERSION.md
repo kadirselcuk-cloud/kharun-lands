@@ -14,6 +14,26 @@ game at runtime.
 
 ---
 
+## 1.4.2 (fix)
+
+- **Dice gambling is now 2 dice per side**: `resolveDice(bet)` (game.js)
+  rolls `you = [rint(1,6), rint(1,6)]` and `house = [rint(1,6),
+  rint(1,6)]`, compares `youSum`/`houseSum` instead of single die
+  values — same win/lose/tie -> `+bet`/`-bet`/no-op logic, still true
+  50/50 with no house edge (the extra die just widens the outcome
+  distribution 2-12 and shrinks the tie chance vs a single d6). Return
+  shape grew from `{you, house, result, bet}` to `{you: [a,b], house:
+  [a,b], youSum, houseSum, result, bet}`.
+  `UI.playDice`/`UI.renderTavern` (ui.js) updated to 4 dice DOM nodes
+  (`dice-you-1/2`, `dice-house-1/2`) in a `.dice-pair` per side plus a
+  bold running sum (`dice-you-sum`/`dice-house-sum`), animation spins
+  all four during the roll. `.dice-face` shrunk 64px->50px so a pair
+  fits comfortably per side.
+  Verified via headless-Chromium: mid-roll all 4 dice show independent
+  random faces; after settling both dice per side show the actual
+  rolled values, the sums are correct, and gold moved by exactly the
+  bet amount on a loss (2+2=4 vs 6+3=9).
+
 ## 1.4.1 (fix)
 
 - **Tavern Board/Gamble toggle**: `UI.renderTavern` (ui.js) now renders a

@@ -1073,7 +1073,7 @@ const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 UI.setTavernView = function (view) { tavernView = view; UI.refresh(); };
 
 function diceResultLine(r) {
-  return `You rolled ${r.you}, the house rolled ${r.house} — ${r.result === 'win' ? `You win 🪙 ${formatK(r.bet)}!` : r.result === 'lose' ? `You lose 🪙 ${formatK(r.bet)}.` : 'Tie — bet returned.'}`;
+  return `You rolled ${r.you[0]}+${r.you[1]}=${r.youSum}, the house rolled ${r.house[0]}+${r.house[1]}=${r.houseSum} — ${r.result === 'win' ? `You win 🪙 ${formatK(r.bet)}!` : r.result === 'lose' ? `You lose 🪙 ${formatK(r.bet)}.` : 'Tie — bet returned.'}`;
 }
 
 UI.renderTavern = function (el) {
@@ -1117,13 +1117,26 @@ UI.renderTavern = function (el) {
     ${t.active.length ? `<h4>Your current quests (${t.active.length}/2)</h4>${t.active.map((q, i) => activeCard(q, i)).join('')}` : ''}
     <h4>Quest board</h4>
     ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => boardCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}`;
+  const dieFace = (side, i) => lastDiceRoll ? DICE_FACES[lastDiceRoll[side][i] - 1] : DICE_FACES[0];
   const gambleHtml = `
     <h4>🎲 Gambling Den</h4>
-    <p class="hint">Bet gold on a dice roll-off against the house: roll higher and double your stake, roll lower and lose it, tie and your gold's returned. True 50/50 odds — no house edge.</p>
+    <p class="hint">Bet gold on a 2-dice roll-off against the house: whoever's pair totals higher doubles their stake, lower loses it, a tie returns your gold. True 50/50 odds — no house edge.</p>
     <div class="dice-arena">
-      <div class="dice-side"><div class="dice-face" id="dice-you">${lastDiceRoll ? DICE_FACES[lastDiceRoll.you - 1] : DICE_FACES[0]}</div><span>You</span></div>
+      <div class="dice-side">
+        <div class="dice-pair">
+          <div class="dice-face" id="dice-you-1">${dieFace('you', 0)}</div>
+          <div class="dice-face" id="dice-you-2">${dieFace('you', 1)}</div>
+        </div>
+        <span>You <b id="dice-you-sum">${lastDiceRoll ? lastDiceRoll.youSum : ''}</b></span>
+      </div>
       <div class="dice-vs">vs</div>
-      <div class="dice-side"><div class="dice-face" id="dice-house">${lastDiceRoll ? DICE_FACES[lastDiceRoll.house - 1] : DICE_FACES[0]}</div><span>House</span></div>
+      <div class="dice-side">
+        <div class="dice-pair">
+          <div class="dice-face" id="dice-house-1">${dieFace('house', 0)}</div>
+          <div class="dice-face" id="dice-house-2">${dieFace('house', 1)}</div>
+        </div>
+        <span>House <b id="dice-house-sum">${lastDiceRoll ? lastDiceRoll.houseSum : ''}</b></span>
+      </div>
     </div>
     <div id="dice-result" class="dice-result ${lastDiceRoll ? 'dice-' + lastDiceRoll.result : ''}">${lastDiceRoll ? diceResultLine(lastDiceRoll) : ''}</div>
     <div class="dice-bets">
@@ -1141,23 +1154,26 @@ UI.renderTavern = function (el) {
     </div>`;
 };
 
-// Animates the two dice spinning through random faces before revealing the
-// actual result — resolveDice (game.js) is only called once the animation
-// settles, so the gold/topbar change lands at the same moment the dice stop
-// instead of jumping ahead of the visual. Manipulates the dice DOM directly
-// during the spin rather than calling UI.refresh() every tick, since a full
-// re-render would also rebuild (and reset) the disabled bet buttons mid-roll.
+// Animates all four dice (a pair each for you and the house) spinning
+// through random faces before revealing the actual result — resolveDice
+// (game.js) is only called once the animation settles, so the gold/topbar
+// change lands at the same moment the dice stop instead of jumping ahead
+// of the visual. Manipulates the dice DOM directly during the spin rather
+// than calling UI.refresh() every tick, since a full re-render would also
+// rebuild (and reset) the disabled bet buttons mid-roll.
 UI.playDice = function (bet) {
   if (diceRolling) return;
   if (G.gold < bet) { UI.toast('Not enough gold!'); return; }
   diceRolling = true;
-  const youEl = $('#dice-you'), houseEl = $('#dice-house'), resultEl = $('#dice-result');
+  const dieEls = ['dice-you-1', 'dice-you-2', 'dice-house-1', 'dice-house-2'].map(id => document.getElementById(id));
+  const sumEls = [document.getElementById('dice-you-sum'), document.getElementById('dice-house-sum')];
+  const resultEl = document.getElementById('dice-result');
   document.querySelectorAll('.dice-bets button').forEach(b => b.disabled = true);
   if (resultEl) { resultEl.className = 'dice-result'; resultEl.textContent = 'Rolling…'; }
+  sumEls.forEach(el => { if (el) el.textContent = ''; });
   let ticks = 0;
   const spin = setInterval(() => {
-    if (youEl) youEl.textContent = pick(DICE_FACES);
-    if (houseEl) houseEl.textContent = pick(DICE_FACES);
+    dieEls.forEach(el => { if (el) el.textContent = pick(DICE_FACES); });
     ticks++;
     if (ticks >= 10) {
       clearInterval(spin);

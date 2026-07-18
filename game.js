@@ -1033,7 +1033,8 @@ function claimQuestReward(idx) {
 }
 
 // ------------------------------------------------------------
-// Tavern gambling — Dice: bet gold on a d6 roll-off against the house.
+// Tavern gambling — Dice: bet gold on a 2d6-sum roll-off against the
+// house (you roll two dice, house rolls two dice, higher total wins).
 // True 50/50 odds (no house edge): a win doubles the stake (net +bet),
 // a loss forfeits it (net -bet), a tie is a no-op push. Fixed stake
 // tiers rather than free-form input, so a misclick can't wipe out the
@@ -1047,14 +1048,16 @@ function claimQuestReward(idx) {
 // ------------------------------------------------------------
 const DICE_BET_TIERS = [10, 50, 200, 1000];
 function resolveDice(bet) {
-  const you = rint(1, 6);
-  const house = rint(1, 6);
+  const you = [rint(1, 6), rint(1, 6)];
+  const house = [rint(1, 6), rint(1, 6)];
+  const youSum = you[0] + you[1];
+  const houseSum = house[0] + house[1];
   let result;
-  if (you > house) { result = 'win'; G.gold += bet; G.totals.goldFound += bet; }
-  else if (you < house) { result = 'lose'; G.gold -= bet; }
+  if (youSum > houseSum) { result = 'win'; G.gold += bet; G.totals.goldFound += bet; }
+  else if (youSum < houseSum) { result = 'lose'; G.gold -= bet; }
   else { result = 'tie'; }
   saveGame();
-  return { you, house, result, bet };
+  return { you, house, youSum, houseSum, result, bet };
 }
 
 function restockShop() {

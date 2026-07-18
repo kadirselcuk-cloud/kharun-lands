@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.4.1';
+DATA.VERSION = '1.4.2';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.4.2', notes: [
+    'Gambling Den dice roll is now 2 dice per side instead of 1 — you roll a pair against the house\'s pair, higher total wins. Still true 50/50 odds, no house edge.',
+  ] },
   { v: '1.4.1', notes: [
     'Tavern now has Board/Gamble buttons — Board (quests) shows by default, Gamble opens the Gambling Den separately instead of both sharing one long page.',
     'Dice rolls are now animated: both your die and the house\'s spin through random faces before landing on the actual result.',

@@ -22,22 +22,25 @@
 
 - **Dice gambling**: fixed stake tiers `DICE_BET_TIERS = [10, 50, 200,
   1000]` (chosen over free-form input so a misclick can't wipe out a
-  fortune), 1d6-vs-house-1d6, **true 50/50 odds with no house edge**
-  (explicit user choice over a house-edge or a push-your-luck design) —
-  win nets `+bet`, lose nets `-bet`, tie is a no-op push. Split across
-  the two files: `resolveDice(bet)` (game.js) is pure RNG + gold
-  mutation with no UI side effects; `UI.playDice(bet)` (ui.js) owns the
-  roll *animation* — spins `#dice-you`/`#dice-house` through random
-  `DICE_FACES` (⚀-⚅ glyphs) via direct DOM writes for ~800ms (10 ticks
-  @ 80ms, chosen over `UI.refresh()` per tick since a full re-render
-  would also rebuild/re-enable the bet buttons mid-spin), *then* calls
-  `resolveDice` and settles both dice on the real faces at the same
-  instant the gold/topbar updates — added per an explicit "show two
-  dice as being rolled" request, so the reveal and the gold change land
-  together rather than the gold jumping ahead of the animation. A
-  `diceRolling` flag blocks overlapping rolls; the settled roll is kept
-  in an ephemeral `lastDiceRoll` module var (ui.js) so it survives a
-  `UI.refresh()` (e.g. tabbing away and back) instead of going blank.
+  fortune). Each side rolls **two dice** (per an explicit "make
+  gambling two dices" follow-up — 2d6-sum vs 2d6-sum, higher total
+  wins), **true 50/50 odds with no house edge** (explicit user choice
+  over a house-edge or a push-your-luck design) — win nets `+bet`, lose
+  nets `-bet`, tie is a no-op push. Split across the two files:
+  `resolveDice(bet)` (game.js) is pure RNG + gold mutation with no UI
+  side effects, returning `{you: [a,b], house: [a,b], youSum, houseSum,
+  result, bet}`; `UI.playDice(bet)` (ui.js) owns the roll *animation* —
+  spins all four dice nodes (`dice-you-1/2`, `dice-house-1/2`) through
+  random `DICE_FACES` (⚀-⚅ glyphs) via direct DOM writes for ~800ms (10
+  ticks @ 80ms, chosen over `UI.refresh()` per tick since a full
+  re-render would also rebuild/re-enable the bet buttons mid-spin),
+  *then* calls `resolveDice` and settles all four dice + both sums on
+  the real values at the same instant the gold/topbar updates — so the
+  reveal and the gold change land together rather than the gold jumping
+  ahead of the animation. A `diceRolling` flag blocks overlapping
+  rolls; the settled roll is kept in an ephemeral `lastDiceRoll` module
+  var (ui.js) so it survives a `UI.refresh()` (e.g. tabbing away and
+  back) instead of going blank.
 - **Board/Gamble toggle**: `UI.renderTavern` (ui.js) renders a
   `.subtabs`-styled `Board`/`Gamble` button pair (`tavernView` module
   var, `UI.setTavernView`) so the quest board and Gambling Den are two
