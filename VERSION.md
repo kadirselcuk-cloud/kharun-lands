@@ -14,6 +14,29 @@ game at runtime.
 
 ---
 
+## 1.4.3 (fix)
+
+Bug batch — see CLAUDE.md "Bug batch: results modal, auto-sell gaps, tier
+ordering, decimals" for full implementation detail. Summary:
+
+- Results modal (`UI.showResults`): loot rows no longer clickable, a new
+  "Auto-sold" summary section (`run.autoSold`, game.js), and the
+  boss-victory case is no longer closable via X/backdrop
+  (`UI.modal(html, closable)` new 2nd param, ui.js).
+- Fixed an auto-sell gap: `claimQuestReward` and `grantPartClearReward`
+  now check `shouldAutoSell` before pushing to inventory, same as
+  in-combat drops already did — `buyShopItem` intentionally still doesn't.
+- `AUTO_USE_TIERS` (game.js) and Combat Options' `tiers` array (ui.js)
+  reordered to Legendary, Miniboss, Epic, Rare, Normal/Abnormal.
+- Blacksmith's restock button: 30px `.btn-sq` → 42px `.restock-btn`, cost
+  moved from tooltip-only to a visible `.restock-cost` caption underneath.
+- Combat Arena Help modal absorbed the potion-cooldown/skill-cast caption
+  that used to sit inline under the action row (`.hint-inline` CSS
+  removed, now dead).
+- `formatK(n, keepDecimals)` rounds sub-1000 numbers to whole by default;
+  HP/Mana Regen and `fmtDelta` (equip-comparison deltas) opt back into
+  decimal precision via the new 2nd param.
+
 ## 1.4.2 (fix)
 
 - **Dice gambling is now 2 dice per side**: `resolveDice(bet)` (game.js)

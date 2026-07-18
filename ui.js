@@ -19,14 +19,17 @@ let pendingNewSlot = 0;    // which save slot a freshly-picked class goes into
 const $ = sel => document.querySelector(sel);
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 // Compact display for topbar numbers — 1,234 -> 1.2K, 2,000,000 -> 2M.
-function formatK(n) {
+// Below 1000, numbers round to whole (no decimal clutter on gold/XP/damage/
+// counts) unless keepDecimals is passed — used only by the handful of
+// legitimately-fractional rate/percentage stats (HP/Mana Regen, the
+// equip-comparison stat deltas) that need their precision even under 1000.
+function formatK(n, keepDecimals) {
   const abs = Math.abs(n);
   if (abs >= 1e9) return (n / 1e9).toFixed(2) + 'B';
   if (abs >= 1e6) return (n / 1e6).toFixed(2) + 'M';
   if (abs >= 1e3) return (n / 1e3).toFixed(2) + 'K';
-  // below 1000: keep as-is (rounding here would destroy decimal stats
-  // like HP Regen showing "1.9") — just cap to 2 fraction digits.
-  return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  if (keepDecimals) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  return Math.round(n).toLocaleString();
 }
 // Several weapons share one base emoji (e.g. the whole sword family uses
 // 🗡️) and are told apart by size instead — see iconSize on DATA.WEAPON_BASES.
@@ -663,9 +666,9 @@ UI.renderCharacter = function (el) {
         <div class="stat-row"><span>⚡ Speed</span><b>${formatK(d.speed)}</b></div>
         <div class="stat-row"><span>🔵 Max Mana</span><b>${formatK(d.maxMana)}</b></div>
         <h3>Sub Stats</h3>
-        <div class="stat-row"><span>💗 HP Regen</span><b>${formatK(d.hpRegen)}</b></div>
+        <div class="stat-row"><span>💗 HP Regen</span><b>${formatK(d.hpRegen, true)}</b></div>
         <div class="stat-row"><span>💨 Evasion</span><b>${d.evasion}%</b></div>
-        <div class="stat-row"><span>💧 Mana Regen</span><b>${formatK(d.manaRegen)}</b></div>
+        <div class="stat-row"><span>💧 Mana Regen</span><b>${formatK(d.manaRegen, true)}</b></div>
         <div class="stat-row"><span>👝 Potion Capacity</span><b>${potionCapacity()}</b></div>
         <h3>Combat</h3>
         <div class="stat-row"><span>🗡️ Damage</span><b>${formatK(d.baseDmgMin)}–${formatK(d.baseDmgMax)}</b>${d.weaponMagic ? ' <small>(magic)</small>' : ''}</div>
@@ -931,7 +934,7 @@ function statLabel(key) {
 }
 function fmtDelta(v) {
   const r = Math.round(v * 100) / 100;
-  return (r > 0 ? '+' : '') + formatK(r);
+  return (r > 0 ? '+' : '') + formatK(r, true);
 }
 
 // Net stat deltas between a candidate item and whatever it would
@@ -1009,7 +1012,10 @@ UI.renderShop = function (el) {
     <div class="panel">
       <h3>🛒 ${esc(shopName)}
         <span class="filters">
-          <button class="btn btn-tiny btn-sq" onclick="restockShop()" title="New stock (🪙 ${formatK(restockCost())})" ${G.gold < restockCost() ? 'disabled' : ''}>♻</button>
+          <div class="restock-wrap">
+            <button class="btn btn-sq restock-btn" onclick="restockShop()" title="New stock" ${G.gold < restockCost() ? 'disabled' : ''}>♻</button>
+            <div class="restock-cost">🪙 ${formatK(restockCost())}</div>
+          </div>
         </span>
       </h3>
       <p class="hint">Wares are generated for area level ${shopIlvl()} and priced at 6× their sell value. Free new stock arrives whenever you return from an adventure.</p>
@@ -1418,7 +1424,7 @@ UI.showCombatHelp = function () {
   UI.modal(`
     <h3>❓ Combat Arena Help</h3>
     <p class="prelude-text"><b>Attack gauge</b> — the bar under your HP/Mana on the hero card. Every round, every fighter's gauge fills by their Speed; whoever reaches 100 first acts. Faster heroes and enemies attack more often.</p>
-    <p class="prelude-text"><b>Potions &amp; skills</b> — the icon row above the arena. Click one to use it, or press its keyboard shortcut badge (Q/W for potions, 1-9/0 for skills, desktop only). A faded number over an icon means it's on cooldown; the caption underneath shows stock left (potions) or mana cost (skills).</p>
+    <p class="prelude-text"><b>Potions &amp; skills</b> — the icon row above the arena. Click one to use it, or press its keyboard shortcut badge (Q/W for potions, 1-9/0 for skills, desktop only). A faded number over an icon means it's on cooldown; the caption underneath shows stock left (potions) or mana cost (skills). Potions: ${POTION_CD}-tick cooldown. Skills: click to cast on your next swing.</p>
     <p class="prelude-text"><b>Layout</b> — left: your hero card (portrait, HP/Mana/gauge bars) plus a small box above it previewing your next action, and a grid of active buff/debuff icons to its right. Middle: the last thing that happened. Right: the enemy pack you're fighting.</p>
     <p class="prelude-text">Use ⚙️ Combat Options to decide what happens the instant a Rare/Epic/Miniboss/Abnormal encounter appears (pause, slow down, or continue normally), and 🤖 Auto-Use to automate potions and skills during combat.</p>
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
@@ -1571,7 +1577,7 @@ UI.showBestiary = function (level, pageIdx) {
 
 UI.showCombatOptions = function () {
   const m = G.settings.encounterMode;
-  const tiers = [['miniboss', 'Miniboss'], ['legendary', 'Legendary'], ['epic', 'Epic'], ['rare', 'Rare'], ['abnormal', 'Abnormal']];
+  const tiers = [['legendary', 'Legendary'], ['miniboss', 'Miniboss'], ['epic', 'Epic'], ['rare', 'Rare'], ['abnormal', 'Abnormal']];
   const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
   UI.modal(`
     <h3>⚙️ Combat Options</h3>
@@ -1666,8 +1672,7 @@ UI.controlsHtml = function () {
     <div class="ctl-row">
       ${potBtn('hp', '❤️', 'Health', 'Q')} ${potBtn('mana', '🔵', 'Mana', 'W')}
       ${actives.map((s, i) => skillBtn(s, SKILL_SHORTCUTS[i] || '')).join('')}
-    </div>
-    <small class="hint-inline">potions: ${POTION_CD}-tick cooldown · skills: click to cast on your next swing</small>`;
+    </div>`;
 };
 
 // Detailed cards for every enemy in the current fight.
@@ -1810,7 +1815,9 @@ UI.showResults = function (run, level) {
       <h4>🎁 Quest Reward</h4>
       <div class="quest-reward-box">
         <span class="gold">🪙 ${formatK(run.partReward.gold)}</span>
-        <span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>
+        ${run.partReward.autoSold
+          ? `<span class="reward-item">🪙 ${formatK(run.partReward.item.value)} <small>(auto-sold ${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)})</small></span>`
+          : `<span class="reward-item" style="color:${DATA.RARITIES[run.partReward.item.rarity].color}">${itemIconHtml(run.partReward.item)} ${esc(run.partReward.item.name)} <small>(${DATA.RARITIES[run.partReward.item.rarity].name})</small></span>`}
       </div>` : ''}
     <h4>Battle report</h4>
     <div class="results-grid">
@@ -1835,17 +1842,24 @@ UI.showResults = function (run, level) {
     ${dropChips.length ? `<div class="drop-chips">${dropChips.join(' · ')}</div>` : ''}
     ${run.items.length ? `<h4>Loot acquired</h4>
       <div class="loot-list">
-        ${run.items.map(it => `<div class="loot-row" onclick="UI.showItem(${it.uid},'inv')">
+        ${run.items.map(it => `<div class="loot-row">
           ${itemIconHtml(it)} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
           <small>${it.type === 'rune' ? `rune · ${it.bonuses.length} bonus` : `${DATA.RARITIES[it.rarity].name} · ${esc(it.baseName)}`}</small>
         </div>`).join('')}
       </div>` : '<p class="hint">No items this time — the wilds are stingy.</p>'}
+    ${run.autoSold && run.autoSold.length ? `<h4>🪙 Auto-sold</h4>
+      <div class="loot-list">
+        ${run.autoSold.map(it => `<div class="loot-row">
+          ${it.icon} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
+          <small>sold for 🪙 ${formatK(it.value)}</small>
+        </div>`).join('')}
+      </div>` : ''}
     <div class="modal-actions">
       ${isBoss
         ? `<button class="btn btn-primary" onclick="UI.closeModal();UI.afterBossVictory(${level})">▶ Continue</button>`
         : `<button class="btn btn-primary" onclick="UI.closeModal();startAdventure()">⚔️ Adventure again</button>
            <button class="btn" onclick="UI.closeModal()">Close</button>`}
-    </div>`);
+    </div>`, !isBoss);
 };
 
 UI.showChangelog = function () {
@@ -1864,10 +1878,15 @@ UI.showChangelog = function () {
 // ------------------------------------------------------------
 // Modal helpers
 // ------------------------------------------------------------
-UI.modal = function (innerHtml) {
+// closable=false omits the X button and backdrop-click-to-close, forcing
+// the modal's own action button(s) as the only way out — used for the
+// boss-victory results screen, same "no escape hatch but the button"
+// behavior as the Chapter/Quest start screens.
+UI.modal = function (innerHtml, closable) {
   const root = $('#modal-root');
-  root.innerHTML = `<div class="modal-backdrop" onclick="if(event.target===this)UI.closeModal()"><div class="modal">
-    <button class="modal-x" onclick="UI.closeModal()" title="Close" aria-label="Close">✕</button>
+  const notClosable = closable === false;
+  root.innerHTML = `<div class="modal-backdrop" ${notClosable ? '' : 'onclick="if(event.target===this)UI.closeModal()"'}><div class="modal">
+    ${notClosable ? '' : '<button class="modal-x" onclick="UI.closeModal()" title="Close" aria-label="Close">✕</button>'}
     ${innerHtml}
   </div></div>`;
 };

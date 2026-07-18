@@ -25,9 +25,9 @@ function log(t, txt, extra) {
 // State creation / persistence (localStorage — bigger and more
 // reliable than cookies, and never sent over the network)
 // ------------------------------------------------------------
-// Monster tiers used by the auto-use tier checkboxes and encounter-mode
-// settings. "Abnormal" is this game's player-facing name for Miniboss.
-const AUTO_USE_TIERS = ['normal', 'miniboss', 'rare', 'epic', 'legendary'];
+// Monster tiers used by the auto-use tier checkboxes, ordered
+// strongest-to-weakest to match the Combat Options tier order.
+const AUTO_USE_TIERS = ['legendary', 'miniboss', 'epic', 'rare', 'normal'];
 function emptyTierSet(v) { const o = {}; for (const t of AUTO_USE_TIERS) o[t] = v; return o; }
 
 function defaultSettings() {
@@ -1011,10 +1011,16 @@ function claimQuestReward(idx) {
   if (r.item) {
     const rarity = questItemRarity(r.item, q.finalArea || G.area);
     const it = makeItem(Math.max(1, q.finalArea || G.area), rarity, G.char.cls);
-    G.inventory.push(it);
     G.totals.itemsFound++;
     G.totals.itemsByRarity[rarity] = (G.totals.itemsByRarity[rarity] || 0) + 1;
-    parts.push(`${it.icon} ${it.name} (${rarity})`);
+    if (shouldAutoSell(it)) {
+      G.gold += it.value;
+      G.totals.itemsSold++; G.totals.goldFromSales += it.value;
+      parts.push(`🪙 ${formatK(it.value)} (auto-sold ${it.icon} ${it.name})`);
+    } else {
+      G.inventory.push(it);
+      parts.push(`${it.icon} ${it.name} (${rarity})`);
+    }
   }
   if (r.rune) {
     const rn = makeRune(Math.max(1, q.finalArea || G.area), r.rune);
@@ -1103,9 +1109,16 @@ function grantPartClearReward(level, run) {
   G.totals.goldFound += gold;
   G.totals.itemsFound++;
   G.totals.itemsByRarity[rarity] = (G.totals.itemsByRarity[rarity] || 0) + 1;
-  G.inventory.push(item);
-  run.partReward = { gold, item };
-  log('loot', `🎁 Quest reward: 🪙 ${formatK(gold)} + ${item.icon} ${item.name}`);
+  if (shouldAutoSell(item)) {
+    G.gold += item.value;
+    G.totals.itemsSold++; G.totals.goldFromSales += item.value;
+    run.partReward = { gold, item, autoSold: true };
+    log('loot', `🎁 Quest reward: 🪙 ${formatK(gold)} + 🪙 ${formatK(item.value)} (auto-sold ${item.icon} ${item.name})`);
+  } else {
+    G.inventory.push(item);
+    run.partReward = { gold, item };
+    log('loot', `🎁 Quest reward: 🪙 ${formatK(gold)} + ${item.icon} ${item.name}`);
+  }
   questEvent('level_clear');
 }
 
@@ -1438,6 +1451,7 @@ function dropItem(lvl, rarity, run) {
   if (shouldAutoSell(it)) {
     run.gold += it.value; G.gold += it.value;
     G.totals.itemsSold++; G.totals.goldFromSales += it.value;
+    run.autoSold.push({ icon: it.icon, name: it.name, rarity: it.rarity, value: it.value });
     log('loot', `🪙 Auto-sold ${it.icon} ${it.name} for ${formatK(it.value)} gold.`);
     return;
   }
@@ -1887,7 +1901,7 @@ function startAdventure() {
     fight: null,
     run: {
       kills: { normal: 0, rare: 0, epic: 0, miniboss: 0, legendary: 0 },
-      gold: 0, xp: 0, items: [], potions: { hp: 0, mana: 0, scroll: 0 },
+      gold: 0, xp: 0, items: [], autoSold: [], potions: { hp: 0, mana: 0, scroll: 0 },
       dmgDealt: 0, dmgTaken: 0,
       levelUps: 0, bossDefeated: false, outcome: null,
     },

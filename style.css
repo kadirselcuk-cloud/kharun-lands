@@ -263,6 +263,9 @@ small { color: var(--dim); }
 
 /* inventory */
 .filters { margin-left: auto; display: flex; gap: 5px; flex-wrap: wrap; }
+.restock-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.restock-btn { width: 42px; height: 42px; font-size: 1.3rem; }
+.restock-cost { font-size: .68rem; color: var(--dim); }
 .inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
 .inv-item {
   background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
@@ -408,9 +411,8 @@ small { color: var(--dim); }
 .loot-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .loot-row {
   background: var(--panel2); border: 1px solid var(--border); border-radius: 6px;
-  padding: 6px 10px; font-size: .84rem; cursor: pointer; display: flex; gap: 8px; align-items: baseline;
+  padding: 6px 10px; font-size: .84rem; display: flex; gap: 8px; align-items: baseline;
 }
-.loot-row:hover { border-color: var(--accent); }
 .loot-row small { margin-left: auto; }
 
 /* title screen — up to MAX_SLOTS hero slot cards */
@@ -439,7 +441,6 @@ small { color: var(--dim); }
 
 /* pack size */
 .pack-row { display: flex; align-items: center; gap: 6px; margin: 10px 0; font-size: .86rem; flex-wrap: wrap; }
-.hint-inline { color: var(--dim); font-size: .72rem; }
 
 /* battle arena: hero on top, action box middle, monster grid below */
 .battle-arena {

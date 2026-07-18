@@ -350,3 +350,87 @@ ambiguous on 3 points):
   correctly excludes/includes `'epilogue'` before/after
   `G.bossKilled[100]`; Part `<details>` still list correctly under a
   selected chapter.
+
+## Bug batch: results modal, auto-sell gaps, tier ordering, decimals
+
+A grab-bag of small fixes/bugs from one request — grouped here since several
+touch the same code.
+
+- **`UI.modal(innerHtml, closable)`** (ui.js) gained an optional 2nd param —
+  `closable === false` omits the `✕` button and the backdrop
+  click-to-close, so the modal's own action button is the only way out.
+  Used only for the boss-victory results modal (`UI.showResults` passes
+  `!isBoss`) per an explicit "only Continue, same as the chapter-start
+  screens" request — every other modal in the game is unaffected and still
+  closes via X/backdrop/Close as before.
+- **Results modal loot rows are no longer clickable** — `onclick="UI.showItem(...)"` removed from `.loot-row` in `UI.showResults`, and the
+  matching `cursor:pointer`/`:hover` CSS removed too (it's a summary of
+  what happened, not an inventory browser; clicking through to
+  equip/sell/socket from inside the post-battle recap wasn't intended).
+- **Auto-sold-during-the-run items now show as their own summary section**
+  on the results modal ("🪙 Auto-sold"), separate from "Loot acquired".
+  New `run.autoSold` array (game.js, initialized alongside `run.items` in
+  `startAdventure`), pushed to from `dropItem`'s existing auto-sell branch
+  (same `{icon,name,rarity,value}` shape as before, just also kept instead
+  of only logged).
+- **Auto-sell "unusable" gap**: `shouldAutoSell()` was only ever checked
+  from `dropItem` (in-combat drops) — two other item-grant paths pushed
+  straight to `G.inventory` with no auto-sell check at all, so a
+  wrong-class/wrong-weight item from either could sit in inventory even
+  with "auto-sell unusable" on. Fixed both: `claimQuestReward`'s item
+  reward branch (game.js) and `grantPartClearReward` (the guaranteed
+  quest-clear item, game.js) now check `shouldAutoSell` and, if it
+  matches, credit gold + `G.totals.itemsSold`/`goldFromSales` and skip
+  the inventory push instead — `grantPartClearReward` also sets
+  `run.partReward.autoSold = true` so the boss-victory modal's Quest
+  Reward box shows "🪙 (auto-sold 🪖 Item Name)" instead of a colored
+  item chip. `buyShopItem` (Blacksmith purchases) deliberately still
+  bypasses this — auto-selling something the player just paid gold for
+  would be much worse UX than the gap it closes.
+- **Tier settings reordered strongest-to-weakest** (Legendary, Miniboss,
+  Epic, Rare, Normal/Abnormal) per explicit request, applied everywhere a
+  tier list renders: `AUTO_USE_TIERS` (game.js, drives the Auto-Use
+  Debuff/Ultimate/Damage tier checkboxes) and the `tiers` array in
+  `UI.showCombatOptions` (ui.js). Combat Options has no literal "Normal"
+  entry — it has "Abnormal" instead (a different concept, see the
+  Miniboss-vs-Abnormal section above) — so "Abnormal" took the trailing
+  slot Normal occupies in Auto-Use, matching relative rank rather than
+  the literal label. The Bestiary's own tier list (`UI.showBestiary`,
+  weakest-to-strongest reading order for a stat table) was deliberately
+  left alone — it's a comparison table, not a settings picker.
+- **Blacksmith restock button enlarged + cost shown under it, not just in
+  the tooltip**: new `.restock-wrap`/`.restock-btn`/`.restock-cost` (30px
+  `.btn-sq` → 42px, `title`-only cost → a visible caption below, same
+  icon-button-plus-caption language as the combat action bar). Confirmed
+  via clarifying question this meant the Blacksmith's existing `♻` New
+  Stock button, not a new paid-refresh feature on the Tavern (which
+  doesn't have one — its board already refreshes free on return-home).
+- **Combat Arena Help**: the `potions: Xs-tick cooldown · skills: click to
+  cast on your next swing` caption that sat inline under the action-button
+  row (`.hint-inline`, now-dead CSS removed) was moved into the ❓ Combat
+  Arena Help modal's existing "Potions & skills" paragraph instead, per an
+  explicit "take it into battle arena help" request — decluttering the
+  arena itself in favor of the dedicated help text.
+- **`formatK(n, keepDecimals)`** (ui.js): numbers under 1000 now round to
+  a whole number by default (`Math.round(n).toLocaleString()`) instead of
+  showing up to 2 stray decimal places — fixes decimals leaking into
+  gold/XP/damage/count displays. `keepDecimals=true` opts back into the
+  old behavior for the handful of call sites that need it: HP Regen/Mana
+  Regen (`d.hpRegen`/`d.manaRegen`, which are deliberately `.toFixed(1)`
+  rate stats) and `fmtDelta` (the equip-comparison "Equipping changes"
+  net-delta summary, which covers several percentage-based stats like
+  Evasion/Crit/Resist). K/M/B-suffixed numbers (≥1000) were already
+  2-decimal and untouched.
+- Verified via a headless-Chromium (Playwright) pass: Combat Options and
+  Auto-Use tier checkboxes both render Legendary→Miniboss→Epic→Rare→
+  Normal/Abnormal; the restock button shows an enlarged icon with a
+  visible gold-cost caption; the Combat Help modal contains the moved
+  potion/skill cooldown line; Character tab shows HP Regen/Mana Regen
+  with their decimal kept while Max HP/Damage/etc. show as whole numbers;
+  a synthetic boss-victory results modal has no `✕`, doesn't close on a
+  backdrop click, and its loot rows have no `onclick`; 30 forced
+  `claimQuestReward` calls and 20 forced `grantPartClearReward` calls
+  with `autoSell.unusable` on both produced auto-sold items instead of
+  leaving unusable gear sitting in inventory; the pre-existing non-boss
+  results modal (retreat/defeat/stalemate) still closes normally via its
+  `✕`. No console errors in any pass.

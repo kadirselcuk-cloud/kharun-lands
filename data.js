@@ -5,12 +5,20 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.4.2';
+DATA.VERSION = '1.4.3';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.4.3', notes: [
+    'Victory/defeat results screen: items are no longer clickable, auto-sold items now show as their own "Auto-sold" summary, and the victory screen can only be dismissed with Continue (no more accidental X/backdrop closes).',
+    'Fixed: items that are unusable by your class/weight sometimes weren\'t auto-sold — Tavern quest rewards and guaranteed quest-clear rewards now respect your auto-sell settings too, not just items found while adventuring.',
+    'Combat Options and Auto-Use tier settings reordered to Legendary, Miniboss, Epic, Rare, Normal — most dangerous first.',
+    'Blacksmith\'s restock button is bigger and now shows its gold cost right underneath instead of only in a tooltip.',
+    'Moved the "potions: cooldown / skills: click to cast" reminder out of the battle arena and into the Combat Arena Help screen.',
+    'Numbers under 1000 no longer show stray decimals (gold, damage, XP, counts) — only K/M/B numbers and rate stats like HP/Mana Regen keep decimal precision.',
+  ] },
   { v: '1.4.2', notes: [
     'Gambling Den dice roll is now 2 dice per side instead of 1 — you roll a pair against the house\'s pair, higher total wins. Still true 50/50 odds, no house edge.',
   ] },
