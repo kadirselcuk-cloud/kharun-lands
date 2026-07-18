@@ -7,6 +7,9 @@ const UI = {};
 let activeTab = 'adventure';       // adventure | character | city | journal
 let activeCharSub = 'character';   // character | skills | inventory
 let activeCitySub = 'shop';        // shop | tavern
+let tavernView = 'board';          // board | gamble — which Tavern sub-panel is shown, defaults to the quest board
+let lastDiceRoll = null;           // {you, house, result, bet} of the most recent dice roll, or null if never played — ephemeral, not saved
+let diceRolling = false;           // true while the dice-roll animation is mid-spin, guards against overlapping rolls
 let invFilter = 'all';     // all | usable
 let invType = 'all';       // all | rune | <slot>
 let invSort = 'rarity';    // rarity | type | value | name
@@ -1065,6 +1068,14 @@ UI.showShopItem = function (uid) {
 // ------------------------------------------------------------
 // Tavern tab
 // ------------------------------------------------------------
+const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+
+UI.setTavernView = function (view) { tavernView = view; UI.refresh(); };
+
+function diceResultLine(r) {
+  return `You rolled ${r.you}, the house rolled ${r.house} — ${r.result === 'win' ? `You win 🪙 ${formatK(r.bet)}!` : r.result === 'lose' ? `You lose 🪙 ${formatK(r.bet)}.` : 'Tie — bet returned.'}`;
+}
+
 UI.renderTavern = function (el) {
   if (!G.tavern) genTavernBoard();
   if (!G.tavern.active) G.tavern.active = [];
@@ -1102,19 +1113,61 @@ UI.renderTavern = function (el) {
       <button class="btn btn-primary btn-small" ${full ? 'disabled' : ''} onclick="acceptQuest(${idx})">${full ? 'Two quests active' : 'Accept'}</button>
     </div>`;
   };
+  const boardHtml = `
+    ${t.active.length ? `<h4>Your current quests (${t.active.length}/2)</h4>${t.active.map((q, i) => activeCard(q, i)).join('')}` : ''}
+    <h4>Quest board</h4>
+    ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => boardCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}`;
+  const gambleHtml = `
+    <h4>🎲 Gambling Den</h4>
+    <p class="hint">Bet gold on a dice roll-off against the house: roll higher and double your stake, roll lower and lose it, tie and your gold's returned. True 50/50 odds — no house edge.</p>
+    <div class="dice-arena">
+      <div class="dice-side"><div class="dice-face" id="dice-you">${lastDiceRoll ? DICE_FACES[lastDiceRoll.you - 1] : DICE_FACES[0]}</div><span>You</span></div>
+      <div class="dice-vs">vs</div>
+      <div class="dice-side"><div class="dice-face" id="dice-house">${lastDiceRoll ? DICE_FACES[lastDiceRoll.house - 1] : DICE_FACES[0]}</div><span>House</span></div>
+    </div>
+    <div id="dice-result" class="dice-result ${lastDiceRoll ? 'dice-' + lastDiceRoll.result : ''}">${lastDiceRoll ? diceResultLine(lastDiceRoll) : ''}</div>
+    <div class="dice-bets">
+      ${DICE_BET_TIERS.map(b => `<button class="btn btn-small" ${(G.gold < b || diceRolling) ? 'disabled' : ''} onclick="UI.playDice(${b})">🎲 Bet 🪙${formatK(b)}</button>`).join('')}
+    </div>`;
   el.innerHTML = `
     <div class="panel">
       <h3>🍺 The Weary Wyvern Tavern</h3>
       <p class="hint">The tavern hums with rumors. Take up to two quests at a time — their progress counts automatically while you adventure. Once finished, claim each reward yourself — it's valued against your current chapter &amp; part. New rumors arrive whenever you return home.</p>
-      ${t.active.length ? `<h4>Your current quests (${t.active.length}/2)</h4>${t.active.map((q, i) => activeCard(q, i)).join('')}` : ''}
-      <h4>Quest board</h4>
-      ${t.board.length ? `<div class="quest-board">${t.board.map((q, i) => boardCard(q, i)).join('')}</div>` : '<p class="hint">The board is empty — come back after an adventure.</p>'}
-      <h4>🎲 Gambling Den</h4>
-      <p class="hint">Bet gold on a dice roll-off against the house: roll higher and double your stake, roll lower and lose it, tie and your gold's returned. True 50/50 odds — no house edge.</p>
-      <div class="dice-bets">
-        ${DICE_BET_TIERS.map(b => `<button class="btn btn-small" ${G.gold < b ? 'disabled' : ''} onclick="playDice(${b})">🎲 Bet 🪙${formatK(b)}</button>`).join('')}
+      <div class="subtabs">
+        <button class="${tavernView === 'board' ? 'active' : ''}" onclick="UI.setTavernView('board')">📜 Board</button>
+        <button class="${tavernView === 'gamble' ? 'active' : ''}" onclick="UI.setTavernView('gamble')">🎲 Gamble</button>
       </div>
+      ${tavernView === 'gamble' ? gambleHtml : boardHtml}
     </div>`;
+};
+
+// Animates the two dice spinning through random faces before revealing the
+// actual result — resolveDice (game.js) is only called once the animation
+// settles, so the gold/topbar change lands at the same moment the dice stop
+// instead of jumping ahead of the visual. Manipulates the dice DOM directly
+// during the spin rather than calling UI.refresh() every tick, since a full
+// re-render would also rebuild (and reset) the disabled bet buttons mid-roll.
+UI.playDice = function (bet) {
+  if (diceRolling) return;
+  if (G.gold < bet) { UI.toast('Not enough gold!'); return; }
+  diceRolling = true;
+  const youEl = $('#dice-you'), houseEl = $('#dice-house'), resultEl = $('#dice-result');
+  document.querySelectorAll('.dice-bets button').forEach(b => b.disabled = true);
+  if (resultEl) { resultEl.className = 'dice-result'; resultEl.textContent = 'Rolling…'; }
+  let ticks = 0;
+  const spin = setInterval(() => {
+    if (youEl) youEl.textContent = pick(DICE_FACES);
+    if (houseEl) houseEl.textContent = pick(DICE_FACES);
+    ticks++;
+    if (ticks >= 10) {
+      clearInterval(spin);
+      const r = resolveDice(bet);
+      lastDiceRoll = r;
+      diceRolling = false;
+      UI.refresh();
+      UI.toast(`🎲 ${diceResultLine(r)}`);
+    }
+  }, 80);
 };
 
 // ------------------------------------------------------------

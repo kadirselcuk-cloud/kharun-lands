@@ -1038,25 +1038,23 @@ function claimQuestReward(idx) {
 // a loss forfeits it (net -bet), a tie is a no-op push. Fixed stake
 // tiers rather than free-form input, so a misclick can't wipe out the
 // player's gold in one go.
+//
+// resolveDice is pure outcome resolution (RNG + gold mutation) with no
+// UI side effects — UI.playDice (ui.js) owns the roll animation and
+// calls this only once the dice have visually finished spinning, so the
+// gold change and the revealed faces land at the same moment instead of
+// the topbar updating before the dice stop.
 // ------------------------------------------------------------
 const DICE_BET_TIERS = [10, 50, 200, 1000];
-function playDice(bet) {
-  if (!DICE_BET_TIERS.includes(bet)) return;
-  if (G.gold < bet) { UI.toast('Not enough gold!'); return; }
+function resolveDice(bet) {
   const you = rint(1, 6);
   const house = rint(1, 6);
-  if (you > house) {
-    G.gold += bet;
-    G.totals.goldFound += bet;
-    UI.toast(`🎲 You rolled ${you}, the house rolled ${house} — you win 🪙 ${formatK(bet)}!`);
-  } else if (you < house) {
-    G.gold -= bet;
-    UI.toast(`🎲 You rolled ${you}, the house rolled ${house} — you lose 🪙 ${formatK(bet)}.`);
-  } else {
-    UI.toast(`🎲 You rolled ${you}, the house rolled ${house} — a tie, bet returned.`);
-  }
+  let result;
+  if (you > house) { result = 'win'; G.gold += bet; G.totals.goldFound += bet; }
+  else if (you < house) { result = 'lose'; G.gold -= bet; }
+  else { result = 'tie'; }
   saveGame();
-  UI.refresh();
+  return { you, house, result, bet };
 }
 
 function restockShop() {

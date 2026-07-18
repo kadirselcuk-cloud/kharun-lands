@@ -5,12 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.4.0';
+DATA.VERSION = '1.4.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.4.1', notes: [
+    'Tavern now has Board/Gamble buttons — Board (quests) shows by default, Gamble opens the Gambling Den separately instead of both sharing one long page.',
+    'Dice rolls are now animated: both your die and the house\'s spin through random faces before landing on the actual result.',
+  ] },
   { v: '1.4.0', notes: [
     'New Tavern Gambling Den: bet gold on a dice roll-off against the house — roll higher to double your stake, lower and lose it, tie and it\'s returned. True 50/50 odds, no house edge.',
     'Tavern quest board expanded from 6 to 8 quests at a time.',

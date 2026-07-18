@@ -14,6 +14,36 @@ game at runtime.
 
 ---
 
+## 1.4.1 (fix)
+
+- **Tavern Board/Gamble toggle**: `UI.renderTavern` (ui.js) now renders a
+  `.subtabs`-styled `Board`/`Gamble` button pair (`UI.setTavernView`,
+  new `tavernView` module var, defaults to `'board'`) and shows either
+  the quest board or the Gambling Den, not both stacked in one long
+  page.
+- **Animated dice roll**: `playDice` (game.js) was split — RNG + gold
+  mutation moved into a new pure `resolveDice(bet)` with no UI side
+  effects, and `UI.playDice` (ui.js) now owns the roll: spins both
+  `#dice-you`/`#dice-house` through random `DICE_FACES` (⚀-⚅) every
+  80ms for 10 ticks (~800ms) via direct DOM writes (not `UI.refresh()`
+  per tick, since a full re-render would also rebuild/re-enable the bet
+  buttons mid-spin), then calls `resolveDice` and settles both dice on
+  the real faces at the same moment the gold/topbar updates — so the
+  reveal and the outcome land together instead of the gold changing
+  before the dice visually stop. Bet buttons disable for the duration
+  (guarded by a new `diceRolling` flag) to prevent overlapping rolls.
+  Last roll is kept in a new ephemeral `lastDiceRoll` module var so the
+  settled dice/result line persist correctly across a `UI.refresh()`
+  (e.g. switching tabs and back) instead of resetting to blank.
+- Verified via a headless-Chromium (Playwright) pass: Tavern defaults to
+  the Board view; clicking Gamble swaps to the Gambling Den and hides
+  the board; mid-roll (250ms in) both dice show different random faces,
+  the result line reads "Rolling…", and all four bet buttons are
+  disabled; after the roll finishes both dice show the actual rolled
+  values, the result line/color (green win / red lose / neutral tie)
+  and toast match, and gold moved by exactly the bet amount. No console
+  errors.
+
 ## 1.4.0 (minor)
 
 - **Tavern Gambling Den**: new `playDice(bet)` (game.js) — fixed stake
