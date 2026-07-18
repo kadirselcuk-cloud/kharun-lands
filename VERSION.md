@@ -14,6 +14,107 @@ game at runtime.
 
 ---
 
+## 1.9.1 (fix)
+
+Site-wide spacing/mobile-friendliness pass, prompted by "check the spacing
+in all pages" + "everything should also be mobile friendly." Audited every
+`UI.render*`/`UI.show*` screen (all ~36 of them) against `style.css`'s
+existing breakpoints (`860px` for layout, `480px` for narrow-phone
+tightening) before touching anything, then verified with a real headless
+Chromium pass rather than logic-only checks (see Testing note below).
+
+- **Real overflow bug fixed: `.subtabs`.** City hub's 4-button row
+  (Blacksmith/Tavern/Enchanter/Arena) has no `flex:1`/shrink behavior
+  (unlike the top-level `.tabs`), so at narrow widths it doesn't wrap or
+  shrink — it just overflows. Measured 41px of horizontal page overflow at
+  a 320px viewport and 1px at 360px, with "Arena" visibly clipped past the
+  right edge. `.subtabs` (style.css) gained `flex-wrap: wrap` as the actual
+  fix (guarantees no overflow at any width, wraps to a 2nd row instead) plus
+  a `@media (max-width: 480px)` padding/font trim so it still fits on one
+  row at 320px+ in practice. Same class is shared by the Tavern's Board/
+  Gamble toggle and the Enchanter's 3-view toggle, both already narrow
+  enough to never have hit this.
+- **Preemptive overflow guards** (found by inspecting fixed-pixel-width
+  layouts, then confirmed with the same browser pass) — neither of these
+  showed up as *measured* overflow at the widths tested, but both sat close
+  enough to the edge (worked out on paper to ~284px/~286px minimum content
+  width against ~256px available at a 320px viewport) that a slightly
+  longer name/number could tip them over:
+  - **Battle arena `.player-row`**: `.next-action-box` (52px) +
+    `.effects-grid` (72px) are both non-shrinking (`flex: 0 0 <px>`), and
+    `.hero-card`'s HP/Mana/gauge bars all inherit `.bar`'s 120px
+    `min-width` floor — stacked with `.player-row`'s 8px gaps, that's a
+    ~284px hard minimum. New `@media (max-width: 480px)` block (style.css,
+    right after `.effect-icon`) trims `.next-action-box` to 44px,
+    `.effects-grid` to 60px (icons 34px->28px), `.player-row` gap to 6px,
+    and specifically `.hero-card .bar`'s min-width to 90px — ~50px of
+    slack, comfortably inside a 320px phone. Desktop is untouched; the
+    effects-grid's 72px/34px sizing itself (a deliberate 1.7.0 legibility
+    bump per CLAUDE.md) is unchanged above this breakpoint.
+  - **Tavern `.dice-arena`**: two `.dice-pair`s (2x 50px dice + 6px gap
+    each) plus the "vs" label and 22px gaps add up similarly. Added
+    `flex-wrap: wrap` on `.dice-arena` as a guaranteed fallback, plus a
+    `@media (max-width: 480px)` trim (dice 50px->40px, gaps tightened) so
+    wrapping is very unlikely to actually trigger on real phones.
+- **`.tabs` (main nav) had zero mobile handling** despite being the single
+  most-used element in the game — 4 buttons each carrying an emoji + a full
+  word ("🗺️ Adventure") at desktop padding/font-size. `flex:1` already
+  keeps them equal-width and text already wraps gracefully (no
+  `white-space:nowrap` was ever set), so nothing was actually broken, but
+  at common phone widths the longer labels ("Adventure", "Character") were
+  wrapping to 2 lines by default. New `@media (max-width:480px)` shrinks
+  padding/font (style.css) so all 4 fit on one line down to ~375px, and
+  degrade to a slightly taller (not broken) 2-line row only on the very
+  narrowest phones instead of doing that everywhere.
+- **`.results-grid` (post-battle results modal — "Battle report"/
+  "Creatures slain") was a fixed 4 columns with no mobile override** —
+  multi-word labels like "damage dealt" were squeezed into ~70px cells on
+  a phone-width modal. New `@media (max-width:480px)` collapses it to 2
+  columns (style.css), reusing the same column count `.results-grid-2`
+  already uses elsewhere for a different results section.
+- **Global `.hint` had no `margin-bottom`** (only `margin-top: 8px`) — any
+  panel with an unconditional explanatory hint sitting directly above a
+  grid/list (the Shop's wares blurb above `.inv-grid`, the Tavern's intro
+  blurb above its Board/Gamble `.subtabs`, etc.) read as visually flush/
+  cramped between the two, the same root cause the Enchanter panel got a
+  one-off scoped fix for in 1.9.0. Generalized by changing `.hint` itself
+  to `margin: 8px 0` (style.css) so every panel using it gets the same
+  breathing room for free, instead of hunting down and scoping a fix to
+  each panel individually. The Enchanter's own `.enchanter-panel .hint`
+  override (`margin-bottom: 12px`) still applies on top where it's larger.
+- **Explicitly checked and left alone**: `.two-col` already collapses to 1
+  column via its existing `@media (max-width:860px)` rule, so every modal/
+  panel using it (including `UI.showPlayerStats`, which forces 2 real
+  columns inside a 560px-max modal on wide desktop viewports — a possible
+  desktop-only tightness, not a mobile one) already stacks correctly on
+  any actual phone viewport; `.class-cards`/`.slot-grid`/`.quest-board` all
+  use `repeat(auto-fit, minmax(...))` and were already fully responsive
+  with no changes needed; `.equip-grid`'s fixed 2 columns, `.skill-row`'s
+  flex layout, and `.enemy-cards`' fixed 2x3 grid (intentionally fixed-size
+  per the 1.0.0 story-rework CLAUDE.md note, so the arena never shifts
+  mid-fight) were all inspected and found to already reflow their *text*
+  content fine at narrow widths without any structural overflow risk.
+- **Testing**: `npx playwright` in this environment resolved (network
+  access is available), but the system's active Node (14.17.1 via nvm) is
+  below Playwright's current minimum (18+) and switching the system's
+  active Node version was out of scope for a spacing fix — installed
+  `playwright@1.29.2` instead (last version supporting Node 14) scoped to
+  a scratch directory only, not the repo. Ran a real headless-Chromium
+  pass against `node server.js`: seeded a live character via the browser
+  console (gold, inventory items/runes including 5 forced legendary-tier
+  runes, an active Tavern board+quests, a started adventure) the same way
+  prior CLAUDE.md-documented passes have, then swept 10 viewport widths
+  (320 through 1280px) across 17 distinct screens/modals (every tab, every
+  City/Enchanter/Tavern sub-view, and several modals including the results
+  screen), asserting `document.documentElement.scrollWidth <=
+  clientWidth` at each — 170 checks, all clean after the fixes above (the
+  `.subtabs` bug was caught this way before being fixed; a first pass
+  before wiring `UI.showGame()` correctly into the test harness had
+  produced a false negative by silently rendering nothing, worth noting
+  for next time this harness gets reused). Also visually reviewed
+  screenshots at 320/375px for the battle arena, Tavern gambling den,
+  Enchanter's Rune Forge, and the results modal.
+
 ## 1.9.0 (minor)
 
 A batch of fixes/tweaks to the Enchanter, plus a new feature: the Rune

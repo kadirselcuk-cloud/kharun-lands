@@ -839,3 +839,42 @@ a spacing/help cleanup, all inside the Enchanter's three sub-tabs.
   console/`vm`-level verification, not a real rendered-pixels check in an
   actual browser — worth a real visual pass next time a browser tool is
   available.
+
+## Site-wide spacing/mobile pass (v1.9.1)
+
+Follow-up request: "check the spacing in all pages" + "everything should
+also be mobile friendly." Audited every `UI.render*`/`UI.show*` screen
+against `style.css`'s existing breakpoints (`860px` layout, `480px`
+narrow-phone) before changing anything — full detail of what was found and
+fixed is in VERSION.md under 1.9.1; the one thing worth flagging here since
+it'll matter for future sessions:
+
+- **Playwright actually works in this environment** — a prior session
+  (1.9.0) assumed no browser tool was available and fell back to a Node
+  `vm`-sandbox-only verification. That assumption was wrong: network access
+  is available, `npx playwright` resolves fine. The blocker is narrower —
+  the system's active Node (14.17.1 via `nvm4w`, `nvm list` shows newer
+  versions like 24.18.0/26.5.0 are *available* to install but none are
+  currently active) is below Playwright's current minimum (18+). Don't
+  switch the system's active Node version to work around this (changes
+  shared state outside this repo, out of scope for a game-code task) —
+  instead `npm install playwright@1.29.2` (last version supporting Node
+  14) scoped to a scratch directory outside the repo; it downloads its own
+  Chromium and works fine on Node 14. This is worth checking fresh at the
+  start of any future verification task rather than assuming the 1.9.0
+  session's "no browser available" conclusion still holds.
+- Caught one real bug this way that the earlier logic-only pass in 1.9.0
+  couldn't have: `.subtabs` (City hub's Blacksmith/Tavern/Enchanter/Arena
+  row) genuinely overflows the page at 320-360px viewports — 41px of
+  horizontal scroll with "Arena" visibly clipped off-screen. Confirmed via
+  `document.documentElement.scrollWidth > clientWidth` swept across 10
+  viewport widths x 17 screens (170 checks) rather than guessing from
+  reading CSS alone, then re-ran the same sweep clean after the fix.
+- First test-harness pass produced a false negative — screenshots landed
+  on the chapter-intro screen instead of the actual game UI, because
+  seeding `G` state and setting `activeTab`/calling `UI.refresh()` doesn't
+  do anything if `UI.showGame()` (which builds `#topbar`/`#tabs`/
+  `#tab-content`) was never called first; `UI.refresh()` silently no-ops
+  via its own `if (!el) return` guard when that skeleton isn't in the DOM
+  yet. Call `UI.showGame()` once after picking a class/seeding state,
+  before touching `activeTab`/`activeCitySub`/etc. per screen.

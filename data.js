@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.9.0';
+DATA.VERSION = '1.9.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.9.1', notes: [
+    'Spacing pass across every screen, with an emphasis on phones: fixed a real overflow bug where the City tab\'s Blacksmith/Tavern/Enchanter/Arena row could get cut off on narrow phones, tightened up the battle arena and the Tavern\'s dice game so they never overflow on small screens either, made the main tab bar and the post-battle results screen easier to read on mobile, and gave a few panels (the Shop among them) the same breathing room the Enchanter got last update.',
+  ] },
   { v: '1.9.0', notes: [
     'New Enchanter feature: the Rune Forge. Spend 5 Elder Rune (legendary) runes on an eligible weapon/offhand/helmet/armor piece to either roll it 1-3 fresh sockets (if it has none), or destroy whatever\'s currently socketed into it so you can resocket it differently.',
     'The old "Rune Forge" (merge 3 same-tier runes into a better one) is now called the Rune Carver, to make room for the name above — nothing about how it works changed.',

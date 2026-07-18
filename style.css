@@ -30,7 +30,12 @@ h1 { font-size: 2.4rem; letter-spacing: 2px; text-align: center; color: var(--ac
 h3 { color: var(--accent); margin-bottom: 10px; font-size: 1.02rem; letter-spacing: .5px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
 h4 { color: var(--accent); margin: 10px 0 6px; font-size: .92rem; }
 small { color: var(--dim); }
-.hint { color: var(--dim); font-size: .82rem; margin-top: 8px; line-height: 1.4; }
+/* margin on both sides (not just top) — a hint sitting directly above a
+   grid/list (Shop's wares blurb above .inv-grid, Tavern's above .subtabs,
+   etc.) used to read as flush/cramped since neither side contributed any
+   space; same root cause the Enchanter panel was fixed for individually,
+   generalized here so every panel gets it for free. */
+.hint { color: var(--dim); font-size: .82rem; margin: 8px 0; line-height: 1.4; }
 
 .stat-str { color: #e06c5c; font-weight: 700; }
 .stat-dex { color: #6ccb8f; font-weight: 700; }
@@ -224,14 +229,31 @@ small { color: var(--dim); }
   border-radius: 8px 8px 0 0; padding: 10px; font-size: .95rem; cursor: pointer;
 }
 .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--panel2); }
+/* On narrow phones, 4 tabs each carrying an emoji + a full word ("🗺️
+   Adventure") don't have room at the base padding/font-size and wrap to 2
+   lines inside the button — shrink both just enough that every tab stays
+   on one line down to a 320px-wide viewport. */
+@media (max-width: 480px) {
+  .tabs button { padding: 8px 4px; font-size: .78rem; }
+}
 
 /* sub-tabs (inside Character / City hubs) */
-.subtabs { display: flex; gap: 6px; margin-bottom: 10px; }
+.subtabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .subtabs button {
   background: var(--panel2); color: var(--dim); border: 1px solid var(--border);
   border-radius: 7px; padding: 7px 14px; font-size: .86rem; cursor: pointer;
 }
 .subtabs button.active { color: var(--accent); border-color: var(--accent); }
+/* Unlike .tabs, these buttons don't flex/shrink to fit — with 4 of them
+   (City: Blacksmith/Tavern/Enchanter/Arena) that's wide enough to overflow
+   the page horizontally on the narrowest phones (measured: 41px overflow
+   at 320px wide, cutting "Arena" off past the edge). flex-wrap above is
+   the guaranteed fix (wraps to a 2nd row instead of overflowing); this
+   shrinks padding/font too so 320px+ fits on one row in practice and
+   wrapping is only a fallback for anything narrower. */
+@media (max-width: 480px) {
+  .subtabs button { padding: 6px 10px; font-size: .8rem; }
+}
 
 /* layout */
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -447,6 +469,12 @@ small { color: var(--dim); }
 }
 .res-box b { display: block; font-size: 1.15rem; }
 .res-box span { font-size: .7rem; color: var(--dim); }
+/* 4 equal columns inside a modal capped at ~330px of usable width on a
+   phone squeezes multi-word labels ("damage dealt") down to 2-3 letters
+   per line — 2 columns gives each box roughly double the room. */
+@media (max-width: 480px) {
+  .results-grid { grid-template-columns: repeat(2, 1fr); }
+}
 .loot-list { max-height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .loot-row {
   background: var(--panel2); border: 1px solid var(--border); border-radius: 6px;
@@ -519,6 +547,21 @@ small { color: var(--dim); }
   position: relative; width: 34px; height: 34px; font-size: 1.1rem;
   background: var(--panel2); border: 1px solid var(--border); border-radius: 6px;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+/* .player-row's 2 fixed-size side boxes (.next-action-box, .effects-grid)
+   plus .hero-card's own bars (each with a 120px min-width floor, so the
+   card itself can't shrink below ~144px) add up to a ~284px minimum row
+   width — on the narrowest real phones (~320-360px) that can exceed the
+   space left after #app/.panel padding and force the whole page to scroll
+   horizontally. Trim every fixed dimension down just enough to guarantee
+   the row fits at 320px with room to spare; nothing here changes on
+   anything wider than a phone. */
+@media (max-width: 480px) {
+  .player-row { gap: 6px; }
+  .next-action-box { flex: 0 0 44px; width: 44px; height: 44px; font-size: 1.3rem; }
+  .effects-grid { flex: 0 0 60px; width: 60px; height: 128px; grid-template-columns: repeat(2, 28px); }
+  .effect-icon { width: 28px; height: 28px; font-size: .95rem; }
+  .hero-card .bar { min-width: 90px; }
 }
 /* Dark, fully-opaque number with a light halo (inverse of the old washed-out
    white-on-dark treatment) so the rounds-remaining count stays legible
@@ -760,7 +803,7 @@ small { color: var(--dim); }
 .quest-card .bar { flex: none; }
 .quest-bar { height: 18px; } .quest-bar > div { background: linear-gradient(180deg, #d9a94c, #8a611b); }
 .quest-card .btn { align-self: flex-start; }
-.dice-arena { display: flex; align-items: center; justify-content: center; gap: 22px; margin: 14px 0 8px; }
+.dice-arena { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 22px; margin: 14px 0 8px; }
 .dice-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .dice-side span { font-size: .78rem; color: #b9bdcc; }
 .dice-side span b { color: var(--text); font-size: .95rem; }
@@ -771,6 +814,15 @@ small { color: var(--dim); }
   border: 1px solid var(--border); border-radius: 10px;
 }
 .dice-vs { font-size: .8rem; color: #b9bdcc; }
+/* Both dice pairs + the "vs" label add up to enough fixed width that the
+   narrowest phones (~320-360px) could force horizontal overflow — shrink
+   the dice and tighten the gaps just on small screens (the flex-wrap
+   above is a defensive fallback on top of this, not the primary fix). */
+@media (max-width: 480px) {
+  .dice-arena { gap: 14px; }
+  .dice-face { width: 40px; height: 40px; font-size: 1.7rem; }
+  .dice-pair { gap: 4px; }
+}
 .dice-result { text-align: center; font-size: .85rem; min-height: 1.2em; margin-bottom: 10px; }
 .dice-result.dice-win { color: #6ccb8f; }
 .dice-result.dice-lose { color: #d9534f; }
