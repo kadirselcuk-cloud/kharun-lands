@@ -14,6 +14,110 @@ game at runtime.
 
 ---
 
+## 1.9.0 (minor)
+
+A batch of fixes/tweaks to the Enchanter, plus a new feature: the Rune
+Forge. One request covering several related things in the same city
+sub-tab.
+
+- **Bugfix — Rune Carver crash after a successful forge**: `UI.doForgeRunes`
+  (now `UI.doCarveRunes`, ui.js) called `forgeRunes(forgeSelected)` (now
+  `carveRunes(carverSelected)`, game.js) *before* clearing the selection
+  array. `carveRunes`/`forgeRunes` already ends with its own
+  `saveGame(); UI.refresh()` — so that internal refresh re-rendered
+  `UI.renderEnchanter` while `carverSelected` still held the uids of the 3
+  runes that had just been spliced out of `G.inventory`. `renderEnchanter`
+  computed `selTiers` via `runeTier(G.inventory.find(...))`, and
+  `G.inventory.find` now returned `undefined` for each consumed uid —
+  `runeTier(undefined)` throws, which broke `UI.refresh()` mid-render and
+  left the Enchanter tab blank (only fixed by switching tabs, which forced
+  a fresh, no-longer-poisoned render). Fixed by ensuring the selection
+  array can no longer reference already-consumed uids by the time any
+  render runs — `UI.doCarveRunes` reads the result before clearing state,
+  same shape as the new Rune Forge actions below.
+- **Renamed "Rune Forge" (the 3-rune merge feature) to "Rune Carver"** to
+  free up the "Rune Forge" name for the new feature below. `ui.js`:
+  `forgeSelected` -> `carverSelected`, `UI.toggleForgeRune` ->
+  `UI.toggleCarverRune`, `UI.doForgeRunes` -> `UI.doCarveRunes`,
+  `enchanterView` gained a third state (`'table' | 'carver' | 'forge'`,
+  was `'table' | 'forge'`). `game.js`: `forgeRunes` -> `carveRunes`. The
+  quest-progress event id emitted on a successful carve is still the
+  literal string `'forge_rune'` (unchanged) — accepted "Rune Smith" Tavern
+  quests store that type string in save data, so renaming the emitted
+  event would have silently broken progress on any quest a player already
+  had active. Only the quest's own flavor text was updated to say "Rune
+  Carver" instead of "Rune Forge".
+- **New: the Rune Forge** (game.js) — spend exactly 5 Elder Rune
+  (legendary-tier, Mythic included since `runeTier()` already treats it as
+  tier 5) runes on an item to either:
+  - `forgeAddSockets(itemUid, runeUids)` — roll fresh sockets onto an item
+    that has none. Eligible items are the same slot types that can ever
+    roll sockets at all (`SOCKETABLE_SLOTS = ['weapon','offhand','helmet',
+    'armor']`, mirroring `makeItem`'s own `rollSockets()` call sites) with
+    `sockets === 0`. The count rolled is never 0 — `rollForgedSocketCount()`
+    reuses `rollSockets()`'s own 60/25/10/5% (0/1/2/3) curve renormalized
+    to exclude 0 (62.5/25/12.5% for 1/2/3), per an explicit answer to a
+    clarifying question (guaranteed-at-least-1, weighted like natural
+    drops, over a flat guaranteed-1 or a uniform 1-3 roll).
+  - `forgeDestroySockets(itemUid, runeUids)` — wipes `item.runes` back to
+    `[]` on an item that currently has 1+ runes socketed. Per an explicit
+    answer to a clarifying question, this does NOT reduce `item.sockets`
+    at all (despite "remove and destroy the sockets" reading literally
+    like it should) — the sockets stay, now empty, ready to be resocketed
+    differently; only the runes that were plugged into them are destroyed.
+  - Both share `forgeableItems()` (equipped + inventory items, same
+    `[...equippedItems(), ...G.inventory.filter(i => i.type === 'item')]`
+    pool `reenchantItem`/`socketRune` already use) and
+    `takeLegendaryRunePayment(uids)`, which validates exactly
+    `RUNE_FORGE_COST` (5) distinct in-inventory runes all at `runeTier()
+    === 5` before either action consumes them.
+  - `ui.js`: new module vars `forgeItem` (selected target item uid) and
+    `forgeRuneSel` (up to 5 selected payment rune uids, reusing the name
+    `UI.toggleForgeRune` now that it's free), `UI.selectForgeItem`,
+    `UI.doForgeAddSockets`/`UI.doForgeDestroySockets`. The Rune Forge's own
+    sub-panel lists every item eligible for *either* action in one grid
+    (`[...unsocketedForgeItems(), ...socketedForgeItems()]` — mutually
+    exclusive by construction, no dedup needed) with a subtitle showing
+    current socket state, then a second grid of only tier-5 runes to pick
+    the 5-rune payment from, then both action buttons — each individually
+    enabled only when the selected item and payment actually satisfy that
+    specific action's preconditions.
+- **Rune tier colors reworked** (`ui.js`): previously a rune's `.rarity`
+  field (which still just borrows the item-rarity keys
+  normal/magical/rare/epic/legendary 1:1 with its 1-5 bonus-count tier, for
+  sorting purposes — see `byRarity` in `UI.renderInventory`) was rendered
+  with the *item*-rarity color table directly, so Faded Runes read as flat
+  grey. New `RUNE_TIER_COLOR`/`RUNE_TIER_CLASS` maps (tier -> color/
+  border-class) give runes their own ladder instead: 1 (Faded) blue, 2
+  (Rune) yellow, 3 (Elder Rune rare) epic purple, 4-5 (Elder Rune epic/
+  legendary, Mythic included) legendary orange — the resolved reading of a
+  4-color request against a 5-tier ladder was to keep the two lowest tiers
+  distinct (they're the most commonly seen) and merge only the top two,
+  mirroring the existing precedent that Mythic Runes already borrow
+  Legendary's color rather than getting a distinct one of their own. New
+  `itemColor(it)`/`itemBorderClass(it)` helpers branch on `it.type ===
+  'rune'` and are now used at every call site that displays a rune's
+  color/border — Inventory tab, Shop tab, `UI.showItem`/`UI.showShopItem`
+  headers, the Enchantment Table's target-picker modal, the Tavern's quest
+  reward-line preview, and the boss/arena results modal's reward + loot
+  lists — not just the Enchanter's own grids. Items are unaffected
+  (`itemColor`/`itemBorderClass` fall through to the existing
+  `DATA.RARITIES`/`rar-<rarity>` behavior for `type !== 'rune'`).
+- **Enchanter panel spacing + help modal** (`style.css`/`ui.js`): the
+  in-page `<p class="hint">` explanatory paragraphs on the Enchantment
+  Table/Rune Carver panels felt cramped once the panel started holding 3
+  sub-tabs plus (for the new Rune Forge) a 2-step item+rune-payment flow —
+  removed entirely and moved into a new `UI.showEnchanterHelp()` ❓ modal
+  (same pattern as `UI.showAdventureHelp`/`UI.showCombatHelp`), one `<h4>`
+  section per feature (Enchantment Table / Rune Carver / Rune Forge).
+  New CSS scoped to `.enchanter-panel` only (the shared `.inv-grid`/
+  `.inv-item`/`.forge-selected`/`.subtabs` rules are reused as-is by the
+  Inventory tab and Shop, which weren't part of the complaint and were
+  left untouched): more margin under `.subtabs`/`.hint`, more `.inv-grid`
+  gap and `.inv-item` padding, a new `.enchanter-step` h4 style for the
+  Rune Forge's "1. Choose an item" / "2. Pay 5 runes" step headers, and
+  `.forge-actions` for its two action buttons.
+
 ## 1.8.0 (minor)
 
 Hidden developer/debug console. Per the request that created it, the trigger

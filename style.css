@@ -299,6 +299,21 @@ small { color: var(--dim); }
 .inv-usable.yes, .yes { color: #6ccb8f; }
 .inv-usable.no, .no { color: #d9776f; }
 
+/* Enchanter (Enchantment Table / Rune Carver / Rune Forge) — the shared
+   .inv-grid/.inv-item/.forge-selected rules above read as too cramped once
+   3 sub-panels and (for the Rune Forge) a 2-step item+rune flow are packed
+   into one panel, so give this panel specifically more breathing room
+   without touching the tighter Inventory/Shop grids that reuse those same
+   base classes. */
+.enchanter-panel .subtabs { margin-bottom: 14px; }
+.enchanter-panel .hint { margin-bottom: 12px; }
+.enchanter-panel .inv-grid { margin-top: 10px; gap: 12px; }
+.enchanter-panel .inv-item { padding: 12px; }
+.enchanter-panel .forge-selected { margin: 12px 0 10px; }
+.enchanter-step { margin: 22px 0 10px; }
+.enchanter-step:first-child { margin-top: 0; }
+.forge-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
 /* adventure */
 .area-picker { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
 .area-info { flex: 1; text-align: center; }

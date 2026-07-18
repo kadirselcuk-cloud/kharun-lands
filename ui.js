@@ -8,8 +8,10 @@ let activeTab = 'adventure';       // adventure | character | city | journal
 let activeCharSub = 'character';   // character | skills | inventory
 let activeCitySub = 'shop';        // shop | tavern | enchanter | arena
 let tavernView = 'board';          // board | gamble — which Tavern sub-panel is shown, defaults to the quest board
-let enchanterView = 'table';       // table | forge — which Enchanter sub-panel is shown, defaults to the Enchantment Table
-let forgeSelected = [];            // uids of runes picked for the Rune Forge (max 3), ephemeral UI state
+let enchanterView = 'table';       // table | carver | forge — which Enchanter sub-panel is shown, defaults to the Enchantment Table
+let carverSelected = [];           // uids of runes picked for the Rune Carver's merge (max 3), ephemeral UI state
+let forgeItem = null;              // uid of the item targeted at the Rune Forge (add/destroy sockets), ephemeral UI state
+let forgeRuneSel = [];             // uids of legendary-tier runes picked to pay the Rune Forge (max 5), ephemeral UI state
 let lastDiceRoll = null;           // {you, house, result, bet} of the most recent dice roll, or null if never played — ephemeral, not saved
 let diceRolling = false;           // true while the dice-roll animation is mid-spin, guards against overlapping rolls
 let invFilter = 'all';     // all | usable
@@ -42,6 +44,19 @@ function itemIconHtml(it) {
   const sz = base && base.iconSize;
   return sz ? `<span style="font-size:${sz}em">${it.icon}</span>` : it.icon;
 }
+
+// Runes deliberately use their own tier-based color ramp instead of
+// DATA.RARITIES' item-rarity colors, even though a rune's own `.rarity`
+// field still borrows those same keys (kept for sorting/filtering only —
+// see byRarity in UI.renderInventory). Faded(1)->blue, Rune(2)->yellow,
+// Elder Rune rare-tier(3)->epic purple, Elder Rune epic/legendary-tier
+// (4-5, Mythic included)->legendary orange — the top two tiers share a
+// color, mirroring the existing convention that Mythic Runes already
+// borrow Legendary's color rather than getting a distinct one of their own.
+const RUNE_TIER_COLOR = { 1: '#6c9bff', 2: '#ffd84d', 3: '#c77dff', 4: '#ff8b3d', 5: '#ff8b3d' };
+const RUNE_TIER_CLASS = { 1: 'rar-magical', 2: 'rar-rare', 3: 'rar-epic', 4: 'rar-legendary', 5: 'rar-legendary' };
+function itemColor(it) { return it.type === 'rune' ? RUNE_TIER_COLOR[runeTier(it)] : DATA.RARITIES[it.rarity].color; }
+function itemBorderClass(it) { return it.type === 'rune' ? RUNE_TIER_CLASS[runeTier(it)] : 'rar-' + it.rarity; }
 
 // Clickable version tag + Changelog link, same markup on every screen
 // (title, prelude, class select, chapter/quest screens, epilogue, in-game).
@@ -854,9 +869,9 @@ UI.renderInventory = function (el) {
       <div class="inv-grid">
         ${items.map(it => {
           const usable = it.type === 'item' ? canUseItem(it) : { ok: false };
-          return `<div class="inv-item rar-${it.rarity} ${it.type === 'item' && !usable.ok ? 'unusable' : ''}" onclick="UI.showItem(${it.uid},'inv')">
+          return `<div class="inv-item ${itemBorderClass(it)} ${it.type === 'item' && !usable.ok ? 'unusable' : ''}" onclick="UI.showItem(${it.uid},'inv')">
             <div class="inv-icon">${itemIconHtml(it)}</div>
-            <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
+            <div class="inv-name" style="color:${itemColor(it)}">${esc(it.name)}</div>
             <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${it.type === 'item' ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
           </div>`;
@@ -1057,7 +1072,7 @@ UI.showItem = function (uid, context, slot) {
   if (context === 'inv') actions.push(`<button class="btn danger" onclick="sellItem(${it.uid});UI.closeModal()">Sell (🪙 ${it.value})</button>`);
 
   UI.modal(`
-    <h3 style="color:${rar.color}">${itemIconHtml(it)} ${esc(it.name)}</h3>
+    <h3 style="color:${itemColor(it)}">${itemIconHtml(it)} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${UI.compareBlockHtml(it, targets, baseline)}
@@ -1087,9 +1102,9 @@ UI.renderShop = function (el) {
         ${stock.map(it => {
           const usable = it.type === 'item' ? canUseItem(it) : null;
           const afford = G.gold >= it.price;
-          return `<div class="inv-item rar-${it.rarity} ${usable && !usable.ok ? 'unusable' : ''}" onclick="UI.showShopItem(${it.uid})">
+          return `<div class="inv-item ${itemBorderClass(it)} ${usable && !usable.ok ? 'unusable' : ''}" onclick="UI.showShopItem(${it.uid})">
             <div class="inv-icon">${itemIconHtml(it)}</div>
-            <div class="inv-name" style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</div>
+            <div class="inv-name" style="color:${itemColor(it)}">${esc(it.name)}</div>
             <div class="inv-sub">${it.type === 'rune' ? `Rune · ${it.bonuses.length} bonus` : `${DATA.SLOT_LABEL[it.slot === 'ring' ? 'ring1' : it.slot] || cap(it.slot)} · ${esc(it.baseName)}`}</div>
             ${usable ? `<div class="inv-usable ${usable.ok ? 'yes' : 'no'}">${usable.ok ? '✔ usable' : '✖ ' + esc(usable.why)}</div>` : ''}
             <div class="shop-price ${afford ? '' : 'poor'}">🪙 ${formatK(it.price)}</div>
@@ -1123,7 +1138,7 @@ UI.showShopItem = function (uid) {
   }
 
   UI.modal(`
-    <h3 style="color:${rar.color}">${itemIconHtml(it)} ${esc(it.name)}</h3>
+    <h3 style="color:${itemColor(it)}">${itemIconHtml(it)} ${esc(it.name)}</h3>
     <div class="item-sub">${rar.name}${it.type === 'rune' ? ` ${esc(it.baseName || 'Rune')}` : ` · ${esc(it.baseName)}`}${usable && !usable.ok ? ` · <span class="no">✖ ${esc(usable.why)}</span>` : usable ? ' · <span class="yes">✔ usable</span>' : ''}</div>
     ${statsHtml}
     ${UI.compareBlockHtml(it, targets, baseline)}
@@ -1154,7 +1169,7 @@ UI.renderTavern = function (el) {
     r.gold ? `🪙 ${formatK(r.gold)}` : '',
     r.xp ? `✨ ${formatK(r.xp)} XP` : '',
     spec.item ? `<span style="color:${DATA.RARITIES[spec.item].color}">${cap(spec.item)}+ item</span>` : '',
-    spec.rune ? `<span style="color:${DATA.RARITIES[spec.rune === 'legendary' ? 'rare' : 'magical'].color}">🪨 ${RUNE_SOURCE_LABEL[spec.rune]}+</span>` : '',
+    spec.rune ? `<span style="color:${RUNE_TIER_COLOR[spec.rune === 'legendary' ? 3 : 2]}">🪨 ${RUNE_SOURCE_LABEL[spec.rune]}+</span>` : '',
   ].filter(Boolean).join(' + ');
   const activeCard = (q, idx) => {
     const reward = q.ready ? q.finalReward : questRewardPreview(q.rewardSpec.goldMult, q.rewardSpec.xpMult);
@@ -1256,9 +1271,17 @@ UI.playDice = function (bet) {
 };
 
 // ------------------------------------------------------------
-// The Enchanter: Enchantment Table (re-enchant) / Rune Forge (merge)
+// The Enchanter: Enchantment Table (re-enchant) / Rune Carver (merge 3
+// same-tier runes into 1, formerly labeled "Rune Forge") / Rune Forge
+// (spend 5 legendary-tier runes to add random sockets to an unsocketed
+// item, or wipe out whatever's socketed into an item so it can be
+// resocketed). All in-page explanatory copy lives in UI.showEnchanterHelp
+// instead of inline hints, one header per feature.
 // ------------------------------------------------------------
-UI.setEnchanterView = function (view) { enchanterView = view; forgeSelected = []; UI.refresh(); };
+UI.setEnchanterView = function (view) {
+  enchanterView = view; carverSelected = []; forgeItem = null; forgeRuneSel = [];
+  UI.refresh();
+};
 
 const ENCHANT_TIER_LABEL = { 1: 'Faded Rune', 2: 'Rune', 3: 'Elder Rune (rare)', 4: 'Elder Rune (epic)', 5: 'Elder Rune (legendary)' };
 
@@ -1277,56 +1300,139 @@ UI.pickEnchantTarget = function (runeUid) {
     <h3>🔮 Enchant with ${rune.icon} ${esc(rune.name)}…</h3>
     <div class="socket-targets">
       ${targets.map(t => `<button class="btn socket-target" onclick="reenchantItem(${t.uid},${runeUid});UI.closeModal()">
-        ${itemIconHtml(t)} <span style="color:${DATA.RARITIES[t.rarity].color}">${esc(t.name)}</span>
+        ${itemIconHtml(t)} <span style="color:${itemColor(t)}">${esc(t.name)}</span>
         <small>ilvl ${t.ilvl} → ${Math.max(1, G.area)}${equippedItems().includes(t) ? ' · equipped' : ''}</small>
       </button>`).join('')}
     </div>
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Cancel</button></div>`);
 };
 
-UI.toggleForgeRune = function (uid) {
-  const i = forgeSelected.indexOf(uid);
-  if (i >= 0) forgeSelected.splice(i, 1);
-  else if (forgeSelected.length < 3) forgeSelected.push(uid);
+UI.toggleCarverRune = function (uid) {
+  const i = carverSelected.indexOf(uid);
+  if (i >= 0) carverSelected.splice(i, 1);
+  else if (carverSelected.length < 3) carverSelected.push(uid);
   UI.refresh();
 };
 
-UI.doForgeRunes = function () {
-  const r = forgeRunes(forgeSelected);
-  forgeSelected = [];
+// Selection is cleared BEFORE calling carveRunes, not after — carveRunes
+// ends with its own saveGame()/UI.refresh(), which re-renders the Enchanter
+// mid-call. If carverSelected still held the 3 just-consumed uids at that
+// point, renderEnchanter's `runeTier(G.inventory.find(...))` lookup would
+// find nothing for a spent uid and throw, breaking that refresh and
+// leaving the Enchanter tab blank until an unrelated refresh papered over
+// it (this is exactly the "the city no longer shows anything under
+// Enchanter" bug after a successful forge/carve).
+UI.doCarveRunes = function () {
+  const uids = carverSelected;
+  carverSelected = [];
+  const r = carveRunes(uids);
+  if (!r.ok) { UI.toast(r.why || 'Carve failed'); UI.refresh(); return; }
+  UI.toast(r.success ? `🔨 Carve succeeded! ${r.rune.icon} ${r.rune.name}` : '💥 The runes shattered on the carving bench...');
+};
+
+// Clicking the currently-selected item again deselects it; picking a new
+// one swaps the selection outright (the 5-rune payment selection is left
+// alone, since it's independent of which item it'll be spent on).
+UI.selectForgeItem = function (uid) {
+  forgeItem = forgeItem === uid ? null : uid;
+  UI.refresh();
+};
+
+UI.toggleForgeRune = function (uid) {
+  const i = forgeRuneSel.indexOf(uid);
+  if (i >= 0) forgeRuneSel.splice(i, 1);
+  else if (forgeRuneSel.length < 5) forgeRuneSel.push(uid);
+  UI.refresh();
+};
+
+UI.doForgeAddSockets = function () {
+  const itemUid = forgeItem, runeUids = forgeRuneSel;
+  forgeItem = null; forgeRuneSel = [];
+  const r = forgeAddSockets(itemUid, runeUids);
   if (!r.ok) { UI.toast(r.why || 'Forge failed'); UI.refresh(); return; }
-  UI.toast(r.success ? `🔨 Forge succeeded! ${r.rune.icon} ${r.rune.name}` : '💥 The runes shattered in the forge...');
+  UI.toast(`🔓 ${esc(r.item.name)} now has ${r.item.sockets} socket${r.item.sockets > 1 ? 's' : ''}!`);
+};
+
+UI.doForgeDestroySockets = function () {
+  const itemUid = forgeItem, runeUids = forgeRuneSel;
+  forgeItem = null; forgeRuneSel = [];
+  const r = forgeDestroySockets(itemUid, runeUids);
+  if (!r.ok) { UI.toast(r.why || 'Forge failed'); UI.refresh(); return; }
+  UI.toast(`💥 The runes socketed in ${esc(r.item.name)} were destroyed.`);
+};
+
+UI.showEnchanterHelp = function () {
+  UI.modal(`
+    <h3>❓ The Enchanter's Workshop</h3>
+    <h4>🔮 Enchantment Table</h4>
+    <p class="prelude-text">Give an item and a matching rune: the rune is consumed, and the item is reforged to your current level — same stats, freshly rolled to match. Magical items need a Faded Rune, Rare need a Rune, Epic need a 4-bonus Elder Rune, Legendary need a 5-bonus Elder Rune.</p>
+    <h4>🔨 Rune Carver</h4>
+    <p class="prelude-text">Merge 3 runes of the same tier into one better rune, forged fresh at your current level. Tiers 1-4 have a 50% chance the runes shatter instead; legendary-tier (5, Mythic included) runes never fail.</p>
+    <h4>⚒️ Rune Forge</h4>
+    <p class="prelude-text">Spend 5 Elder Rune (legendary) runes on an item to either roll it 1-3 fresh sockets (only weapons, offhands, helmets and armor can ever have sockets, and only if it has none yet), or destroy whatever's currently socketed into it so you can resocket differently. Either way the 5 runes are consumed.</p>
+    <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
 UI.renderEnchanter = function (el) {
   const runes = G.inventory.filter(i => i.type === 'rune');
   const tableHtml = `
-    <p class="hint">Give the Enchanter an item and a matching rune: the rune is consumed, and the item is reforged to your current level — same stats, freshly rolled to match. Magical items need a Faded Rune, Rare need a Rune, Epic need a 4-bonus Elder Rune, Legendary need a 5-bonus Elder Rune.</p>
     ${runes.length ? `<div class="inv-grid">${runes.map(r => `
-      <div class="inv-item rar-${r.rarity}" onclick="UI.pickEnchantTarget(${r.uid})">
+      <div class="inv-item ${itemBorderClass(r)}" onclick="UI.pickEnchantTarget(${r.uid})">
         <div class="inv-icon">${itemIconHtml(r)}</div>
-        <div class="inv-name" style="color:${DATA.RARITIES[r.rarity].color}">${esc(r.name)}</div>
+        <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
         <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
-      </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet — they drop from tough kills, or come out of the Rune Forge.</p>'}`;
-  const selTiers = new Set(forgeSelected.map(u => runeTier(G.inventory.find(i => i.uid === u))));
-  const forgeHtml = `
-    <p class="hint">Merge 3 runes of the same tier into one better rune, forged fresh at your current level. Tiers 1-4 have a 50% chance the runes shatter instead; legendary-tier (5, Mythic included) runes never fail.</p>
-    <div class="forge-selected">Selected: ${forgeSelected.length}/3${forgeSelected.length === 3 && selTiers.size > 1 ? ' <span class="no">— must all be the same tier</span>' : ''}</div>
-    <button class="btn btn-primary btn-small" ${forgeSelected.length !== 3 || selTiers.size > 1 ? 'disabled' : ''} onclick="UI.doForgeRunes()">🔨 Forge</button>
+      </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet — they drop from tough kills, or come out of the Rune Carver.</p>'}`;
+
+  const selTiers = new Set(carverSelected.map(u => runeTier(G.inventory.find(i => i.uid === u))));
+  const carverHtml = `
+    <div class="forge-selected">Selected: ${carverSelected.length}/3${carverSelected.length === 3 && selTiers.size > 1 ? ' <span class="no">— must all be the same tier</span>' : ''}</div>
+    <button class="btn btn-primary btn-small" ${carverSelected.length !== 3 || selTiers.size > 1 ? 'disabled' : ''} onclick="UI.doCarveRunes()">🔨 Carve</button>
     ${runes.length ? `<div class="inv-grid">${runes.map(r => `
-      <div class="inv-item rar-${r.rarity} ${forgeSelected.includes(r.uid) ? 'selected' : ''}" onclick="UI.toggleForgeRune(${r.uid})">
+      <div class="inv-item ${itemBorderClass(r)} ${carverSelected.includes(r.uid) ? 'selected' : ''}" onclick="UI.toggleCarverRune(${r.uid})">
         <div class="inv-icon">${itemIconHtml(r)}</div>
-        <div class="inv-name" style="color:${DATA.RARITIES[r.rarity].color}">${esc(r.name)}</div>
+        <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
         <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
       </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet.</p>'}`;
+
+  const forgeTargets = [...unsocketedForgeItems(), ...socketedForgeItems()];
+  const selectedForgeItem = forgeItem !== null ? forgeTargets.find(i => i.uid === forgeItem) : null;
+  const legendaryRunes = runes.filter(r => runeTier(r) === 5);
+  const canAdd = !!selectedForgeItem && selectedForgeItem.sockets === 0 && forgeRuneSel.length === 5;
+  const canDestroy = !!selectedForgeItem && selectedForgeItem.sockets > 0 && selectedForgeItem.runes.length > 0 && forgeRuneSel.length === 5;
+  const forgeHtml = `
+    <h4 class="enchanter-step">1. Choose an item</h4>
+    ${forgeTargets.length ? `<div class="inv-grid">${forgeTargets.map(t => `
+      <div class="inv-item ${itemBorderClass(t)} ${forgeItem === t.uid ? 'selected' : ''}" onclick="UI.selectForgeItem(${t.uid})">
+        <div class="inv-icon">${itemIconHtml(t)}</div>
+        <div class="inv-name" style="color:${itemColor(t)}">${esc(t.name)}</div>
+        <div class="inv-sub">${t.sockets === 0 ? 'No sockets' : `${t.runes.length}/${t.sockets} sockets used`}${equippedItems().includes(t) ? ' · equipped' : ''}</div>
+      </div>`).join('')}</div>` : '<p class="hint">No eligible weapons, offhands, helmets or armor right now.</p>'}
+    <h4 class="enchanter-step">2. Pay 5 Elder Rune (legendary) runes</h4>
+    <div class="forge-selected">Selected: ${forgeRuneSel.length}/5</div>
+    ${legendaryRunes.length ? `<div class="inv-grid">${legendaryRunes.map(r => `
+      <div class="inv-item ${itemBorderClass(r)} ${forgeRuneSel.includes(r.uid) ? 'selected' : ''}" onclick="UI.toggleForgeRune(${r.uid})">
+        <div class="inv-icon">${itemIconHtml(r)}</div>
+        <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
+        <div class="inv-sub">${ENCHANT_TIER_LABEL[5]}</div>
+      </div>`).join('')}</div>` : '<p class="hint">No Elder Rune (legendary) runes in your inventory yet.</p>'}
+    <div class="forge-actions">
+      <button class="btn btn-primary btn-small" ${canAdd ? '' : 'disabled'} onclick="UI.doForgeAddSockets()">🔓 Add Random Sockets</button>
+      <button class="btn danger btn-small" ${canDestroy ? '' : 'disabled'} onclick="UI.doForgeDestroySockets()">💥 Destroy Socketed Runes</button>
+    </div>`;
+
   el.innerHTML = `
-    <div class="panel">
-      <h3>🔮 The Enchanter's Workshop</h3>
+    <div class="panel enchanter-panel">
+      <h3>🔮 The Enchanter's Workshop
+        <span class="filters">
+          <button class="btn btn-tiny btn-sq" onclick="UI.showEnchanterHelp()" title="Help">❓</button>
+        </span>
+      </h3>
       <div class="subtabs">
         <button class="${enchanterView === 'table' ? 'active' : ''}" onclick="UI.setEnchanterView('table')">🔮 Enchantment Table</button>
-        <button class="${enchanterView === 'forge' ? 'active' : ''}" onclick="UI.setEnchanterView('forge')">🔨 Rune Forge</button>
+        <button class="${enchanterView === 'carver' ? 'active' : ''}" onclick="UI.setEnchanterView('carver')">🔨 Rune Carver</button>
+        <button class="${enchanterView === 'forge' ? 'active' : ''}" onclick="UI.setEnchanterView('forge')">⚒️ Rune Forge</button>
       </div>
-      ${enchanterView === 'forge' ? forgeHtml : tableHtml}
+      ${enchanterView === 'carver' ? carverHtml : enchanterView === 'forge' ? forgeHtml : tableHtml}
     </div>`;
 };
 
@@ -2018,7 +2124,7 @@ UI.showResults = function (run, level) {
       <h4>🏛️ Arena Reward</h4>
       <div class="quest-reward-box">
         <span class="gold">🪙 ${formatK(run.arenaReward.gold)}</span>
-        <span class="reward-item" style="color:${DATA.RARITIES[run.arenaReward.rune.rarity].color}">${run.arenaReward.rune.icon} ${esc(run.arenaReward.rune.name)}</span>
+        <span class="reward-item" style="color:${itemColor(run.arenaReward.rune)}">${run.arenaReward.rune.icon} ${esc(run.arenaReward.rune.name)}</span>
       </div>
       <p class="part-end-story">🏛️ The Arena Master grins: "You won this city's challenge to the arena — try your luck in the next city!"</p>` : ''}
     <h4>Battle report</h4>
@@ -2045,7 +2151,7 @@ UI.showResults = function (run, level) {
     ${run.items.length ? `<h4>Loot acquired</h4>
       <div class="loot-list">
         ${run.items.map(it => `<div class="loot-row">
-          ${itemIconHtml(it)} <span style="color:${DATA.RARITIES[it.rarity].color}">${esc(it.name)}</span>
+          ${itemIconHtml(it)} <span style="color:${itemColor(it)}">${esc(it.name)}</span>
           <small>${it.type === 'rune' ? `rune · ${it.bonuses.length} bonus` : `${DATA.RARITIES[it.rarity].name} · ${esc(it.baseName)}`}</small>
         </div>`).join('')}
       </div>` : '<p class="hint">No items this time — the wilds are stingy.</p>'}

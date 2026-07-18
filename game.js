@@ -744,7 +744,7 @@ const RUNE_TIERS = {
 const MYTHIC_RUNE_CHANCE = 0.015;
 const MYTHIC_RUNE_BONUSES = 4;
 // Prefix/suffix are generated from randomly chosen bonus stats.
-// Shared by makeRune (random source-tier roll) and the Rune Forge (which
+// Shared by makeRune (random source-tier roll) and the Rune Carver (which
 // forces a specific bonus count instead of rolling one from a source tier).
 function buildRune(n, ilvl, tierOverride) {
   const tier = tierOverride || RUNE_TIERS[n];
@@ -783,7 +783,8 @@ function runeTier(rune) {
 }
 
 // ------------------------------------------------------------
-// The Enchanter (city shop): Enchantment Table + Rune Forge
+// The Enchanter (city shop): Enchantment Table + Rune Carver (see also the
+// Rune Forge, further down this file, right after carveRunes)
 // ------------------------------------------------------------
 
 // Which rune tier an item's rarity requires to be re-enchanted — the rune
@@ -848,7 +849,12 @@ function reenchantItem(itemUid, runeUid) {
 // legendary-tier (5, including Mythic) merges never fail and reforge into
 // a fresh (non-Mythic) legendary-tier rune. The 3 input runes are always
 // consumed, win or lose.
-function forgeRunes(uids) {
+// Named "carveRunes"/the Rune Carver in the UI (renamed from "Rune Forge"
+// so that name could be reused for the socket-manipulation feature below)
+// — the questEvent id stays 'forge_rune' so existing/in-progress "Rune
+// Smith" Tavern quests (which store that type string in save data) keep
+// tracking correctly.
+function carveRunes(uids) {
   if (!uids || uids.length !== 3) return { ok: false, why: 'Select exactly 3 runes' };
   const runes = uids.map(id => G.inventory.find(i => i.uid === id && i.type === 'rune')).filter(Boolean);
   if (runes.length !== 3) return { ok: false, why: 'Select exactly 3 runes' };
@@ -865,6 +871,73 @@ function forgeRunes(uids) {
   }
   saveGame(); UI.refresh();
   return { ok: true, success, rune: newRune };
+}
+
+// ------------------------------------------------------------
+// The Rune Forge (distinct from the Rune Carver above): spend 5 Elder Rune
+// (legendary-tier, Mythic included since runeTier() already treats it as
+// tier 5) runes to either roll fresh sockets onto an item that has none,
+// or wipe out whatever's currently plugged into an item's sockets so they
+// can be resocketed differently. The sockets themselves are never removed
+// by the latter — only what's inside them.
+// ------------------------------------------------------------
+const RUNE_FORGE_COST = 5;
+// Mirrors makeItem's own rollSockets() call sites — only these slot types
+// ever roll sockets at all (gloves/pants/boots/jewelry never do).
+const SOCKETABLE_SLOTS = ['weapon', 'offhand', 'helmet', 'armor'];
+
+function forgeableItems() {
+  return [...equippedItems(), ...G.inventory.filter(i => i.type === 'item')];
+}
+function unsocketedForgeItems() {
+  return forgeableItems().filter(i => SOCKETABLE_SLOTS.includes(i.slot) && i.sockets === 0);
+}
+function socketedForgeItems() {
+  return forgeableItems().filter(i => i.sockets > 0 && i.runes.length > 0);
+}
+// Validates the payment is exactly RUNE_FORGE_COST distinct legendary-tier
+// runes actually in inventory; returns the matched rune objects or null.
+function takeLegendaryRunePayment(uids) {
+  if (!uids || uids.length !== RUNE_FORGE_COST) return null;
+  const runes = uids.map(id => G.inventory.find(i => i.uid === id && i.type === 'rune')).filter(Boolean);
+  if (runes.length !== RUNE_FORGE_COST || runes.some(r => runeTier(r) !== 5)) return null;
+  return runes;
+}
+
+// Odds mirror rollSockets()'s own 0/1/2/3 curve (60/25/10/5%) renormalized
+// to exclude the 0-socket outcome, since paying 5 legendary runes always
+// yields at least one socket.
+function rollForgedSocketCount() {
+  const r = Math.random();
+  if (r < 0.625) return 1;
+  if (r < 0.875) return 2;
+  return 3;
+}
+
+function forgeAddSockets(itemUid, runeUids) {
+  const item = forgeableItems().find(i => i.uid === itemUid);
+  if (!item) return { ok: false, why: 'Item not found' };
+  if (!SOCKETABLE_SLOTS.includes(item.slot) || item.sockets !== 0) return { ok: false, why: 'That item already has sockets, or can never roll any' };
+  const runes = takeLegendaryRunePayment(runeUids);
+  if (!runes) return { ok: false, why: `Needs exactly ${RUNE_FORGE_COST} Elder Rune (legendary) runes` };
+  const uidSet = new Set(runes.map(r => r.uid));
+  G.inventory = G.inventory.filter(i => !uidSet.has(i.uid));
+  item.sockets = rollForgedSocketCount();
+  saveGame(); UI.refresh();
+  return { ok: true, item };
+}
+
+function forgeDestroySockets(itemUid, runeUids) {
+  const item = forgeableItems().find(i => i.uid === itemUid);
+  if (!item) return { ok: false, why: 'Item not found' };
+  if (!item.sockets || !item.runes.length) return { ok: false, why: 'That item has no socketed runes to remove' };
+  const runes = takeLegendaryRunePayment(runeUids);
+  if (!runes) return { ok: false, why: `Needs exactly ${RUNE_FORGE_COST} Elder Rune (legendary) runes` };
+  const uidSet = new Set(runes.map(r => r.uid));
+  G.inventory = G.inventory.filter(i => !uidSet.has(i.uid));
+  item.runes = [];
+  saveGame(); UI.refresh();
+  return { ok: true, item };
 }
 
 // --- equip rules ---
@@ -1107,7 +1180,7 @@ function genQuest() {
     () => { const n = rint(4, 9); return { type: 'kill_charm', icon: '💘', name: 'Charmbreaker', desc: `A jilted apprentice wants payback: destroy ${n} Charming creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_regen', icon: '🌿', name: 'Regen Ender', desc: `A frustrated duelist swears these things never stay dead: finish ${n} Regenerating creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(1, 3); return { type: 'enchant_item', icon: '✨', name: "Enchanter's Apprentice", desc: `The enchanter needs a demonstration: re-enchant ${n} item${n > 1 ? 's' : ''} at the Enchantment Table.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'epic' } }; },
-    () => { const n = rint(1, 3); return { type: 'forge_rune', icon: '🔨', name: 'Rune Smith', desc: `The Rune Forge is hungry for work: forge ${n} new rune${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, rune: 'miniboss' } }; },
+    () => { const n = rint(1, 3); return { type: 'forge_rune', icon: '🔨', name: 'Rune Smith', desc: `The Rune Carver is hungry for work: carve ${n} new rune${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, rune: 'miniboss' } }; },
     () => { const n = rint(15, 30); return { type: 'skill_cast', icon: '🌟', name: 'Skillful Caster', desc: `A traveling instructor wants proof of technique: cast ${n} skills in combat.`, target: n, rewardSpec: { goldMult: 3, xpMult: 4 } }; },
     () => { const n = rint(2, 4); return { type: 'elf_encounter', icon: '🧝', name: 'Elf Chaser', desc: `A fed-up quartermaster wants those thieving elves dealt with: resolve ${n} Sneaky Elf encounter${n > 1 ? 's' : ''}.`, target: n, rewardSpec: { goldMult: 5, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_berserk', icon: '🪓', name: "Berserker's Bane", desc: `A battle-scarred veteran wants the maddened put down: slay ${n} Berserk creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },

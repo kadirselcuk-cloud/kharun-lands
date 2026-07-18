@@ -713,3 +713,129 @@ similar areas of the codebase.
   mobile viewport the title renders as one line at 343px, and the
   Prologue's Skip/Continue/page-indicator each land on their own
   full-width row. No console errors.
+
+## Enchanter batch: Rune Forge (new), Rune Carver rename, colors, crash fix (v1.9.0)
+
+One request bundling a bugfix, a rename, a new feature, a color rework and
+a spacing/help cleanup, all inside the Enchanter's three sub-tabs.
+
+- **Bug: Enchanter tab went blank after a successful forge.** Root cause:
+  the old `UI.doForgeRunes` (ui.js) called `forgeRunes(forgeSelected)`
+  *before* clearing `forgeSelected`. `forgeRunes`/its renamed successor
+  `carveRunes` (game.js) ends with its own `saveGame(); UI.refresh();` —
+  so that internal refresh re-ran `UI.renderEnchanter` while
+  `forgeSelected` still held the 3 just-consumed rune uids.
+  `renderEnchanter` computed `selTiers` via `runeTier(G.inventory.find(u
+  => ...))`, and `.find` now returned `undefined` for each spent uid —
+  `runeTier(undefined)` throws, breaking that `UI.refresh()` call
+  mid-render and leaving the tab blank until some unrelated action forced
+  a fresh, no-longer-poisoned render. Confirmed the diagnosis by
+  reproducing the exact throw in an isolated harness before fixing it (see
+  Testing note below). Fix: `UI.doCarveRunes`/`UI.doForgeAddSockets`/
+  `UI.doForgeDestroySockets` all now capture the uids into a local, clear
+  the selection state, *then* call into game.js — so by the time any of
+  those functions' internal `UI.refresh()` fires, the module-level
+  selection vars are already empty and can't reference consumed uids.
+- **Renamed the 3-rune merge feature "Rune Forge" -> "Rune Carver"**, to
+  free the name up for the new feature below. ui.js: `forgeSelected` ->
+  `carverSelected`, `UI.toggleForgeRune` -> `UI.toggleCarverRune`,
+  `UI.doForgeRunes` -> `UI.doCarveRunes`; `enchanterView` gained a third
+  state (`'table' | 'carver' | 'forge'`). game.js: `forgeRunes` ->
+  `carveRunes`. The quest-progress event id it emits on success is still
+  the literal string `'forge_rune'`, unchanged — accepted "Rune Smith"
+  Tavern quests store that type string in save data, so renaming the
+  emitted event would silently break progress on any quest a player
+  already had active. Only the quest's own flavor text changed to say
+  "Rune Carver".
+- **New: the Rune Forge** (game.js), spending exactly 5 Elder Rune
+  (legendary-tier, Mythic included — `runeTier()` already treats it as
+  tier 5) runes on an item to either:
+  - `forgeAddSockets(itemUid, runeUids)` — roll fresh sockets onto an item
+    that has none. Eligible items are `SOCKETABLE_SLOTS = ['weapon',
+    'offhand', 'helmet', 'armor']` (mirrors `makeItem`'s own
+    `rollSockets()` call sites) with `sockets === 0`. Per an explicit
+    answer to a clarifying question, the roll is never 0 —
+    `rollForgedSocketCount()` reuses `rollSockets()`'s own 60/25/10/5%
+    (0/1/2/3) curve renormalized to exclude 0 (62.5/25/12.5% for 1/2/3),
+    over a flat guaranteed-1 or a uniform-1-3 alternative.
+  - `forgeDestroySockets(itemUid, runeUids)` — wipes `item.runes` back to
+    `[]` on an item with 1+ runes currently socketed. Per an explicit
+    answer to a clarifying question, this does **not** touch
+    `item.sockets` at all, despite "remove and destroy the sockets"
+    reading literally like it should reduce the socket count — the
+    sockets stay (now empty, ready to be resocketed differently); only
+    what was plugged into them is destroyed.
+  - Both share `forgeableItems()` (the same `[...equippedItems(),
+    ...G.inventory.filter(i => i.type === 'item')]` pool
+    `reenchantItem`/`socketRune` already use) and
+    `takeLegendaryRunePayment(uids)`, which validates exactly
+    `RUNE_FORGE_COST` (5) distinct in-inventory tier-5 runes before either
+    action consumes them.
+  - ui.js: new module vars `forgeItem` (selected target item uid) and
+    `forgeRuneSel` (up to 5 selected payment rune uids — reused the name
+    `UI.toggleForgeRune` now that the rename above freed it up),
+    `UI.selectForgeItem`, `UI.doForgeAddSockets`/
+    `UI.doForgeDestroySockets`. The panel lists every item eligible for
+    *either* action in one grid (`[...unsocketedForgeItems(),
+    ...socketedForgeItems()]` — mutually exclusive by construction) with a
+    subtitle showing current socket state, then a second grid of only
+    tier-5 runes for the payment, then both action buttons — each
+    individually enabled only when the selected item and payment satisfy
+    that specific action's own preconditions.
+- **Rune tier colors reworked.** A rune's `.rarity` field still just
+  borrows the item-rarity keys 1:1 with its bonus-count tier (kept
+  entirely for sorting — see `byRarity` in `UI.renderInventory`), but it
+  used to also drive the *display* color via the item-rarity table
+  directly, so a Faded Rune read as flat grey. New `RUNE_TIER_COLOR`/
+  `RUNE_TIER_CLASS` maps (ui.js) give runes their own ladder: 1 (Faded)
+  blue, 2 (Rune) yellow, 3 (Elder Rune rare) epic purple, 4-5 (Elder Rune
+  epic/legendary, Mythic included) legendary orange. The request named 4
+  colors for a 5-tier ladder ("Faded: blue, then yellow, then epic color,
+  then legendary color") — resolved by keeping the two *lowest* tiers
+  distinct (they're the most commonly seen) and merging only the top two,
+  mirroring the existing precedent that Mythic Runes already borrow
+  Legendary's color rather than getting a distinct one of their own; not
+  confirmed with the user. New `itemColor(it)`/`itemBorderClass(it)`
+  helpers branch on `it.type === 'rune'` and now back every call site that
+  displays a rune's color/border — Inventory tab, Shop tab,
+  `UI.showItem`/`UI.showShopItem` headers, the Enchantment Table's
+  target-picker modal, the Tavern's quest reward-line preview, and the
+  boss/arena results modal's reward + loot lists — not just the
+  Enchanter's own grids. Items are untouched (`type !== 'rune'` falls
+  through to the prior `DATA.RARITIES`/`rar-<rarity>` behavior).
+- **Enchanter spacing + help modal.** The in-page `<p class="hint">`
+  explanatory paragraphs read as cramped once the panel held 3 sub-tabs
+  plus (for the new Rune Forge) a 2-step item+rune flow — removed and
+  moved into a new `UI.showEnchanterHelp()` ❓ modal (same pattern as
+  `UI.showAdventureHelp`/`UI.showCombatHelp`), one `<h4>` per feature.
+  Empty-state messages ("No runes in your inventory yet…") stayed inline
+  — those are functional feedback, not the general explanation that moved
+  out. New CSS is scoped to `.enchanter-panel` only (`style.css`) so the
+  Inventory tab/Shop, which reuse the same base `.inv-grid`/`.inv-item`/
+  `.forge-selected`/`.subtabs` classes and weren't part of the complaint,
+  are untouched: more margin under `.subtabs`/`.hint`, larger `.inv-grid`
+  gap and `.inv-item` padding, a new `.enchanter-step` h4 style for the
+  Rune Forge's "1. Choose an item"/"2. Pay 5 runes" headers, and
+  `.forge-actions` for its two action buttons.
+- **Testing**: no Playwright/browser automation was available in this
+  environment (no `package.json`/`node_modules`, no browser tool), so
+  verification used a Node `vm` sandbox instead — `data.js`/`game.js`/
+  `ui.js` loaded as sequential scripts into one `vm.createContext` (same
+  shared-global-scope relationship as three `<script>` tags), against a
+  minimal fake-DOM (`document.querySelector` lazily hands out reusable
+  stub elements supporting `.innerHTML`/`.classList`/`.dataset`/
+  `.querySelectorAll`) so `UI.refresh()` could walk all the way down into
+  `UI.renderEnchanter` for real instead of no-op'ing on a null element.
+  First reproduced the exact crash under the *old* clear-after-call
+  ordering to confirm the diagnosis, then confirmed the fixed ordering no
+  longer throws; round-tripped `forgeAddSockets`/`forgeDestroySockets`
+  (including their reject-on-wrong-payment paths) end to end against a
+  synthetic `G`; checked the new `RUNE_TIER_COLOR` ramp and
+  `itemColor`/`itemBorderClass` against both rune and item objects; and
+  rendered all 3 Enchanter views plus the new help modal, plus a full
+  `UI.refresh()` pass over every top-level tab and the Inventory/Shop
+  grids, to catch any leftover stale reference from the rename. No
+  gameplay-affecting code path was left unexercised, but this was
+  console/`vm`-level verification, not a real rendered-pixels check in an
+  actual browser — worth a real visual pass next time a browser tool is
+  available.

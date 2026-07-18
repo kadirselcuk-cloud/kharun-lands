@@ -5,12 +5,19 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.8.0';
+DATA.VERSION = '1.9.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.9.0', notes: [
+    'New Enchanter feature: the Rune Forge. Spend 5 Elder Rune (legendary) runes on an eligible weapon/offhand/helmet/armor piece to either roll it 1-3 fresh sockets (if it has none), or destroy whatever\'s currently socketed into it so you can resocket it differently.',
+    'The old "Rune Forge" (merge 3 same-tier runes into a better one) is now called the Rune Carver, to make room for the name above — nothing about how it works changed.',
+    'Fixed: forging with the Rune Carver right after selecting runes could leave the Enchanter tab blank until you switched tabs and back.',
+    'Rune colors now follow their own tier ladder instead of borrowing item-rarity colors: Faded Rune (blue), Rune (yellow), Elder Rune rare-tier (epic purple), Elder Rune epic/legendary-tier (legendary orange).',
+    'More breathing room in the Enchanter\'s item/rune grids, and moved its explanatory text out of the page and into a new ❓ Help popup, one section per feature.',
+  ] },
   { v: '1.8.0', notes: [
     'Some behind-the-scenes developer tooling — nothing player-facing.',
   ] },
