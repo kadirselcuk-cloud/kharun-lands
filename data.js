@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.11.1';
+DATA.VERSION = '1.11.2';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.11.2', notes: [
+    'Fixed Advanced Class promotion once more: a promoted skill no longer shows a "requires" line naming the skill it just replaced (e.g. Venomous Strike no longer asks for Eviscerate — the skill it evolved from). If the skill it replaced itself required something else first (e.g. Eviscerate required Backstab), the promoted skill now correctly carries that requirement forward instead of dropping it.',
+  ] },
   { v: '1.11.1', notes: [
     'Fixed a soft-lock introduced by last update\'s promotion fix: an Advanced Class skill that replaces one of your existing skills (e.g. Crippling Blow replacing Intimidate) could get permanently stuck and unable to rank up further, since it still checked for the skill it had just replaced. Also fixed an unrelated skill one tier further up the same line (e.g. Avatar of War, which needs Berserk) losing access to its own requirement once Berserk got replaced by an Advanced Class skill.',
   ] },

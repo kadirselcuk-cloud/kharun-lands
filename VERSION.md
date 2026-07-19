@@ -14,6 +14,58 @@ game at runtime.
 
 ---
 
+## 1.11.2 (fix)
+
+Direct follow-up on 1.11.1, from the same user testing pass: "the successor
+skill should not require predecessor. Also if predecessor is required by
+another skill, now, successor should be required. If predecessor requires
+any skill, successor should require it." Three explicit rules, the first
+two already true as of 1.11.1, the third genuinely new.
+
+- **Rule 1 — "successor should not require predecessor"**: already held as
+  of 1.11.1's `effectiveReqSkill` self-reference guard (a path skill whose
+  own `req` names the exact base skill it replaces resolves to nothing).
+  No change needed, confirmed still holds.
+- **Rule 2 — "if predecessor is required by another skill, successor should
+  be required"**: already held too — this is exactly what 1.11.1's dynamic
+  `classSkillFor(reqBase.cat)` resolution does for a *different* skill's req
+  (e.g. Avatar of War's req on Berserk resolves to Aegis of the Paladin once
+  a Knight is chosen). Confirmed still holds, unchanged.
+- **Rule 3 — "if predecessor requires any skill, successor should require
+  it" — the actual gap**: `effectiveReqSkill`'s self-reference branch
+  previously just returned `null` (no requirement at all) once it detected
+  a successor naming its own predecessor. That's correct when the
+  predecessor itself had no `req` (Intimidate and Battle Shout, both
+  `req: undefined`, which is why Crippling Blow and Divine Protection
+  correctly show no requirement) — but wrong for the two predecessors that
+  *do* have their own `req`: Eviscerate (`req: 'r_atk1'`, Backstab) and
+  Pyroblast (`req: 'm_atk1'`, Fireball). Venomous Strike and Kill Shot (both
+  replace Eviscerate, on the Assassin and Hunter paths respectively) were
+  silently dropping the Backstab requirement entirely — learnable at level
+  25 with zero attack-line investment. Same gap for Disintegrate (replaces
+  Pyroblast, Sorcerer path) and Fireball.
+- **Fix**: the self-reference branch now recurses —
+  `effectiveReqSkill(reqBase)` instead of `null` — asking "what did the
+  predecessor itself require?" one level up, using the exact same
+  resolution logic. Since Backstab/Fireball are ordinary base skills in
+  their own untouched cats (`attack`, never replaced by any path), that
+  recursive call hits the non-self-referential branch immediately and
+  returns them directly — no risk of runaway recursion, and no risk of the
+  Rule-1 case (Intimidate/Battle Shout, no req at all) picking up a
+  spurious requirement, since `effectiveReqSkill` on a `req: undefined`
+  skill still returns `null` at the base case.
+- **Verified**: `node`+`vm` harness — Venomous Strike and Kill Shot's
+  effective req both resolve to Backstab (not Eviscerate); Disintegrate's
+  resolves to Fireball; Crippling Blow and Divine Protection still resolve
+  to `null`; Avatar of War's Rule-2 resolution (Berserk → whichever path
+  ult is active) is unaffected. Live in the browser: promoted a fresh rogue
+  to Assassin with zero prior Backstab investment, confirmed the Skills tab
+  showed "Req: level 25 + Backstab" under Venomous Strike with its action
+  button reading "Requires Backstab", then confirmed learning Backstab
+  through the real `learnSkill` flow flipped the button to "Learn" — full
+  UI-to-engine round trip, not just the underlying function calls. No
+  console errors. `node --check` clean on all three script files.
+
 ## 1.11.1 (fix)
 
 Follow-up bug report on 1.10.0's promotion fix, filed by the user after

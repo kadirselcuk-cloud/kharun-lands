@@ -516,21 +516,25 @@ function spendStat(stat) {
 // skill now occupies that cat instead (e.g. Avatar of War's req names
 // Berserk, but a Knight's Berserk rank now lives under Aegis of the
 // Paladin) — resolves to that replacement so the requirement keeps working
-// off wherever the rank actually is. A third case falls out of the same
-// lookup for free: when the skill being checked IS itself the thing
-// currently occupying that cat (a path skill whose own req names the exact
-// base skill it replaces, like Divine Protection requiring Battle Shout,
-// or Crippling Blow requiring Intimidate) the requirement is trivially
-// already satisfied — any rank it has came from migrating that very
-// prerequisite in the first place — so this returns null rather than
-// asking the skill to already have rank in itself, which would either be
-// redundant (if it migrated in with rank > 0) or a permanent deadlock (if
-// it didn't: rank 0 can never satisfy "rank > 0 of itself").
+// off wherever the rank actually is.
+//
+// A third case needs its own handling: when the skill being checked IS
+// itself the thing currently occupying that cat — a path skill whose own
+// req names the exact base skill it replaces, like Divine Protection
+// naming Battle Shout, or Venomous Strike naming Eviscerate. A successor
+// must never require its own predecessor (that req would be either
+// redundant, since any rank it has came from migrating that very skill, or
+// a permanent deadlock at rank 0 — "requires rank > 0 of itself"). But the
+// predecessor's OWN req, if it had one, is a real, separate prerequisite
+// skill that migration never carried over on its own (e.g. Eviscerate
+// itself required Backstab — a different skill, in a different, untouched
+// cat) — so the successor inherits THAT instead, recursively, same as if
+// the predecessor had been asked "what do you require?" one level up.
 function effectiveReqSkill(skill) {
   if (!skill.req) return null;
   const reqBase = DATA.SKILLS[G.char.cls][skill.req];
   const current = classSkillFor(reqBase.cat) || reqBase;
-  return current === skill ? null : current;
+  return current === skill ? effectiveReqSkill(reqBase) : current;
 }
 
 function canLearn(skill) {
