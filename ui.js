@@ -787,6 +787,7 @@ UI.renderSkills = function (el) {
           const eff = effectiveRank(s.id);
           const learn = canLearn(s);
           const locked = rank === 0 && !learn.ok;
+          const reqSkill = effectiveReqSkill(s);
           return `<div class="skill-row ${locked ? 'locked' : ''} ${rank > 0 ? 'learned' : ''}">
             <div class="skill-icon">${s.icon}</div>
             <div class="skill-body">
@@ -801,7 +802,7 @@ UI.renderSkills = function (el) {
               <div class="skill-meta">
                 ${skillCost(s) ? `Cost: ${skillCost(s)} mana · ` : s.passive ? 'Passive · ' : 'Free · '}
                 ${s.cd ? `Cooldown: ${s.cd} rounds · ` : ''}
-                Req: level ${s.minLvl}${s.req ? ` + ${DATA.SKILLS[c.cls][s.req].name}` : ''}
+                Req: level ${s.minLvl}${reqSkill ? ` + ${reqSkill.name}` : ''}
               </div>
             </div>
             <div class="skill-action">

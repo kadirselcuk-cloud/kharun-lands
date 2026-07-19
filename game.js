@@ -506,6 +506,33 @@ function spendStat(stat) {
   clampVitals(); saveGame(); UI.refresh();
 }
 
+// Resolves a skill's `req` id to whichever skill actually needs to have
+// rank for that requirement to still mean anything for this character.
+// Needed because an Advanced Class path can replace — and, per
+// migrateAdvancedClassRanks, delete the now-orphaned entry for — the exact
+// skill a `req` id names. Two cases: (1) nothing has taken over the req'd
+// skill's cat, so it still resolves to itself (the common case, and the
+// only case for a character with no Advanced Class chosen yet); (2) a path
+// skill now occupies that cat instead (e.g. Avatar of War's req names
+// Berserk, but a Knight's Berserk rank now lives under Aegis of the
+// Paladin) — resolves to that replacement so the requirement keeps working
+// off wherever the rank actually is. A third case falls out of the same
+// lookup for free: when the skill being checked IS itself the thing
+// currently occupying that cat (a path skill whose own req names the exact
+// base skill it replaces, like Divine Protection requiring Battle Shout,
+// or Crippling Blow requiring Intimidate) the requirement is trivially
+// already satisfied — any rank it has came from migrating that very
+// prerequisite in the first place — so this returns null rather than
+// asking the skill to already have rank in itself, which would either be
+// redundant (if it migrated in with rank > 0) or a permanent deadlock (if
+// it didn't: rank 0 can never satisfy "rank > 0 of itself").
+function effectiveReqSkill(skill) {
+  if (!skill.req) return null;
+  const reqBase = DATA.SKILLS[G.char.cls][skill.req];
+  const current = classSkillFor(reqBase.cat) || reqBase;
+  return current === skill ? null : current;
+}
+
 function canLearn(skill) {
   const c = G.char;
   // Advanced Class path skills are exclusive to the chosen path; the base
@@ -524,8 +551,9 @@ function canLearn(skill) {
   if (cur >= MAX_RANK) return { ok: false, why: 'Max rank' };
   if (c.skillPoints <= 0) return { ok: false, why: 'No skill points' };
   if (c.level < skill.minLvl) return { ok: false, why: `Requires level ${skill.minLvl}` };
-  if (skill.req && !(c.skills[skill.req] > 0)) {
-    return { ok: false, why: `Requires ${DATA.SKILLS[c.cls][skill.req].name}` };
+  const req = effectiveReqSkill(skill);
+  if (req && !(c.skills[req.id] > 0)) {
+    return { ok: false, why: `Requires ${req.name}` };
   }
   return { ok: true };
 }

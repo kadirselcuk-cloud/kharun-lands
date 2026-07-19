@@ -14,6 +14,86 @@ game at runtime.
 
 ---
 
+## 1.11.1 (fix)
+
+Follow-up bug report on 1.10.0's promotion fix, filed by the user after
+testing it live: "Previous skill should be gone, the replacement skill,
+whatever it is should get all its skill points" (confirming the intended
+behavior — not a new ask) plus "Knight gets another skill instead of
+intimidate. But still one of the ultis require intimidate" — which turned
+out to describe a regression in the *Mercenary* path specifically (the
+report conflated path names, but the underlying symptom pinpointed exactly
+one bug class once traced through the data).
+
+- **Root cause**: every Advanced Class path's `active`/`ult` skill has a
+  `req` field naming the *exact* base skill it replaces — e.g. `w_p_merc_active`
+  ("Crippling Blow", cat `debuff`) has `req: 'w_debuff'` (Intimidate, the
+  same-cat base skill it replaces); `w_p_knight_active` ("Divine
+  Protection") has `req: 'w_buff'` (Battle Shout); all 6 path `ult`s have
+  `req` naming the base `ult` they replace. 1.10.0's
+  `migrateAdvancedClassRanks()` deletes that base skill's `c.skills` entry
+  once its rank has been migrated into the replacement (per the explicit
+  "previous skill should be gone" requirement) — so every one of these
+  `req` checks started evaluating `c.skills[undefined-now] > 0`, which is
+  always false. Two concrete failure modes fell out of this: **(1)** a path
+  skill that migrated in with real rank (e.g. Crippling Blow inheriting
+  Intimidate's rank 5) could never be ranked up again — `canLearn` re-checks
+  `req` on every attempt, migrated rank or not. **(2)** a path skill picked
+  by a character with *zero* prior investment in the base skill it replaces
+  (e.g. choosing Knight without ever having put a point in Battle Shout)
+  could never learn even Rank 1 of its replacement — a permanent dead slot
+  for the rest of the game, since the base skill itself is simultaneously
+  locked out the moment the path is chosen (`classSkillFor`) with no way to
+  ever satisfy the `req` after the fact. A third, unrelated failure mode
+  shared the same root cause: `w_ult2`/`r_ult2`/`m_ult2` ("Avatar of War" /
+  "Thousand Cuts" / "Apocalypse") are ordinary *non-path* skills in their
+  own `ult2` cat whose `req` names the base `ult` skill (Berserk / Death
+  Mark / Elemental Fury) — once *any* Advanced Class path is chosen and that
+  base `ult`'s rank migrates away, these completely unrelated Tier-2
+  ultimates lost their `req` target too, even though nothing about them was
+  ever meant to change.
+- **Fix — `effectiveReqSkill(skill)`** (game.js, new, used by both
+  `canLearn` and `ui.js`'s Skills-tab requirement caption): resolves a
+  skill's `req` id through `classSkillFor(reqBase.cat)` instead of trusting
+  the literal id, so the check always follows wherever that cat's rank
+  currently lives for this character. This alone fixes failure mode (3) —
+  `w_ult2`'s req now resolves to whichever skill occupies `cat: 'ult'`
+  (Berserk if no path chosen, or the path's own `ult` replacement
+  otherwise) and checks *that* skill's rank. For failure modes (1) and (2),
+  `effectiveReqSkill` special-cases the situation where resolving the req
+  lands back on the skill being checked itself — i.e. a path skill whose
+  own `req` names the exact base skill it just replaced — and returns
+  `null` (requirement trivially satisfied) instead of asking a skill to
+  already have rank in itself, which is either redundant (rank came from
+  migration) or a permanent deadlock (rank is 0, and 0 can never be > 0).
+  No `req` fields were removed from `DATA.SKILLS` — the dynamic resolution
+  handles every case without touching the data, including any skill added
+  later that follows the same "path skill's req names its own predecessor"
+  pattern.
+- **`ui.js`'s Skills-tab requirement caption** ("Req: level 25 + X") now
+  calls `effectiveReqSkill` too rather than reading `skill.req` raw and
+  looking its name up directly — otherwise a promoted Mercenary would keep
+  seeing "+ Intimidate" under Crippling Blow forever, even though Intimidate
+  no longer exists on their character and the requirement is now a no-op.
+- **Verified** via the same `node`+`vm` harness as 1.10.0: (a) gave a
+  level-25 warrior Intimidate rank 5, promoted to Mercenary, confirmed
+  Crippling Blow inherited rank 5 *and* could be ranked up to 6 afterward
+  (previously blocked); (b) promoted a fresh level-25 warrior straight to
+  Knight with zero Battle Shout investment, confirmed Divine Protection was
+  immediately learnable from rank 0 (previously a permanent dead slot); (c)
+  gave a level-50 warrior Berserk rank 3, confirmed Avatar of War was
+  learnable, then promoted to Knight (migrating Berserk's rank 3 into Aegis
+  of the Paladin and deleting the `w_ult` entry) and confirmed Avatar of War
+  remained learnable afterward, now resolving its req through Aegis of the
+  Paladin instead; (d) confirmed the pre-existing, unrelated req chain
+  (Eviscerate requiring Backstab on a character with no Advanced Class
+  chosen at all) still behaves exactly as before — fails at 0 investment,
+  passes at rank 1 — as a regression check that the dynamic resolution
+  doesn't change behavior for the common case. `node --check` clean on all
+  three script files. No browser/Playwright pass this round beyond a smoke
+  check that the app still loads — the logic changes are fully covered by
+  the harness above.
+
 ## 1.11.0 (minor)
 
 Explicit request: remove the Explosive specialty, replace it with a new

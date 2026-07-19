@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.11.0';
+DATA.VERSION = '1.11.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.11.1', notes: [
+    'Fixed a soft-lock introduced by last update\'s promotion fix: an Advanced Class skill that replaces one of your existing skills (e.g. Crippling Blow replacing Intimidate) could get permanently stuck and unable to rank up further, since it still checked for the skill it had just replaced. Also fixed an unrelated skill one tier further up the same line (e.g. Avatar of War, which needs Berserk) losing access to its own requirement once Berserk got replaced by an Advanced Class skill.',
+  ] },
   { v: '1.11.0', notes: [
     'Removed the Explosive specialty (creatures no longer detonate for damage when killed). Added a new Healing specialty: each round, a 50% chance the creature heals itself or an injured ally for 20% of its max HP, up to 10 times per creature.',
   ] },
