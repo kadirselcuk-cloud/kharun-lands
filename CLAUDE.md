@@ -241,6 +241,11 @@ output, so better gear made the punishment worse.
 - **1.5.0: Reflective was removed and replaced with Charm.** See "Large
   feature batch: Enchanter, 20 quests, gauge animation, Charm, balance
   reworks (v1.5.0)" below for the Charm implementation.
+- **1.11.0: Explosive itself was removed and replaced with Healing** — see
+  "Healing specialty replaces Explosive (v1.11.0)" below. `levelDifficulty`/
+  `WARD_TIER_MULT` had no remaining consumer at that point and were deleted
+  outright, unlike Reflective's removal above (which left them in place
+  since Explosive still needed them).
 
 ## Topbar (`#topbar` in style.css)
 
@@ -878,3 +883,67 @@ it'll matter for future sessions:
   via its own `if (!el) return` guard when that skeleton isn't in the DOM
   yet. Call `UI.showGame()` once after picking a class/seeding state,
   before touching `activeTab`/`activeCitySub`/etc. per screen.
+
+## Healing specialty replaces Explosive (v1.11.0)
+
+Explicit request: remove Explosive, add a new Healing specialty — "the
+creature either attacks or randomly (50/50) heals itself or another injured
+allied monster for 20% of its HP, maximum of 10 healings."
+
+- `DATA.SPECIALTIES.explosive` (data.js) swapped for `DATA.SPECIALTIES.healing`
+  in place, same slot in the object. Since `AFFIX_IDS` (game.js) is
+  `Object.keys(DATA.SPECIALTIES)` rather than a separately maintained id
+  list, this alone wired Healing into the normal per-tier specialty roll
+  (`AFFIX_CHANCE`/`rollSpecialties`) — no other roll-table change needed.
+- **Implemented as a per-turn choice in `enemyAct`** (game.js), not a
+  passive per-round tick like the existing Regenerating specialty (which
+  heals itself only, unconditionally, off a running `regenTotal` budget —
+  see the "Ward specialties" section above). Before rolling its normal
+  attack, a `healing`-tagged creature with `(e.healCount || 0) < 10` looks
+  for any living ally (itself included) below max HP
+  (`fight.enemies.filter(o => o.hp > 0 && o.hp < o.maxHp)`). With no
+  eligible target, it just attacks — a 50/50 "heal or attack" roll only
+  makes sense once there's actually something to heal, and the request's
+  own framing ("heals itself or another **injured** allied monster") implies
+  the target is always hurt. With 1+ eligible targets, a `chance(0.5)` roll
+  picks heal-over-attack; on a heal, `pick(injured)` weights every injured
+  ally (including the healer itself) equally, heals for
+  `round(target.maxHp * 0.2)` clamped to the missing HP so it can't
+  overheal, and increments `e.healCount` (new field on every creature
+  alongside `regenTotal`, initialized in `makeCreature`) toward its 10-use
+  cap. "20% of its HP" was read as 20% of the *target's* max HP (not the
+  healer's own) — "its" most naturally binds to whichever entity the heal
+  lands on, and this also keeps a heal cast on a big ally meaningfully
+  more useful than on a small one, mirroring how player healing already
+  scales off the target's own max HP elsewhere in the game.
+- **Explosive's on-death damage branch removed** from the death-resolution
+  loop in `adventureTick` (game.js), along with its sole remaining
+  consumers `levelDifficulty(level)`/`WARD_TIER_MULT` (both now fully dead
+  — Reflective, the only other consumer, was already gone since 1.5.0).
+- **Tavern quest**: `kill_explosive` ("Powder Keg") swapped for
+  `kill_healing` ("Mender's End") in `genQuest`'s `makers` array (game.js),
+  same reward shape (`goldMult: 4, xpMult: 4, item: 'rare'`), just new
+  type/name/flavor text. An in-flight "Powder Keg" quest a player already
+  had accepted before this update would stop matching any creature going
+  forward — not treated as something needing a save-migration path, the
+  same way no other quest-type rename in this codebase has been.
+- **The 6 story bosses that previously rolled Explosive** (`data.js`:
+  Taint-Born Swarm Mother, Glass-Skitter Broodmother, Lecture-Bound Horror,
+  Perimeter Wretch, Collapse-Bound Horror, Residual Horror) had it swapped
+  1:1 for `'healing'` in their hand-picked `specialties` array, keeping
+  each boss's other specialty (Swift/Magical/Colossal) as-is — a mechanical
+  like-for-like swap, not a reconsidered pick per boss; not confirmed with
+  the user.
+- Verified via `node --check` on all three script files, then a Node `vm`
+  sandbox pass (shared-context load of `data.js`/`game.js`/`ui.js`, same
+  relationship as the real `<script>` tags): confirmed `AFFIX_IDS` contains
+  `healing` and not `explosive`; forced a synthetic fight with a
+  `healing`-tagged creature at partial HP next to an injured ally and
+  confirmed `enemyAct` alternates heal/attack roughly 50/50 over many
+  trials, heals for exactly 20% of the target's max HP (clamped near full
+  HP so it never overheals), and stops healing once `healCount` hits 10;
+  confirmed a `healing` creature with no injured ally always attacks;
+  confirmed a killed `healing`-tagged creature deals no on-death damage
+  (the old Explosive branch is gone); confirmed `handleKill`'s
+  `kill_healing` quest-progress event still fires off the creature's
+  `affixes` loop like every other specialty.

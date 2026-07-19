@@ -14,6 +14,65 @@ game at runtime.
 
 ---
 
+## 1.11.0 (minor)
+
+Explicit request: remove the Explosive specialty, replace it with a new
+Healing specialty.
+
+- **`DATA.SPECIALTIES.explosive` removed, `DATA.SPECIALTIES.healing` added**
+  (data.js). Since `AFFIX_IDS` (game.js, `rollAffixes`'s pool) is derived via
+  `Object.keys(DATA.SPECIALTIES)` rather than a separately maintained list,
+  swapping the key was sufficient to wire Healing into the normal per-tier
+  specialty roll (`AFFIX_CHANCE`) with no other roll-table changes needed.
+- **Explosive's on-death damage branch removed** from the death-resolution
+  loop in `adventureTick` (game.js) — along with its sole remaining
+  consumers, `levelDifficulty(level)` and `WARD_TIER_MULT`, both now dead
+  code (Reflective, the only other consumer, was already removed in 1.5.0).
+- **Healing implemented as a per-turn choice in `enemyAct`** (game.js), not
+  as a passive tick like the existing Regenerating specialty: before rolling
+  its normal attack, a creature with the `healing` affix and fewer than 10
+  prior heals this fight checks for any living ally (itself included) below
+  max HP. If one exists, a 50% roll heals a randomly-picked injured ally
+  (`pick(injured)`) for `round(target.maxHp * 0.2)`, clamped to the missing
+  HP, instead of attacking that turn; `e.healCount` (new field on every
+  creature, alongside the existing `regenTotal`) tracks uses toward the cap
+  of 10. If there's no injured target, the creature just attacks as normal
+  (a "heal" that has nothing to heal isn't a real choice) — the 50/50 only
+  applies when there's an actual target.
+- **Tavern quest**: `kill_explosive` ("Powder Keg") swapped for
+  `kill_healing` ("Mender's End") in `genQuest`'s `makers` array (game.js) —
+  same reward shape, just a new type string/name/flavor text. This changes
+  the accepted-quest `type` value; an in-flight "Powder Keg" quest a player
+  already accepted before this update would no longer match any specialty a
+  creature can roll (not treated as a save-migration case, same as any other
+  quest-board regeneration on return-home already replaces stale board
+  entries).
+- **The 6 story bosses that had Explosive** (`data.js`, one per chapter:
+  Taint-Born Swarm Mother, Glass-Skitter Broodmother, Lecture-Bound Horror,
+  Perimeter Wretch, Collapse-Bound Horror, Residual Horror) had it swapped
+  1:1 for `'healing'` in their `specialties` array, keeping each boss's
+  other hand-picked specialty (Swift/Magical/Colossal) unchanged — not
+  confirmed with the user which bosses "should" get Healing specifically,
+  so the swap was kept mechanical or a 1:1 like-for-like rather than
+  reassigning specialties across bosses.
+- Comments elsewhere referencing Explosive as an example specialty (the
+  Abnormal-encounter-kind explanation, the `killedBy`/`lastHit` doc comment)
+  were updated to reference Healing or dropped where they no longer applied
+  (Explosive was the only on-death effect, so "on-death effects like
+  Explosive still fire" no longer has a live example).
+- Verified with `node --check` on all three script files, then a Node `vm`
+  sandbox pass (`data.js`/`game.js`/`ui.js` loaded into one shared context,
+  same relationship as the real `<script>` tags): confirmed `AFFIX_IDS`
+  includes `healing` and not `explosive`; forced a synthetic fight with a
+  `healing`-tagged creature at partial HP alongside an injured ally and
+  confirmed `enemyAct` alternates between heal and attack roughly half the
+  time, heals for exactly 20% of the target's max HP (clamped near full
+  HP), and stops healing entirely once `healCount` reaches 10; confirmed a
+  `healing` creature with no injured ally always attacks; confirmed a
+  killed `healing`-tagged creature deals no on-death damage (the old
+  Explosive branch is gone) and that `handleKill`'s `kill_healing` quest
+  event fires from its `affixes` loop like every other specialty.
+
 ## 1.10.0 (minor)
 
 Bug report: Advanced Class promotion showed two overlapping icons for the

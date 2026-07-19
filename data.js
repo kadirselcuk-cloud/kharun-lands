@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.10.0';
+DATA.VERSION = '1.11.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.11.0', notes: [
+    'Removed the Explosive specialty (creatures no longer detonate for damage when killed). Added a new Healing specialty: each round, a 50% chance the creature heals itself or an injured ally for 20% of its max HP, up to 10 times per creature.',
+  ] },
   { v: '1.10.0', notes: [
     'Fixed Advanced Class promotion: a promoted skill (e.g. Eviscerate becoming Venomous Strike) no longer resets to rank 0 — every rank you already invested carries over to the new skill.',
     'Fixed several skill icons showing as two overlapping icons at once, and several different skills within the same class sharing the same icon — every skill your character can learn now has its own unique icon.',
@@ -558,7 +561,7 @@ DATA.CHAPTERS = [
       objective: 'Protect the marker while Minnie attempts to read its remaining ward-charge, and repel whatever the disturbance draws in.',
       outro: ['A swarm of Taint-Born Swarmlings, drawn by the marker\'s disturbed magic like moths to flame, attacks in overwhelming numbers rather than raw strength — the group\'s first true endurance fight. Minnie succeeds: the marker\'s charge reveals a map-fragment of sorts, a ring of similar stones circling something much larger, much further east.'],
       setup: 'Sets up Quest 9: the true scale of the old ward-network — and what it was protecting — starts to become clear.',
-      boss: { name: 'Taint-Born Swarm Mother', attack: 'Spawning Frenzy', atkType: 'poison', res: { phys: 15, magic: 25, poison: 60 }, hp: 1.2, dmg: 1.1, spd: 1.3, specialties: ['swift', 'explosive'] },
+      boss: { name: 'Taint-Born Swarm Mother', attack: 'Spawning Frenzy', atkType: 'poison', res: { phys: 15, magic: 25, poison: 60 }, hp: 1.2, dmg: 1.1, spd: 1.3, specialties: ['swift', 'healing'] },
       creatures: [
         { name: 'Taint-Born Swarmling', attack: 'Numberless Bites', atkType: 'poison', res: { phys: 5, magic: 10, poison: 50 }, hp: 0.6, dmg: 1.0, spd: 1.5 },
         { name: 'Marker Moth', attack: 'Charge-Dust Wings', atkType: 'magic', res: { phys: 10, magic: 35, poison: 30 }, hp: 0.7, dmg: 1.2, spd: 1.3 },
@@ -1136,7 +1139,7 @@ DATA.CHAPTERS = [
       objective: 'Navigate the entry fissure and clear whatever\'s nesting in the unstable glass.',
       outro: ['A brood of Glass-Skitters, insectile horrors that have adapted to feed on leaking magical energy, swarm from cracks in the walls. Clearing them stabilizes the entry enough to proceed, but the fractured glass all around shows fresh damage — recent, deliberate, not centuries old like the rest.'],
       setup: 'Sets up Quest 2: something has been actively breaking this place further, recently.',
-      boss: { name: 'Glass-Skitter Broodmother', attack: 'Shard-Leg Flurry', atkType: 'phys', res: { phys: 30, magic: 30, poison: 50 }, hp: 1.2, dmg: 1.2, spd: 1.3, specialties: ['swift', 'explosive'] },
+      boss: { name: 'Glass-Skitter Broodmother', attack: 'Shard-Leg Flurry', atkType: 'phys', res: { phys: 30, magic: 30, poison: 50 }, hp: 1.2, dmg: 1.2, spd: 1.3, specialties: ['swift', 'healing'] },
       creatures: [
         { name: 'Glass-Skitter', attack: 'Crack-Born Snip', atkType: 'phys', res: { phys: 25, magic: 25, poison: 45 }, hp: 0.7, dmg: 1.0, spd: 1.4 },
         { name: 'Residue Feeder-Wisp', attack: 'Leaked-Magic Zap', atkType: 'magic', res: { phys: 40, magic: 30, poison: 60 }, hp: 0.7, dmg: 1.2, spd: 1.2 },
@@ -1289,7 +1292,7 @@ DATA.CHAPTERS = [
       objective: 'Search the lecture wing for the master matching the strongest sigil, clearing whatever\'s nested here.',
       outro: ['A Lecture-Bound Horror, born from the corrupted residue of whatever panic swept this room the night of the sealing, attacks with chaotic, unpredictable bursts of warped academy magic. In the wreckage of the master\'s desk, they find a hastily scrawled note in a trembling but familiar hand — not a master\'s final words, but instructions, addressed to anyone still free: the wards hold longest near the old scrying tower; go there first.'],
       setup: 'Sets up Quest 4: there\'s a plan, left behind on purpose, and it points them somewhere specific.',
-      boss: { name: 'Lecture-Bound Horror', attack: 'Panic-Residue Burst', atkType: 'magic', res: { phys: 35, magic: 40, poison: 60 }, hp: 1.2, dmg: 1.4, spd: 1.1, specialties: ['magical', 'explosive'] },
+      boss: { name: 'Lecture-Bound Horror', attack: 'Panic-Residue Burst', atkType: 'magic', res: { phys: 35, magic: 40, poison: 60 }, hp: 1.2, dmg: 1.4, spd: 1.1, specialties: ['magical', 'healing'] },
       creatures: [
         { name: 'Frozen-Lesson Echo', attack: 'Mid-Sentence Snap', atkType: 'magic', res: { phys: 40, magic: 30, poison: 60 }, hp: 0.8, dmg: 1.2, spd: 1.1 },
         { name: 'Desk-Row Skitterer', attack: 'Aisle-Dash Bite', atkType: 'phys', res: { phys: 25, magic: 15, poison: 45 }, hp: 0.9, dmg: 1.1, spd: 1.3 },
@@ -1443,7 +1446,7 @@ DATA.CHAPTERS = [
       objective: 'Clear and stabilize the well\'s perimeter, defending the masters as they lay the final ward-lines.',
       outro: ['A pack of Perimeter Wretches, sensing the coming working and trying desperately to disrupt preparation, attack in a grueling, multi-wave fight testing endurance more than raw skill. The perimeter holds. Corwin, sweat-soaked and shaking, tells them plainly: the working can begin at dawn. Vorrhak, on the other side, has clearly heard every word.'],
       setup: 'Sets up Quest 6: the demon responds directly for the first time, no longer content to send servants.',
-      boss: { name: 'Perimeter Wretch', attack: 'Preparation-Breaking Rush', atkType: 'phys', res: { phys: 35, magic: 30, poison: 55 }, hp: 1.2, dmg: 1.3, spd: 1.3, specialties: ['swift', 'explosive'] },
+      boss: { name: 'Perimeter Wretch', attack: 'Preparation-Breaking Rush', atkType: 'phys', res: { phys: 35, magic: 30, poison: 55 }, hp: 1.2, dmg: 1.3, spd: 1.3, specialties: ['swift', 'healing'] },
       creatures: [
         { name: 'Wave-Rush Spawnling', attack: 'Numbers-Over-Skill Swarm', atkType: 'phys', res: { phys: 25, magic: 20, poison: 45 }, hp: 0.8, dmg: 1.1, spd: 1.3 },
         { name: 'Ward-Line Scratcher', attack: 'Fresh-Chalk Smear', atkType: 'phys', res: { phys: 30, magic: 25, poison: 50 }, hp: 0.9, dmg: 1.1, spd: 1.2 },
@@ -1465,7 +1468,7 @@ DATA.CHAPTERS = [
       objective: 'Fight through the destabilizing lower halls to reach the well before structural collapse seals the group out entirely.',
       outro: ['A Collapse-Bound Horror, born from the sheer violence of the sanctum\'s own structure failing under magical strain, attacks amid falling stone and cracking glass-work, forcing constant movement through genuine environmental danger. Reaching the well ahead of full collapse is a near thing, but they make it, masters and group both, breathless and battered.'],
       setup: 'Sets up Quest 8: everyone is in position, exhausted, with no more room for delay.',
-      boss: { name: 'Collapse-Bound Horror', attack: 'Falling-Stone Embrace', atkType: 'phys', res: { phys: 50, magic: 25, poison: 65 }, hp: 1.5, dmg: 1.3, spd: 0.8, specialties: ['colossal', 'explosive'] },
+      boss: { name: 'Collapse-Bound Horror', attack: 'Falling-Stone Embrace', atkType: 'phys', res: { phys: 50, magic: 25, poison: 65 }, hp: 1.5, dmg: 1.3, spd: 0.8, specialties: ['colossal', 'healing'] },
       creatures: [
         { name: 'Strain-Crack Skitterer', attack: 'Fault-Line Dash', atkType: 'phys', res: { phys: 35, magic: 20, poison: 50 }, hp: 0.9, dmg: 1.1, spd: 1.3 },
         { name: 'Falling-Glass Shard-Cloud', attack: 'Raining Edges', atkType: 'phys', res: { phys: 25, magic: 30, poison: 55 }, hp: 0.7, dmg: 1.3, spd: 1.3 },
@@ -1565,7 +1568,7 @@ DATA.CHAPTERS = [
       objective: 'Protect the antechamber long enough for the echo to finish its message, against a final surge of residual corruption reacting violently to the king\'s own preserved will.',
       outro: ['A Residual Horror, corrupted energy specifically opposed to the king\'s lingering ward-signature, attacks to silence the echo before it finishes speaking. They hold the line, and the echo delivers its message: Vorrhak cannot be destroyed by force alone, not fully — it can only be driven back through the same tear it first came from, and that tear lies beneath the old capital, at the heart of what used to be the royal crypt.'],
       setup: 'Sets up Quest 5: the true final battlefield is revealed — the crypt beneath the capital.',
-      boss: { name: 'Residual Horror', attack: 'Echo-Silencing Surge', atkType: 'magic', res: { phys: 40, magic: 40, poison: 60 }, hp: 1.4, dmg: 1.4, spd: 1.0, specialties: ['magical', 'explosive'] },
+      boss: { name: 'Residual Horror', attack: 'Echo-Silencing Surge', atkType: 'magic', res: { phys: 40, magic: 40, poison: 60 }, hp: 1.4, dmg: 1.4, spd: 1.0, specialties: ['magical', 'healing'] },
       creatures: [
         { name: 'Anti-Ward Fragment', attack: 'Signature-Hate Burst', atkType: 'magic', res: { phys: 40, magic: 30, poison: 60 }, hp: 0.8, dmg: 1.2, spd: 1.2 },
         { name: 'Antechamber Creep', attack: 'Message-Drowning Wail', atkType: 'magic', res: { phys: 35, magic: 30, poison: 55 }, hp: 0.9, dmg: 1.2, spd: 1.1 },
@@ -1889,7 +1892,7 @@ DATA.SPECIALTIES = {
   poisonous:  { name: 'Poisonous',    icon: '☠️', color: '#7a9a3d', desc: 'Attacks poison you, dealing damage over a few rounds.' },
   necrotic:   { name: 'Necrotic',     icon: '💀', color: '#7d3da8', desc: 'While alive, your healing is reduced by 75%.' },
   magical:    { name: 'Magical',      icon: '✨', color: '#c77dff', desc: 'Attacks deal random bonus magic damage.' },
-  explosive:  { name: 'Explosive',    icon: '💥', color: '#ff6b3d', desc: 'Explodes on death, damaging you.' },
+  healing:    { name: 'Healing',      icon: '💚', color: '#2ecc71', desc: 'A 50% chance each round to heal itself or an injured ally for 20% of its max HP, up to 10 times.' },
   frozen:     { name: 'Frozen',       icon: '❄️', color: '#6cd4ff', desc: '25% chance per attack to slow your attack gauge.' },
   burning:    { name: 'Burning',      icon: '🔥', color: '#ff8b3d', desc: '25% chance per attack to ignite you over time.' },
   evasive:    { name: 'Evasive',      icon: '💨', color: '#b9bdcc', desc: '25% chance to fully evade your attacks.' },

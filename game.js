@@ -1263,7 +1263,7 @@ function genQuest() {
     () => { const n = rint(4, 9); return { type: 'kill_frozen', icon: '❄️', name: 'Frost Warden', desc: `The frost is creeping into the village: destroy ${n} Frozen creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_burning', icon: '🔥', name: 'Cinder Watch', desc: `Fires keep starting in the wilds: put down ${n} Burning creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_vampiric', icon: '🩸', name: 'Bloodhound', desc: `A grieving hunter wants the bleeders dead: slay ${n} Vampiric creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
-    () => { const n = rint(4, 9); return { type: 'kill_explosive', icon: '💥', name: 'Powder Keg', desc: `Too many things go boom out there: defuse ${n} Explosive creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
+    () => { const n = rint(4, 9); return { type: 'kill_healing', icon: '💚', name: "Mender's End", desc: `The healers in the wilds keep patching each other up: stop ${n} Healing creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(8, 15); return { type: 'kill_abnormal', icon: '🌀', name: 'Ward Breaker', desc: `Something abnormal is spreading: end ${n} creatures bearing a specialty ward.`, target: n, rewardSpec: { goldMult: 5, xpMult: 5, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_golem', icon: '🗿', name: 'Golem Crusher', desc: `The old quarry is haunted by living stone: smash ${n} Golem creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
     () => { const n = rint(4, 9); return { type: 'kill_charm', icon: '💘', name: 'Charmbreaker', desc: `A jilted apprentice wants payback: destroy ${n} Charming creatures.`, target: n, rewardSpec: { goldMult: 4, xpMult: 4, item: 'rare' } }; },
@@ -1522,17 +1522,6 @@ const TIER_CONF = {
   legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 20 },
 };
 
-// A single scalar for "how tough is this dungeon level", deliberately
-// independent of any specific creature's rolled maxHp/dmg (which vary by
-// species/RNG/tier) and of the player's own damage output. Ward-style
-// specialties (Explosive) key off this instead, so their
-// damage scales with the level the player is on rather than snowballing
-// with player gear, a lucky enemy roll, or that specific enemy's tier HP.
-function levelDifficulty(level) { return 11.7 * enemyDmgScale(level); }
-// Explosive ward damage still scales up for tougher company —
-// applied on top of levelDifficulty, not blended with TIER_CONF.dmg.
-const WARD_TIER_MULT = { rare: 1.5, epic: 1.75, legendary: 2, miniboss: 2 };
-
 // From the 5th part of each chapter onward, a normal encounter has a
 // very small chance to be replaced by a wandering mini boss — doubled on
 // the 10th part (the chapter's boss level) to 3%.
@@ -1653,7 +1642,7 @@ function makeCreature(level, tier, opts) {
     dmg: Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg * (0.9 + Math.random() * 0.2))),
     spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
     xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp)),   // x10 vs previous (was /10)
-    gauge: 0, stunned: 0, dead: false, regenTotal: 0,
+    gauge: 0, stunned: 0, dead: false, regenTotal: 0, healCount: 0,
   };
   c.hp = c.maxHp;
   if (tier === 'normal') c.name = base.name;
@@ -2299,6 +2288,25 @@ function enemyAct(fight, e) {
     ADV.lastAction = { side: 'enemy', icon: '💫', txt: `${shortName} is stunned!` };
     return;
   }
+  // Healing specialty: instead of attacking, a 50% chance each turn to heal
+  // itself or an injured ally for 20% of the target's max HP, capped at 10
+  // uses per creature (regen's own passive-tick heal is a separate, always-on
+  // effect — this is a discrete attack-or-heal choice on the creature's turn).
+  if (hasAffix(e, 'healing') && (e.healCount || 0) < 10) {
+    const injured = fight.enemies.filter(o => o.hp > 0 && o.hp < o.maxHp);
+    if (injured.length && chance(0.5)) {
+      const target = pick(injured);
+      const heal = Math.max(1, Math.round(target.maxHp * 0.2));
+      const actual = Math.min(heal, target.maxHp - target.hp);
+      target.hp += actual;
+      e.healCount = (e.healCount || 0) + 1;
+      const selfHeal = target === e;
+      const targetShort = target.name.split(' — ')[0];
+      log('enemy', `💚 ${shortName} heals ${selfHeal ? 'itself' : targetShort} for ${formatK(actual)} HP!`);
+      ADV.lastAction = { side: 'enemy', icon: '💚', txt: `${shortName} heals ${selfHeal ? 'itself' : targetShort}` };
+      return;
+    }
+  }
   const hit = enemyHit(fight, e);
   if (hit.dodged) {
     log('enemy', `💨 You dodge ${e.name}'s ${e.attack}!`);
@@ -2405,7 +2413,7 @@ function resumeAdventure() {
 }
 
 // "Miniboss" is the tier itself; "Abnormal" is any creature (of any tier)
-// that independently rolled a specialty (Vampiric, Explosive, etc.) —
+// that independently rolled a specialty (Vampiric, Healing, etc.) —
 // they're tracked as separate, independently configurable encounter kinds.
 const TIER_DISPLAY_NAME = { miniboss: 'Miniboss', abnormal: 'Abnormal', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
 
@@ -2465,7 +2473,7 @@ function retreat(reason) {
     // the results modal can show which pack the player fell to (full specs,
     // same fields the live battle arena's enemy cards show) and what the
     // actual killing blow was (fight.lastHit, kept up to date at every
-    // player-HP-loss site: enemy basic attacks, DOTs, Explosive).
+    // player-HP-loss site: enemy basic attacks, DOTs).
     if (ADV.fight) {
       run.killedBy = ADV.fight.enemies.map(e => ({
         name: e.name, tier: e.tier, species: e.species, level: e.level,
@@ -2564,7 +2572,7 @@ function adventureTick() {
       log('encounter', `⚔️ ${enemies.length > 1 ? enemies.length + ' creatures block your path' : 'A creature blocks your path'}: ${enemies.map(e => e.name).join(', ')}`);
       // "Abnormal" is separate from the Miniboss tier: any creature that
       // independently rolled a specialty (e.g. a plain Normal with
-      // Explosive) counts, with its own Combat Options slot.
+      // Healing) counts, with its own Combat Options slot.
       if (enemies.some(e => e.affixes && e.affixes.length)) encounterKind = 'abnormal';
     } else if (tier === 'rare') {
       const rare = makeCreature(level, 'rare');
@@ -2634,8 +2642,7 @@ function adventureTick() {
 
   // Weapon Poison/Slow affixes tick on the enemies carrying them, same
   // cadence as the player's own DOTs above. Enemies dying here are still
-  // caught by the "resolve deaths" loop later this round (On-death
-  // effects like Explosive still fire).
+  // caught by the "resolve deaths" loop later this round.
   for (const e of f.enemies) {
     if (e.hp <= 0) continue;
     if (e.slow && --e.slow.rounds <= 0) e.slow = null;
@@ -2715,13 +2722,6 @@ function adventureTick() {
 
   // resolve deaths
   for (const e of f.enemies) if (e.hp <= 0 && !e.dead) {
-    if (hasAffix(e, 'explosive')) {
-      const boom = Math.max(1, Math.round(levelDifficulty(e.level) * (WARD_TIER_MULT[e.tier] || 1)));
-      G.char.hp = Math.max(0, G.char.hp - boom);
-      ADV.run.dmgTaken += boom;
-      f.lastHit = { icon: '💥', label: `${e.name.split(' — ')[0]}'s explosion`, amount: boom };
-      log('enemy', `💥 ${e.name.split(' — ')[0]} explodes on death for ${boom} damage!`);
-    }
     handleKill(e, run);
   }
 

@@ -1874,7 +1874,7 @@ UI.showCombatOptions = function () {
   const modeOptions = [['pause', 'Pause'], ['speed1x', '1x Speed'], ['continue', 'Continue Normally']];
   UI.modal(`
     <h3>⚙️ Combat Options</h3>
-    <p class="hint">Choose what happens the moment each type of encounter appears. "Miniboss" is the Miniboss tier itself; "Abnormal" is any regular creature that independently rolled a specialty (Vampiric, Explosive, etc.), whatever its rarity.</p>
+    <p class="hint">Choose what happens the moment each type of encounter appears. "Miniboss" is the Miniboss tier itself; "Abnormal" is any regular creature that independently rolled a specialty (Vampiric, Healing, etc.), whatever its rarity.</p>
     <div class="settings-list">
       ${tiers.map(([id, label]) => `
         <div class="settings-card">
