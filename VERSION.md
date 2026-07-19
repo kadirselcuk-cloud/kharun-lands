@@ -14,6 +14,114 @@ game at runtime.
 
 ---
 
+## 1.10.0 (minor)
+
+Bug report: Advanced Class promotion showed two overlapping icons for the
+replaced skill and reset that skill's rank to 0 (a maxed 10/10 Eviscerate
+becoming Venomous Strike at rank 0). Also reported: multiple skills within
+the same class sharing an icon. Bundled with two explicitly requested new
+features: a character-version stamp checked on Continue that re-rolls a
+returning character's gear, and a Sell Runes bulk-sell button.
+
+- **Root cause of the "two icons," found in `data.js`**: every Advanced
+  Class path's `active`/`ult` skill (and a few `passive3`/`passive4`s) had a
+  literal 2-emoji `icon` string (e.g. `'🗡️☠️'`, `'🏹🎯'`, `'☄️💀'`) — every
+  render site (`UI.renderSkills`'s `.skill-icon` div, `UI.controlsHtml`'s
+  action-bar buttons) just interpolates `${s.icon}` directly, so a 2-glyph
+  string always rendered as two icons side by side. Fixed by giving all 24
+  path skills (8 per class × 3 classes) single-glyph icons.
+- **Same pass fixed real same-class duplicates**, not just the compound
+  strings: several single-glyph path-skill icons collided with a base skill
+  or another path skill in the *same* class (e.g. rogue's Assassin-path
+  "Exotic Mastery" reused Backstab's 🔪; rogue's own base debuff "Expose
+  Weakness" reused Fan of Knives' 🎯; mage's Sorcerer-path "Overload" reused
+  Spellweaver's 🌟; mage's Radiant-path "Sacred Vigil" reused Curse of
+  Weakness' 🕯️). All 20 skills belonging to each class (12 base + 4 per
+  Advanced Class path × 2 paths) now use a distinct icon within that class —
+  verified programmatically (`node` + `vm`, loading `data.js` and checking
+  `Object.values(DATA.SKILLS[cls])` for icon collisions per class), not just
+  by eyeballing the list. Icons are *not* guaranteed globally unique across
+  the 3 classes (e.g. warrior/rogue both keep 🗡️ on their basic attack) —
+  cross-class collisions are invisible to any one character and weren't
+  part of the report.
+- **Root cause of the lost rank, found in `game.js`**: `c.skills` is keyed
+  by skill *id*, and a path skill (`r_p_assassin_active`) has a different id
+  than the base skill it replaces (`r_atk2`). `chooseAdvancedClass` (the
+  path-pick handler, formerly inlined in `ui.js`'s `UI.showPathSelect` as a
+  bare `G.char.advancedClass = ...; saveGame();`) never copied the old rank
+  across, so the new skill always started at `c.skills[newId] || 0 = 0`,
+  and `canLearn` permanently locks the old id out the moment a path is
+  chosen (`classSkillFor` no longer resolves to it) — so that rank became
+  permanently unreachable, not merely reset to invisible-but-recoverable.
+  Fixed with a new `migrateAdvancedClassRanks()` (game.js): for every path
+  skill sharing a `cat` with a base (non-path) skill — i.e. every skill that
+  actually *replaces* one (`attack2`/`buff`/`debuff`/`ult`), not the brand-
+  new `passive3`/`passive4` slots which have no base equivalent to inherit
+  from — copies `c.skills[baseId]` into `c.skills[newId]` (capped at
+  `MAX_RANK`) and deletes the now-orphaned base entry. Guarded with
+  `!(c.skills[s.id] > 0)` so a second call can't clobber rank the player has
+  since organically earned in the replacement (relevant once this same
+  function is reused by the version-migration path below, which may re-run
+  it against saves that already migrated correctly under this fix).
+  `chooseAdvancedClass(pathId)` wraps `advancedClass` assignment +
+  `migrateAdvancedClassRanks()` + `saveGame()` as one call; `ui.js`'s pick
+  handler now just calls it instead of inlining the assignment.
+- **Character version stamp + migration on Continue**, an explicit request.
+  `G.char.version` is set to `DATA.VERSION` in `newGame` and re-stamped at
+  the end of a new `runVersionMigration()` (game.js). The Title screen's
+  Continue button is the *only* call site of `loadGame(slotIdx)` in the
+  codebase, so the migration is invoked from inside `loadGame` itself
+  (right before it returns) rather than duplicating a second hook at the
+  UI call site — an old save with no `version` field reads as `undefined
+  !== DATA.VERSION` and migrates same as any other mismatch, so this also
+  covers every pre-existing save with no extra special-casing. Resolved via
+  a clarifying question (reroll scope / rune scope / mismatch threshold)
+  rather than guessed: **(1)** items are re-rolled at their own existing
+  slot/rarity/ilvl via the same `makeItem(it.ilvl, it.rarity, c.cls,
+  it.slot)` normal drops use — new random affixes/name/value, same power
+  tier, not re-leveled to current progress. **(2)** Runes are re-rolled too
+  (not left alone) — loose runes via `buildRune(bonusCount, ilvl)` (or the
+  Mythic-tier override for a Mythic Rune), same tier/ilvl, fresh bonuses.
+  Runes socketed into a re-rolled item are re-rolled the same way and
+  re-socketed up to that item's *freshly rolled* socket count (independent
+  of its old count) — any that no longer fit are kept as loose (already
+  re-rolled) runes in inventory rather than discarded, tracked via a
+  per-migration `overflowRunes` accumulator pushed onto `G.inventory` once
+  at the end. **(3)** Any version mismatch triggers migration, including a
+  FIX-only bump — matches the literal request over gating it to MINOR/MAJOR
+  only. Skill-side migration: drops any learned skill id no longer present
+  in `DATA.SKILLS[cls]` (future-proofing for a renamed/removed skill),
+  reclamps any rank above a since-lowered `MAX_RANK`, then re-runs
+  `migrateAdvancedClassRanks()` defensively (recovers a still-orphaned base
+  rank on any save that predates the promotion fix above, including one
+  that already hit the bug — the base skill's rank is still sitting under
+  its old id since nothing before this fix ever deleted it). `clampVitals()`
+  runs last, since re-rolled gear can change `maxHp`/`maxMana`.
+- **Sell Runes button**, an explicit request. `sellMatches(kind)` (game.js)
+  gained a `'runes'` kind returning every loose (`type === 'rune'`)
+  inventory entry — the existing bulk-sell kinds all explicitly excluded
+  runes (`i.type !== 'item' → false`), so this is additive, not a loosened
+  filter; a rune currently socketed into an item isn't its own
+  `G.inventory` entry and so is untouched. `sellAllOf('runes')` needed no
+  changes — it was already generic over whatever `sellMatches` returns.
+  `ui.js`'s `.sell-row` gained one more `data-sell="runes"` button
+  alongside the existing rarity/junk/unusable buttons, reusing the same
+  generic click handler (confirm dialog + toast) as every other bulk-sell
+  button — no new UI logic needed.
+- **Verified** via a `node`+`vm` harness (same technique the 1.9.0 session
+  used when no browser was available) loading `data.js`/`game.js` into one
+  sandboxed context: confirmed all 3 classes' 20 skills are icon-unique;
+  drove a live `chooseAdvancedClass('assassin')` against a synthetic
+  level-25 rogue with a maxed rank-10 Eviscerate and confirmed the new
+  Venomous Strike inherited rank 10 while the old id's entry was gone;
+  forced a version mismatch and confirmed `runVersionMigration()` re-rolled
+  the equipped weapon (new uid, new name, same slot/rarity/ilvl), rerolled
+  a loose ring and a loose rune (new uids), and re-stamped `char.version`;
+  confirmed `sellMatches('runes')`/`sellAllOf('runes')` sell only rune-type
+  entries and leave items untouched. `node --check` clean on all three
+  script files. No browser/Playwright pass this round — worth a real
+  rendered-pixels check next time one's available, same caveat as 1.9.0.
+
 ## 1.9.1 (fix)
 
 Site-wide spacing/mobile-friendliness pass, prompted by "check the spacing

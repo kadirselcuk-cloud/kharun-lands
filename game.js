@@ -73,6 +73,7 @@ function newGame(clsId, slotIdx) {
     v: 1,
     char: {
       cls: clsId,
+      version: DATA.VERSION,
       name: cls.heroName,
       level: 1, xp: 0,
       statPoints: 0, skillPoints: 1,
@@ -202,8 +203,61 @@ function loadGame(slotIdx) {
     G.tavern = { board: [], active: [] };
     genTavernBoard();
   }
+  runVersionMigration();
   return true;
 }
+
+// Runs once per Continue whenever a save's stamped version doesn't match
+// the running game's DATA.VERSION (including saves from before c.version
+// existed, which read as undefined here) — an explicit request to keep
+// returning characters aligned with whatever balance/content changed since
+// they last played, rather than silently carrying stale numbers forward.
+// Three things happen, in order: (1) skills — drop any learned skill id no
+// longer defined for this class (a renamed/removed skill from an older
+// build), reclamp any rank a since-lowered MAX_RANK would leave over cap,
+// and retry migrateAdvancedClassRanks in case this save predates that fix
+// existing at all; (2) items/runes — every equipped item, every inventory
+// item, and every loose or socketed rune is regenerated fresh at its own
+// existing slot/rarity/ilvl (items) or bonus-tier/ilvl (runes) via the same
+// makeItem/buildRune paths normal drops use, so gear reflects current
+// affix formulas instead of whatever rolled them originally; a rerolled
+// item's socket count is rolled independently of its old one, so rerolled
+// runes that no longer fit are kept as loose inventory runes rather than
+// discarded; (3) vitals are reclamped last since gear affixes (+HP/+Mana)
+// feed maxHp/maxMana.
+function runVersionMigration() {
+  const c = G.char;
+  if (c.version === DATA.VERSION) return;
+
+  const validIds = new Set(Object.keys(DATA.SKILLS[c.cls]));
+  for (const id of Object.keys(c.skills)) {
+    if (!validIds.has(id)) delete c.skills[id];
+    else if (c.skills[id] > MAX_RANK) c.skills[id] = MAX_RANK;
+  }
+  migrateAdvancedClassRanks();
+
+  const rerollRune = r => r.baseName === 'Mythic Rune'
+    ? buildRune(MYTHIC_RUNE_BONUSES, r.ilvl, { baseName: 'Mythic Rune', rarity: 'legendary' })
+    : buildRune(r.bonuses.length, r.ilvl);
+  const overflowRunes = [];
+  const rerollItemWithRunes = it => {
+    const fresh = makeItem(it.ilvl, it.rarity, c.cls, it.slot);
+    const rerolled = (it.runes || []).map(rerollRune);
+    fresh.runes = rerolled.slice(0, fresh.sockets);
+    overflowRunes.push(...rerolled.slice(fresh.sockets));
+    return fresh;
+  };
+
+  for (const slot of Object.keys(c.equip)) {
+    if (c.equip[slot]) c.equip[slot] = rerollItemWithRunes(c.equip[slot]);
+  }
+  G.inventory = G.inventory.map(it => it.type === 'rune' ? rerollRune(it) : rerollItemWithRunes(it));
+  G.inventory.push(...overflowRunes);
+
+  clampVitals();
+  c.version = DATA.VERSION;
+}
+
 function deleteSlot(slotIdx) {
   const slots = loadSlots();
   slots[slotIdx] = null;
@@ -457,7 +511,9 @@ function canLearn(skill) {
   // Advanced Class path skills are exclusive to the chosen path; the base
   // skill they evolve (same cat, no path) becomes locked the moment that
   // path's replacement exists for this character, whether or not it's
-  // been learned yet — same "banked, but replaced" rule as the Ultimate.
+  // been learned yet. Any rank already invested in the base skill is
+  // transferred to the replacement by chooseAdvancedClass/
+  // migrateAdvancedClassRanks below, so this lock never costs progress.
   if (skill.path) {
     if (c.advancedClass !== skill.path) return { ok: false, why: 'Wrong Advanced Class path' };
   } else {
@@ -480,6 +536,35 @@ function learnSkill(skillId) {
   G.char.skillPoints--;
   G.char.skills[skillId] = (G.char.skills[skillId] || 0) + 1;
   saveGame(); UI.refresh();
+}
+
+// For every path skill that shares a cat with a base (non-path) skill —
+// i.e. every skill that actually replaces one, not the brand-new
+// passive3/passive4 slots — carries over any rank already invested in
+// that base skill so picking a path never resets a skill the player had
+// been ranking up (e.g. a maxed Eviscerate becoming Venomous Strike keeps
+// its 10 ranks instead of restarting at 0). The base skill's now-orphaned
+// entry is deleted since canLearn locks it out permanently the moment a
+// path is chosen. Guarded with `!(c.skills[s.id] > 0)` so a second call
+// (e.g. from a future version-migration re-run) can't clobber rank the
+// player has since organically earned in the replacement itself.
+function migrateAdvancedClassRanks() {
+  const c = G.char;
+  if (!c.advancedClass) return;
+  const skills = Object.values(DATA.SKILLS[c.cls]);
+  for (const s of skills.filter(sk => sk.path === c.advancedClass)) {
+    const base = skills.find(b => !b.path && b.cat === s.cat);
+    if (base && c.skills[base.id] > 0 && !(c.skills[s.id] > 0)) {
+      c.skills[s.id] = Math.min(c.skills[base.id], MAX_RANK);
+      delete c.skills[base.id];
+    }
+  }
+}
+
+function chooseAdvancedClass(pathId) {
+  G.char.advancedClass = pathId;
+  migrateAdvancedClassRanks();
+  saveGame();
 }
 
 function clampVitals() {
@@ -1002,10 +1087,14 @@ function sellItem(uid) {
 }
 
 // Bulk selling. kind: 'all' (every unequipped item) | 'junk' (normal+magical)
-// | 'unusable' | 'rare' | 'epic' | 'legendary'
+// | 'unusable' | 'rare' | 'epic' | 'legendary' | 'runes' (every loose rune —
+// runes can never be equipped, so there's no "unequipped" distinction for
+// them; a rune socketed into an item isn't in G.inventory as its own entry
+// and so isn't touched by this)
 function sellMatches(kind) {
+  if (kind === 'runes') return G.inventory.filter(i => i.type === 'rune');
   return G.inventory.filter(i => {
-    if (i.type !== 'item') return false;   // runes are never bulk-sold
+    if (i.type !== 'item') return false;   // runes are only bulk-sold via kind: 'runes'
     if (kind === 'all') return true;
     if (kind === 'junk') return i.rarity === 'normal' || i.rarity === 'magical';
     if (kind === 'unusable') return !canUseItem(i).ok;

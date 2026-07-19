@@ -413,8 +413,7 @@ UI.showPathSelect = function () {
     </div>`;
   $('#app').querySelectorAll('.class-card').forEach(card => {
     card.querySelector('.pick-btn').onclick = () => {
-      G.char.advancedClass = card.dataset.path;
-      saveGame();
+      chooseAdvancedClass(card.dataset.path);
       UI.showGame();
     };
   });
@@ -864,6 +863,7 @@ UI.renderInventory = function (el) {
         <button class="btn btn-tiny danger" data-sell="epic">Epic</button>
         <button class="btn btn-tiny danger" data-sell="legendary">Legendary</button>
         <button class="btn btn-tiny danger" data-sell="all">Unequipped (except Runes)</button>
+        <button class="btn btn-tiny danger" data-sell="runes">🪨 Runes</button>
       </div>
       ${items.length === 0 ? '<p class="hint">Nothing here yet — go on an adventure!</p>' : ''}
       <div class="inv-grid">
