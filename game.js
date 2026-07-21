@@ -217,14 +217,16 @@ function loadGame(slotIdx) {
 // build), reclamp any rank a since-lowered MAX_RANK would leave over cap,
 // and retry migrateAdvancedClassRanks in case this save predates that fix
 // existing at all; (2) items/runes — every equipped item, every inventory
-// item, and every loose or socketed rune is regenerated fresh at its own
-// existing slot/rarity/ilvl (items) or bonus-tier/ilvl (runes) via the same
-// makeItem/buildRune paths normal drops use, so gear reflects current
-// affix formulas instead of whatever rolled them originally; a rerolled
-// item's socket count is rolled independently of its old one, so rerolled
-// runes that no longer fit are kept as loose inventory runes rather than
-// discarded; (3) vitals are reclamped last since gear affixes (+HP/+Mana)
-// feed maxHp/maxMana.
+// item, and every loose or socketed rune has its NUMBERS rerolled at its
+// own existing ilvl via the same rollAffixValue/dmgScale/itemScale formulas
+// normal drops use, so gear reflects current balance without gambling away
+// what it actually is: same affix ids (a Faded Rune of Fortitude stays a
+// rune with a +HP bonus, just a re-rolled +HP value), same socket count,
+// same runes still socketed (also just rerolled in place), same base/slot/
+// rarity/name. This mirrors the Enchantment Table's own reenchantItem (see
+// rerollAffixValues below), just at the item's existing ilvl instead of
+// bumping it to the current area; (3) vitals are reclamped last since gear
+// affixes (+HP/+Mana) feed maxHp/maxMana.
 function runVersionMigration() {
   const c = G.char;
   if (c.version === DATA.VERSION) return;
@@ -236,23 +238,32 @@ function runVersionMigration() {
   }
   migrateAdvancedClassRanks();
 
-  const rerollRune = r => r.baseName === 'Mythic Rune'
-    ? buildRune(MYTHIC_RUNE_BONUSES, r.ilvl, { baseName: 'Mythic Rune', rarity: 'legendary' })
-    : buildRune(r.bonuses.length, r.ilvl);
-  const overflowRunes = [];
+  const rerollRune = r => {
+    r.bonuses = rerollAffixValues(r.bonuses, r.ilvl);
+    r.value = 15 + r.ilvl * 2 + r.bonuses.length * 10;
+    return r;
+  };
   const rerollItemWithRunes = it => {
-    const fresh = makeItem(it.ilvl, it.rarity, c.cls, it.slot);
-    const rerolled = (it.runes || []).map(rerollRune);
-    fresh.runes = rerolled.slice(0, fresh.sockets);
-    overflowRunes.push(...rerolled.slice(fresh.sockets));
-    return fresh;
+    const rar = DATA.RARITIES[it.rarity];
+    const base = baseStatsFor(it);
+    if (it.slot === 'weapon' || (it.slot === 'offhand' && base && base.dmg)) {
+      it.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(it.ilvl) * rar.mult));
+      it.dmgMax = Math.max(it.slot === 'weapon' ? 2 : 1, Math.round(base.dmg[1] * dmgScale(it.ilvl) * rar.mult));
+    }
+    if (it.armor !== undefined && base && base.armor) {
+      it.armor = Math.max(1, Math.round(base.armor * itemScale(it.ilvl) * rar.mult));
+    }
+    if (it.slot === 'belt') it.potionCap = beltPotionCap(it.ilvl);
+    it.affixes = rerollAffixValues(it.affixes, it.ilvl);
+    it.value = Math.max(1, Math.round((2 + it.ilvl * 1.5) * rar.value * (1 + it.affixes.length * 0.12)));
+    it.runes = (it.runes || []).map(rerollRune);
+    return it;
   };
 
   for (const slot of Object.keys(c.equip)) {
     if (c.equip[slot]) c.equip[slot] = rerollItemWithRunes(c.equip[slot]);
   }
   G.inventory = G.inventory.map(it => it.type === 'rune' ? rerollRune(it) : rerollItemWithRunes(it));
-  G.inventory.push(...overflowRunes);
 
   clampVitals();
   c.version = DATA.VERSION;

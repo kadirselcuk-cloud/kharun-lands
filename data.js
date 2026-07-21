@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.0';
+DATA.VERSION = '1.12.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.12.1', notes: [
+    'Fixed the update-day gear refresh: returning after an update now re-rolls the same properties, socket count, and socketed runes your gear already had, just with fresh numbers — it no longer risks swapping out which stats an item has or how many sockets/runes it carries.',
+  ] },
   { v: '1.12.0', notes: [
     'Shields are much more useful: they now give a chance to block an incoming hit entirely (20% early on, rising to 40% by the endgame), roll sockets far more often, and can carry up to 3 special protections — immunity to Slow, Charm, or Necrotic, or half damage from Physical, Magic, or Poison.',
     'Runes can now roll any kind of magical property, not just HP/Mana/stats — resistances, weapon effects, and even the rarest procs can now appear on a high-enough-tier rune.',

@@ -14,6 +14,45 @@ game at runtime.
 
 ---
 
+## 1.12.1 (fix)
+
+Reworked the version-migration item reroll (`runVersionMigration`,
+`game.js`, introduced in 1.10.0) after direct feedback that it was doing
+too much: it previously rebuilt every equipped/inventory item from scratch
+via `makeItem(it.ilvl, it.rarity, cls, it.slot)`, which re-rolled which
+affixes an item had (not just their values), rolled a brand-new socket
+count independent of the old one, and truncated/overflowed any runes that
+no longer fit the new socket count into loose inventory runes.
+
+- `rerollItemWithRunes` no longer calls `makeItem` at all. It now mutates
+  the existing item in place, mirroring the Enchantment Table's own
+  `reenchantItem`/`rerollAffixValues` (`game.js`, the Enchanter section):
+  base stats (`dmgMin`/`dmgMax`/`armor`/`potionCap`) are recomputed from
+  `baseStatsFor(it)` at the item's own existing `ilvl` (not bumped to
+  `G.area` the way an actual Enchantment Table use does — this is a
+  balance refresh, not a power-up), and `item.affixes` goes through the
+  same `rerollAffixValues` that keeps each affix's `id` (and, for the
+  `'skill'` affix, its granted `skillId`/`skillName`) and only re-rolls
+  the numeric `v`. `item.sockets` is left completely untouched, and
+  `item.runes` is re-rolled in place (same array, same length, same
+  `bonuses` ids per rune) via a new local `rerollRune` that calls
+  `rerollAffixValues` on `r.bonuses` instead of `buildRune`'s from-scratch
+  path — so a rune keeps exactly which properties it has, just with fresh
+  values. Loose standalone runes in inventory go through the same
+  `rerollRune`. `item.name`/`slot`/`base`/`rarity`/`uid` are never touched,
+  same as `reenchantItem` already left an item's name alone on purpose.
+- The now-dead overflow-runes bookkeeping (runes that no longer fit a
+  freshly-rolled socket count) was removed along with it — there's nothing
+  to overflow anymore since sockets never change.
+- Verified in a Node `vm` sandbox (shared-context load of `data.js`/
+  `game.js`, same relationship as the real `<script>` tags): built a
+  synthetic legendary weapon with 2 sockets/2 socketed runes plus 1 loose
+  inventory rune, forced a version mismatch, and confirmed after
+  `runVersionMigration()` the weapon's affix ids, socket count, socketed-
+  rune bonus ids, name, slot, base, and rarity were all bit-for-bit
+  unchanged while the affix/rune *values* differed; loose rune count in
+  inventory was also unchanged (no overflow bucket needed anymore).
+
 ## 1.12.0 (minor)
 
 One large request bundling shield rework, a rune-affix-pool bugfix, a
