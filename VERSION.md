@@ -14,6 +14,166 @@ game at runtime.
 
 ---
 
+## 1.12.0 (minor)
+
+One large request bundling shield rework, a rune-affix-pool bugfix, a
+gear-magnitude balance pass, Enchanter UX additions, a mage equip
+restriction, an HP Regen buff, a skill-duration rework, and two loot/shop
+rarity-curve tweaks. Three points were ambiguous enough to ask about first
+(stat-range-doubling scope, HP Regen buff size, and what "Minnie cannot use
+two weapons" actually meant — my own testing showed mage dual-wielding a
+wand+wand already worked mechanically, so I asked rather than assume; the
+answer was that it should be *blocked*, the opposite of what I'd guessed).
+
+- **Shields** (`game.js`/`data.js`/`ui.js`): three independent buffs to the
+  three defensive offhand bases (buckler/kiteshield/towershield — the
+  mage's orb/tome offhands are untouched, they're weapon-like, not shields;
+  see the new `isShieldItem`/`SHIELD_BASE_IDS`).
+  - **Block chance**: `shieldBlockChance(level)` returns 20% at area 1
+    ramping linearly to 40% at area 100 (same `t = (level-1)/(MAX-1)` ramp
+    used elsewhere in the codebase), computed in `derive()` as `d.blockChance`
+    whenever a shield is equipped in the offhand slot, and rolled in
+    `enemyHit()` right after the evasion check — a block fully negates the
+    hit (`{dodged:false, blocked:true, dmg:0}`), regardless of attack type,
+    distinct from evasion (miss) and DR (reduce). `enemyAct` gets a
+    dedicated "🛡️ You block ..." log line/`lastAction` so it doesn't read
+    as a dodge. Shown on the Character tab (`🛡️ Block Chance`, only when
+    nonzero) and as a static note on shield item tooltips (the actual %
+    isn't stored per-item, since it's level-scaled, not gear-scaled).
+  - **Sockets**: shields get their own `rollShieldSockets()` — flat 25%
+    each for 0/1/2/3 — instead of the shared `rollSockets()` 60/25/10/5%
+    every other socketable slot still uses.
+  - **Protections**: new `DATA.SHIELD_PROTECTIONS` (6 entries: Immune to
+    Slow/Charm/Necrotic, Half Damage from Physical/Magic/Poison) rolled by
+    `rollShieldProtections()` — 50/25/15/10% for 0/1/2/3, drawn without
+    replacement — and stored as `it.protections` (array of ids), separate
+    from the normal numeric `DATA.AFFIXES` pool since these are flags, not
+    rolled magnitudes. Wired into `derive()` (sets `d.immuneSlow`/
+    `d.immuneCharm`/`d.immuneNecrotic`, or adds +50 to the matching
+    `d.res.*`) and consumed at each effect's own site: the Frozen
+    specialty's slow roll (`enemyHit`), the Charm specialty's turn-skip
+    gate (`playerAct`), and `necroticActive()` (short-circuits to `false`
+    when immune, so every existing call site — potion heals, skill heals —
+    respects it for free). Shown on item tooltips as `🛡️`-prefixed lines.
+- **Rune affix pool bugfix** (`game.js`): root cause of "runes only ever
+  get HP/Mana/stats" — `rollAffixes`'s pool filter rejected every
+  `weaponOnly`/`minRarity`/`slots`-gated affix whenever it was called
+  without an `item` (which is exactly how runes have always rolled,
+  `rollAffixes(n, ilvl)` with no 3rd/4th arg), regardless of the rune's own
+  tier. Only the 7 completely ungated affixes (str/dex/int/hp/mana/
+  hpRegen/manaRegen) could ever pass. Fixed by giving `rollAffixes` a 5th
+  `runeRarity` param: `weaponOnly`/`slots` now bypass the same way jewelry
+  already does ("jewelry can get everything") whenever there's no `item`
+  (i.e. it's a rune roll), and `minRarity` is checked against `runeRarity`
+  instead of unconditionally failing. `buildRune` passes its own
+  `tier.rarity` through, so a tier-5 (Elder Rune legendary/Mythic) rune can
+  now roll literally anything up to and including Crit Strike/Life Steal/
+  Spellstrike, while a tier-1 (Faded) rune still can't roll anything
+  minRarity-gated — the tier ladder now actually matters for rune quality,
+  not just bonus count.
+- **Stat-range doubling** (`game.js`): per the clarifying answer, scoped to
+  plain magnitude stats only. New `rollAffixValue(def, ilvl)` wraps
+  `def.roll(ilvl)` and doubles the numeric result unless the affix id is in
+  `RANGE_DOUBLE_EXCLUDE` (lifesteal, manasteal, poisonWeapon, slowWeapon,
+  execute, critStrike, doubleStrike, procOffense, procSupport — the
+  deliberately-capped "ultra-rare" combat procs, which keep their existing
+  tuned ranges). Both `rollAffixes` (fresh rolls, items and runes alike)
+  and `rerollAffixValues` (the Enchantment Table's re-enchant reroll) now
+  go through this shared helper, so re-enchanting an old item also picks
+  up the new range instead of only fresh drops.
+- **Enchanter UX** (`ui.js`/`style.css`): all three sub-panels (Table/
+  Carver/Forge) now render each rune's actual `bonuses` underneath its
+  name/tier via a shared `runeBonusesHtml(r)` helper (`.rune-bonuses`/
+  `.affix-tiny` CSS), not just the bonus *count*. New `mergeAllRunes()`
+  (game.js) drives the Rune Carver's new "⚡ Merge All" button: loops
+  tiers 1→4 ascending, repeatedly carving every group of 3 same-tier runes
+  it can find via the existing `carveRunes`, re-reading the inventory pool
+  after each carve. Processing tiers in ascending order means a
+  successful carve's output (one tier higher) is picked up automatically
+  once that tier's own pass starts — no separate cascade/re-pass logic
+  needed. Deliberately stops at tier 4→5 (leaves legendary-tier runes
+  alone even if 3+ are on hand) since merging 3 legendaries only re-rolls
+  a 4th with no tier to climb to, and "merge up to legendary" read as a
+  ceiling to reach, not something to keep spending into once reached.
+- **Minnie dual-wield restriction** (`game.js`/`ui.js`): direct request,
+  the opposite of what I'd initially assumed from the one-line ask (I'd
+  verified mage-dual-wielding-a-wand already worked mechanically and
+  guessed that meant it needed *fixing*; the clarifying answer said it
+  should be blocked instead). `equipItem` now returns early when
+  `it.slot === 'weapon' && targetSlot === 'offhand' && G.char.cls ===
+  'mage'` — mirrors the existing two-handed-weapon-into-offhand guard
+  right above it. The "Equip Off Hand"/"Buy & Equip Off Hand" buttons for
+  a 1-handed weapon (`UI.showItem`/`UI.showShopItem`) are hidden for mage
+  specifically so there's no dead button to click. Warrior/Rogue are
+  unaffected — they could never do this anyway (no non-shield 1h item
+  exists for their offhand slot in `DATA.OFFHAND_BASES`), so this only
+  ever bound for mage's wand/scepter.
+- **HP Regen passives doubled** (`data.js`), per the clarifying answer
+  ("double the coefficient"): Toughness (`w_pass1`) 0.45/rank → 0.9/rank,
+  Shadow Dance (`r_pass2`) and Sacred Vigil (`m_p_radiant_pass1`) both
+  0.3/rank → 0.6/rank. The Knight path's Divine Protection *buff* (not a
+  passive) was left alone — the request and its own clarifying question
+  both specifically named "passives".
+- **Skill duration rework** (`data.js`): `skillRounds(base, r)` (base +1
+  round every 3 ranks, capped at +3) replaced with `skillRounds(r)` = `6 +
+  (r - 1)` — every buff/debuff/poisonDot skill across all 3 classes and
+  their Advanced Class paths now starts at 6 rounds and gains exactly 1
+  round per rank, uncapped (r can reach 20 via gear). All ~30 call sites
+  updated to drop the now-unused `base` argument rather than leaving a
+  dead parameter that looks meaningful but isn't. `poisonWeapon`'s own
+  ilvl-scaled duration (unrelated, item-affix-only) is untouched.
+- **Blacksmith weapon overrepresentation, confirmed and fixed**
+  (`game.js`): `genShopStock` called `makeItem(...)` with no `forceSlot`,
+  so stock rolled through `makeItem`'s own unforced category odds (30%
+  weapon / 12% offhand / 38% armor split across 5 slots ≈7.6% each / 20%
+  jewelry split across 4 ≈5% each, ring double-weighted to ≈8%) — meaning
+  a weapon really was several times more likely to appear than any single
+  armor piece or jewelry type, confirmed by reading the roll thresholds
+  rather than guessing. Fixed by having `genShopStock` pick uniformly from
+  a new `SHOP_SLOT_KINDS` (all 11 forceable slot kinds) and pass it as
+  `makeItem`'s `forceSlot`, so every slot kind gets an even ~9% shot —
+  `makeItem`'s existing forceSlot class-biasing (1h weapons preferred,
+  matching armor weight, etc.) applies for free.
+- **Legendary-chance level scaling** (`game.js`), per direct request
+  ("start with current settings, increase legendary chance up to 30% by
+  level 100 — same for legendary drops"):
+  - `shopRollRarity()`: legendary climbs 2% → 30% linearly with
+    `shopIlvl()` (`G.unlocked`); the other 4 buckets (epic/rare/magical/
+    normal, originally 13/20/30/35) shrink by a shared `restScale` factor
+    so their *relative* proportions to each other stay identical while
+    making room for the bigger legendary slice.
+  - `rollItemRarity('legendary', ...)`: the legendary-tier creature's own
+    legendary-item roll climbs 25% → 30% linearly with the creature's
+    `lvl` (new 3rd param, threaded through all 3 `rollLoot` call sites);
+    epic/rare keep their original 25-point-wide bands, so the extra 5
+    points come entirely out of the bottom (magical) bucket, unchanged
+    for miniboss/epic/rare tiers.
+- Verified via `node --check` on all three script files, a Node `vm`
+  sandbox pass (shield socket/protection-count distributions, block chance
+  at area 1/50/100, `derive()` wiring for all 3 immunity flags and both
+  half-damage resistances, tier-5 vs. tier-1 rune affix pools, doubled vs.
+  excluded roll ranges, `mergeAllRunes` consuming exactly 3-per-attempt,
+  Minnie-blocked/Warrior-still-allowed dual-wield, all 3 HP Regen passive
+  values, `skillRounds` at r=1/10/20, shop slot-kind distribution, and both
+  legendary-chance curves sampled at 20k iterations each), and a headless-
+  Chromium (Playwright) pass against the real `node server.js` — this
+  caught one real bug the `vm` logic-checks alone hadn't exercised yet:
+  `buildRune`'s naming code indexed `DATA.NAME_PARTS[affixId]` with no
+  fallback, and `lifesteal` had no entry there (harmless before this
+  update, since its `minRarity: 'epic'` gate meant it could never reach
+  the one item-naming code path — `magical`/non-weapon-`rare` — that also
+  lacked a fallback; now reachable on tier-5 runes for the first time).
+  Fixed by adding the missing `NAME_PARTS.lifesteal` entry. After that fix,
+  a real page load, seeding a mage character via the console with a
+  forced 3-protection legendary shield and a spread of runes, then
+  rendering the Character tab, the shield's item modal, all 3 Enchanter
+  sub-views, and the inventory item modal for a 2nd wand all showed the
+  expected content with zero console errors; a real `startAdventure()` +
+  `adventureTick()` combat loop (not a synthetic hit) produced an actual
+  "🛡️ You block ..." log line within a few ticks; and a warrior dual-
+  wielding two maces confirmed the offhand-weapon restriction is
+  mage-only, not global.
+
 ## 1.11.2 (fix)
 
 Direct follow-up on 1.11.1, from the same user testing pass: "the successor

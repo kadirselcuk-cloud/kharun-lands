@@ -335,6 +335,7 @@ function derive(buffBonus) {
     weaponPoison: null, weaponSlow: null,
     painReflect: 0, execute: 0, goldFind: 0, magicFind: 0,
     critStrike: 0, doubleStrike: 0, procOffense: 0, procSupport: 0,
+    blockChance: 0, immuneSlow: false, immuneCharm: false, immuneNecrotic: false,
   };
   // gear
   for (const it of equippedItems()) {
@@ -381,6 +382,19 @@ function derive(buffBonus) {
   if (w) { wMin += w.dmgMin; wMax += w.dmgMax; d.weaponMagic = !!w.magic; }
   if (oh && oh.dmgMin) { wMin += Math.round(oh.dmgMin * 0.6); wMax += Math.round(oh.dmgMax * 0.6); }
   if (wMin > 0) { d.weaponMin = wMin; d.weaponMax = wMax; }
+  // Shields: a level-scaled chance to block an incoming hit outright (see
+  // enemyHit), plus up to 3 rolled protection flags (immunities/half-damage).
+  if (isShieldItem(oh)) {
+    d.blockChance = shieldBlockChance(G.area);
+    for (const p of (oh.protections || [])) {
+      if (p === 'immuneSlow') d.immuneSlow = true;
+      else if (p === 'immuneCharm') d.immuneCharm = true;
+      else if (p === 'immuneNecrotic') d.immuneNecrotic = true;
+      else if (p === 'resPhysHalf') d.res.phys += 50;
+      else if (p === 'resMagicHalf') d.res.magic += 50;
+      else if (p === 'resPoisonHalf') d.res.poison += 50;
+    }
+  }
   d.weaponMin += d.dmgFlat; d.weaponMax += d.dmgFlat;
   // weapon speed: the hero acts every atkInterval gauge (dagger 50, greatsword 150)
   let atkFactor = w ? (w.atkSpd || 1) : 1;
@@ -650,17 +664,43 @@ function rollItemStatCount(min, max, ilvl) {
   while (n < max && chance(p)) n++;
   return n;
 }
-function rollAffixes(count, ilvl, clsId, item) {
+// "Increase the stat bonus range by 100%" — every plain magnitude affix
+// roll is doubled (so a stat that used to roll 1-10 now rolls 1-20).
+// Explicitly excluded: the rare, deliberately-capped combat procs (Crit/
+// Double Strike, Life/Mana Steal, Execute, Spellstrike/Blessing) and the
+// compound proc affixes (Poison/Slow Weapon) — those keep their existing
+// tuned ranges rather than blowing past their documented balance caps.
+const RANGE_DOUBLE_EXCLUDE = new Set([
+  'lifesteal', 'manasteal', 'poisonWeapon', 'slowWeapon', 'execute',
+  'critStrike', 'doubleStrike', 'procOffense', 'procSupport',
+]);
+function rollAffixValue(def, ilvl) {
+  const v = def.roll(ilvl);
+  return (typeof v === 'number' && !RANGE_DOUBLE_EXCLUDE.has(def.id)) ? v * 2 : v;
+}
+
+// runeRarity: the rarity a rune-in-progress will end up as (its bonus-count
+// tier — see RUNE_TIERS), used in place of an item's own rarity to gate
+// minRarity affixes when rolling for a rune (item is null in that case).
+function rollAffixes(count, ilvl, clsId, item, runeRarity) {
   const out = [];
   const used = new Set();
-  // Gated affixes (e.g. Vampiric: weapon-only, epic+) only enter the
-  // pool when the caller passes the item they're rolling for and it
-  // qualifies — runes (no item passed) never roll them.
+  const isRune = !item;
+  // Gated affixes (e.g. Vampiric: weapon-only, epic+) enter the pool once
+  // the item/rune actually qualifies. Jewelry ("can get everything") and
+  // runes (not tied to any one slot until socketed — see rollShieldSockets'
+  // neighboring comment history for why they used to be excluded outright)
+  // both bypass the weaponOnly/slots gates; minRarity is still enforced
+  // against whichever rarity applies (the item's own, or the rune's).
   const pool = DATA.AFFIXES.filter(a => {
     const jewelry = !!item && isJewelrySlot(item.slot);
-    if (a.weaponOnly && !jewelry && (!item || item.slot !== 'weapon')) return false;
-    if (a.minRarity && (!item || RARITY_ORDER[item.rarity] < RARITY_ORDER[a.minRarity])) return false;
-    if (a.slots && !jewelry && (!item || !a.slots.includes(item.slot))) return false;
+    const bypassSlot = jewelry || isRune;
+    if (a.weaponOnly && !bypassSlot) return false;
+    if (a.minRarity) {
+      const rarity = item ? item.rarity : runeRarity;
+      if (!rarity || RARITY_ORDER[rarity] < RARITY_ORDER[a.minRarity]) return false;
+    }
+    if (a.slots && !bypassSlot) return false;
     return true;
   });
   const totalW = pool.reduce((s, a) => s + a.w, 0);
@@ -670,7 +710,7 @@ function rollAffixes(count, ilvl, clsId, item) {
     for (const a of pool) { roll -= a.w; if (roll <= 0) { af = a; break; } }
     if (used.has(af.id) && af.id !== 'skill') continue;
     used.add(af.id);
-    const entry = { id: af.id, v: af.roll(ilvl) };
+    const entry = { id: af.id, v: rollAffixValue(af, ilvl) };
     if (af.id === 'skill') {
       const skills = Object.values(DATA.SKILLS[clsId || G?.char?.cls || 'warrior']);
       const s = pick(skills);
@@ -726,6 +766,44 @@ function rollSockets() {
   return 0;
 }
 
+// Shields (the defensive offhand bases — buckler/kiteshield/towershield,
+// as opposed to the mage's weapon-like orb/tome offhands) get their own,
+// much friendlier socket curve per direct request: an even 25% each for
+// 0/1/2/3, instead of rollSockets()'s 60/25/10/5%.
+const SHIELD_BASE_IDS = ['buckler', 'kiteshield', 'towershield'];
+function isShieldItem(it) { return !!it && it.slot === 'offhand' && SHIELD_BASE_IDS.includes(it.base); }
+function rollShieldSockets() {
+  const r = Math.random();
+  if (r < 0.25) return 0;
+  if (r < 0.50) return 1;
+  if (r < 0.75) return 2;
+  return 3;
+}
+
+// Shield-only "protection" bonuses — flat immunities/half-damage effects,
+// distinct from the normal DATA.AFFIXES pool (those are numeric rolls;
+// these are binary flags). 50/25/15/10% for 0/1/2/3 of them, each drawn
+// without replacement from DATA.SHIELD_PROTECTIONS, per direct request.
+function shieldProtectionCount() {
+  const r = Math.random();
+  if (r < 0.50) return 0;
+  if (r < 0.75) return 1;
+  if (r < 0.90) return 2;
+  return 3;
+}
+function rollShieldProtections() {
+  const n = shieldProtectionCount();
+  if (!n) return [];
+  const pool = DATA.SHIELD_PROTECTIONS.map(p => p.id);
+  const out = [];
+  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(rint(0, pool.length - 1), 1)[0]);
+  return out;
+}
+function shieldBlockChance(level) {
+  const t = Math.max(0, Math.min(1, ((level || 1) - 1) / (MAX_LEVEL_AREA - 1)));
+  return 0.20 + (0.40 - 0.20) * t;
+}
+
 // Potion capacity a belt grants (applies equally to HP and Mana slots),
 // tiered by the belt's item level: low levels 1-3, mid 2-6, high 4-8.
 function beltPotionCap(ilvl) {
@@ -776,7 +854,12 @@ function makeItem(ilvl, rarity, clsHint, forceSlot) {
       it.dmgMin = Math.max(1, Math.round(base.dmg[0] * dmgScale(ilvl) * rar.mult));
       it.dmgMax = Math.max(1, Math.round(base.dmg[1] * dmgScale(ilvl) * rar.mult));
     }
-    it.sockets = rollSockets();
+    if (SHIELD_BASE_IDS.includes(base.id)) {
+      it.sockets = rollShieldSockets();
+      it.protections = rollShieldProtections();
+    } else {
+      it.sockets = rollSockets();
+    }
   } else if (ARMOR_SLOT_NAMES.includes(forceSlot) || (!forceSlot && roll < 0.80)) { // armor piece
     const slot = ARMOR_SLOT_NAMES.includes(forceSlot) ? forceSlot : pick(ARMOR_SLOT_NAMES);
     const weight = (forceSlot && ({ warrior: 'heavy', rogue: 'medium', mage: 'light' })[clsHint]) || pick(['heavy', 'medium', 'light']);
@@ -865,7 +948,7 @@ const MYTHIC_RUNE_BONUSES = 4;
 // forces a specific bonus count instead of rolling one from a source tier).
 function buildRune(n, ilvl, tierOverride) {
   const tier = tierOverride || RUNE_TIERS[n];
-  const bonuses = rollAffixes(n, ilvl);
+  const bonuses = rollAffixes(n, ilvl, null, null, tier.rarity);
   // A single-bonus rune (e.g. a Faded Rune) must only get ONE of
   // prefix/suffix — giving both from the same lone bonus reads as two
   // stats when the rune only actually carries one.
@@ -925,7 +1008,7 @@ function rerollAffixValues(affixes, ilvl) {
   return (affixes || []).map(a => {
     const def = DATA.AFFIXES.find(x => x.id === a.id);
     if (!def) return a;
-    const entry = { id: a.id, v: def.roll(ilvl) };
+    const entry = { id: a.id, v: rollAffixValue(def, ilvl) };
     if (a.id === 'skill') { entry.skillId = a.skillId; entry.skillName = a.skillName; }
     return entry;
   });
@@ -988,6 +1071,27 @@ function carveRunes(uids) {
   }
   saveGame(); UI.refresh();
   return { ok: true, success, rune: newRune };
+}
+
+// Bulk version of the Rune Carver: repeatedly carves every group of 3
+// same-tier runes it can, tier by tier ascending (1→2→3→4). Processing a
+// tier to exhaustion before moving to the next means any new rune a
+// successful carve creates cascades naturally into the next tier's pass —
+// no separate re-pass needed. Stops at tier 4->5: legendary-tier runes are
+// left untouched even if 3+ are available, since merging 3 legendaries only
+// re-rolls a 4th (no tier to climb to) and "merge runes up to legendary"
+// reads as a ceiling, not something to keep spending them into.
+function mergeAllRunes() {
+  let merged = 0, destroyed = 0;
+  for (let tier = 1; tier <= 4; tier++) {
+    let pool = G.inventory.filter(i => i.type === 'rune' && runeTier(i) === tier);
+    while (pool.length >= 3) {
+      const r = carveRunes(pool.slice(0, 3).map(x => x.uid));
+      if (r.success) merged++; else destroyed++;
+      pool = G.inventory.filter(i => i.type === 'rune' && runeTier(i) === tier);
+    }
+  }
+  return { merged, destroyed };
 }
 
 // ------------------------------------------------------------
@@ -1080,6 +1184,10 @@ function equipItem(uid, targetSlot) {
   let slot = targetSlot || it.slot;
   if (it.slot === 'ring') slot = targetSlot || (!eq.ring1 ? 'ring1' : (!eq.ring2 ? 'ring2' : 'ring1'));
   if (it.slot === 'weapon' && targetSlot === 'offhand' && it.hands === 2) return;
+  // Minnie (mage) can't wield two weapons — her offhand has to be an
+  // Arcane Orb/Spell Tome/shield, never a second wand or scepter, per
+  // direct request. Other classes are unaffected.
+  if (it.slot === 'weapon' && targetSlot === 'offhand' && G.char.cls === 'mage') return;
 
   const unequipped = [];
   if (it.slot === 'weapon' && it.hands === 2) {
@@ -1171,15 +1279,32 @@ function socketableItems() {
 // ------------------------------------------------------------
 function shopIlvl() { return Math.max(1, G.unlocked); }
 
-// 2% legendary, 13% epic, 20% rare, 30% magical, 35% normal
+// Base curve (at area 1): 2% legendary, 13% epic, 20% rare, 30% magical,
+// 35% normal. Legendary chance climbs to 30% by area 100 (linear, matching
+// the same t-ramp used elsewhere for level-scaled odds); the other 4
+// buckets shrink to make room for it, keeping their relative proportions
+// to each other unchanged (13:20:30:35) rather than cutting one arbitrarily.
 function shopRollRarity() {
+  const t = Math.max(0, Math.min(1, (shopIlvl() - 1) / (MAX_LEVEL_AREA - 1)));
+  const legendaryPct = 2 + (30 - 2) * t;
+  const restScale = (100 - legendaryPct) / 98;
+  const epicPct = 13 * restScale, rarePct = 20 * restScale, magicalPct = 30 * restScale;
   const r = Math.random() * 100;
-  if (r < 2) return 'legendary';
-  if (r < 15) return 'epic';
-  if (r < 35) return 'rare';
-  if (r < 65) return 'magical';
+  let acc = legendaryPct;
+  if (r < acc) return 'legendary';
+  if (r < (acc += epicPct)) return 'epic';
+  if (r < (acc += rarePct)) return 'rare';
+  if (r < (acc += magicalPct)) return 'magical';
   return 'normal';
 }
+
+// Every equip-slot "kind" makeItem can roll (see forceSlot) — used to
+// sample the shop's stock uniformly across all of them. Without this, the
+// merchant used makeItem's own unforced roll thresholds (30% weapon / 12%
+// offhand / 38% armor split across 5 slots / 20% jewelry split across 4),
+// which makes a weapon show up far more often than any single armor piece
+// or jewelry type — the "weapons appear more" the Blacksmith was showing.
+const SHOP_SLOT_KINDS = ['weapon', 'offhand', 'helmet', 'armor', 'gloves', 'pants', 'boots', 'amulet', 'ring', 'cloak', 'belt'];
 
 function genShopStock() {
   const stock = [];
@@ -1187,7 +1312,7 @@ function genShopStock() {
     let it = null;
     // bias the merchant toward things this hero can actually wear
     for (let t = 0; t < 5; t++) {
-      it = makeItem(shopIlvl(), shopRollRarity(), G.char.cls);
+      it = makeItem(shopIlvl(), shopRollRarity(), G.char.cls, pick(SHOP_SLOT_KINDS));
       if (canUseItem(it).ok) break;
     }
     it.price = it.value * 6;
@@ -1791,17 +1916,23 @@ function startArenaFight(level) {
 // ------------------------------------------------------------
 // Loot
 // ------------------------------------------------------------
-function rollItemRarity(tier, magicFind) {
+function rollItemRarity(tier, magicFind, lvl) {
   // Magic Find compresses the roll toward the rarer end of each tier's
   // table (capped at a 60% pull so it can't guarantee the top rarity).
   let r = Math.random() * 100;
   if (magicFind) r *= (1 - Math.min(0.6, magicFind / 100));
   switch (tier) {
-    case 'legendary':
-      if (r < 25) return 'legendary';
-      if (r < 50) return 'epic';
-      if (r < 75) return 'rare';
+    case 'legendary': {
+      // Legendary-tier creatures' own legendary-item chance climbs from its
+      // base 25% up to 30% by level 100 — same treatment as the Blacksmith's
+      // legendary chance above. The 25-50-75 split below it is unaffected.
+      const t = Math.max(0, Math.min(1, ((lvl || 1) - 1) / (MAX_LEVEL_AREA - 1)));
+      const legendaryPct = 25 + (30 - 25) * t;
+      if (r < legendaryPct) return 'legendary';
+      if (r < legendaryPct + 25) return 'epic';
+      if (r < legendaryPct + 50) return 'rare';
       return 'magical';
+    }
     case 'miniboss':   // half the boss's legendary chance; rest shifts down
       if (r < 12.5) return 'legendary';
       if (r < 42) return 'epic';
@@ -1854,7 +1985,7 @@ function rollLoot(creature, run) {
   if (tier === 'legendary' || tier === 'miniboss') {
     run.gold += goldBase; G.gold += goldBase; G.totals.goldFound += goldBase;
     const r = Math.random() * 100;
-    if (r < 75) dropItem(lvl, rollItemRarity(tier, magicFind), run);
+    if (r < 75) dropItem(lvl, rollItemRarity(tier, magicFind, lvl), run);
     else gainPotion(pick(['hp', 'mana', 'scroll']), run);
   } else {
     const r = Math.random() * 100;
@@ -1865,7 +1996,7 @@ function rollLoot(creature, run) {
     }[tier];
     let acc = 0;
     if (r < (acc += T.gold)) { run.gold += goldBase; G.gold += goldBase; G.totals.goldFound += goldBase; }
-    else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier, magicFind), run); }
+    else if (r < (acc += T.item)) { dropItem(lvl, rollItemRarity(tier, magicFind, lvl), run); }
     else if (r < (acc += T.hpPot)) { gainPotion('hp', run); }
     else if (r < (acc += T.manaPot)) { gainPotion('mana', run); }
     else if (r < (acc += T.buffPot)) { gainPotion('scroll', run); }
@@ -1880,7 +2011,7 @@ function rollLoot(creature, run) {
   if (specialtyCount) {
     const chanceEach = itemDropChance(tier);
     for (let i = 0; i < specialtyCount; i++) {
-      if (chance(chanceEach)) dropItem(lvl, rollItemRarity(tier, magicFind), run);
+      if (chance(chanceEach)) dropItem(lvl, rollItemRarity(tier, magicFind, lvl), run);
     }
   }
 }
@@ -2122,7 +2253,10 @@ function effectiveEnemySpd(e) {
 function incomingDmgMult(e) {
   return hasAffix(e, 'berserk') ? 1 + enemyMissingFrac(e) * 0.5 : 1;
 }
-function necroticActive(fight) { return fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'necrotic')); }
+function necroticActive(fight) {
+  if (ADV && ADV.d && ADV.d.immuneNecrotic) return false;
+  return fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'necrotic'));
+}
 
 function playerHit(fight, enemy, skill, r) {
   if (hasAffix(enemy, 'evasive') && Math.random() < 0.25) return 0;
@@ -2162,6 +2296,7 @@ function playerHit(fight, enemy, skill, r) {
 function enemyHit(fight, enemy) {
   const d = ADV.d;
   if (Math.random() * 100 < d.evasion) return { dodged: true, dmg: 0 };
+  if (d.blockChance && Math.random() < d.blockChance) return { dodged: false, blocked: true, dmg: 0 };
   let raw = effectiveEnemyDmg(enemy) * (0.85 + Math.random() * 0.3);
   if (fight.enemyDmgDown) raw *= (1 - fight.enemyDmgDown);
   const resKey = enemy.atkType === 'magic' ? 'magic' : enemy.atkType === 'poison' ? 'poison' : 'phys';
@@ -2195,7 +2330,7 @@ function enemyHit(fight, enemy) {
   if (hasAffix(enemy, 'burning') && Math.random() < 0.25) {
     fight.playerDots.burning = { icon: '🔥', label: 'Burning', dmg: Math.max(1, Math.round(enemy.dmg * 0.15)), rounds: 3 };
   }
-  if (hasAffix(enemy, 'frozen') && Math.random() < 0.25) fight.playerSlow = { pct: 0.30, rounds: 2 };
+  if (hasAffix(enemy, 'frozen') && !d.immuneSlow && Math.random() < 0.25) fight.playerSlow = { pct: 0.30, rounds: 2 };
   if (hasAffix(enemy, 'cursed')) fight.cursedDebuff = { dmgDown: 0.12, rounds: 3 };
   if (hasAffix(enemy, 'corrosive')) fight.corrosiveDebuff = { armorDown: 0.20, rounds: 3 };
   return { dodged: false, dmg };
@@ -2207,7 +2342,7 @@ function playerAct(fight) {
   const d = ADV.d;
   // Charm specialty: 50% chance, rolled once per player turn (not per swing),
   // that a charming enemy prevents you from attacking or casting entirely.
-  if (fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'charm')) && chance(0.5)) {
+  if (!d.immuneCharm && fight.enemies.some(e => e.hp > 0 && hasAffix(e, 'charm')) && chance(0.5)) {
     const charmer = fight.enemies.find(e => e.hp > 0 && hasAffix(e, 'charm'));
     const shortName = charmer.name.split(' — ')[0];
     log('player', `💘 ${shortName}'s charm stops you from acting this turn!`);
@@ -2343,6 +2478,9 @@ function enemyAct(fight, e) {
   if (hit.dodged) {
     log('enemy', `💨 You dodge ${e.name}'s ${e.attack}!`);
     ADV.lastAction = { side: 'enemy', icon: '💨', txt: `Dodged ${shortName}'s ${e.attack}!` };
+  } else if (hit.blocked) {
+    log('enemy', `🛡️ You block ${e.name}'s ${e.attack}!`);
+    ADV.lastAction = { side: 'enemy', icon: '🛡️', txt: `Blocked ${shortName}'s ${e.attack}!` };
   } else {
     log('enemy', `🩸 ${e.name}'s ${e.attack} (${e.atkType}) deals ${formatK(hit.dmg)} damage`);
     ADV.lastAction = { side: 'enemy', icon: '🩸', txt: `${shortName}: ${e.attack} — ${formatK(hit.dmg)} dmg` };

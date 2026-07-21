@@ -752,6 +752,7 @@ UI.renderCharacter = function (el) {
         <div class="stat-row"><span>🛡️ Armor</span><b>${formatK(d.armor)}</b></div>
         <div class="stat-row"><span>🌫️ Damage Reduction</span><b>${Math.round(d.dr * 100)}%</b></div>
         <div class="stat-row"><span>Resistances</span><b>⚔️${d.res.phys}% ✨${d.res.magic}% ☠️${d.res.poison}%</b></div>
+        ${d.blockChance ? `<div class="stat-row"><span>🛡️ Block Chance</span><b>${Math.round(d.blockChance * 100)}%</b></div>` : ''}
         <div class="stat-row"><span>Total kills</span><b>${formatK(c.kills)}</b></div>
       </div>
       <div class="panel">
@@ -962,6 +963,8 @@ UI.itemStatsHtml = function (it, baseline) {
     ${it.atkSpd ? `<div class="istat">Attack Speed: <b>${it.atkSpd < 0.8 ? 'Very Fast' : it.atkSpd < 1 ? 'Fast' : it.atkSpd === 1 ? 'Normal' : it.atkSpd <= 1.2 ? 'Slow' : 'Very Slow'}</b> (×${it.atkSpd})</div>` : ''}
     ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
     ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
+    ${isShieldItem(it) ? '<div class="istat">🛡️ Grants a chance to block incoming damage entirely (scales with your progress, 20%–40%)</div>' : ''}
+    ${(it.protections || []).map(id => `<div class="affix protection">🛡️ ${DATA.SHIELD_PROTECTIONS.find(p => p.id === id).fmt()}</div>`).join('')}
     ${(it.affixes || []).map(a => `<div class="affix ${cls('a_' + a.id)}">◆ ${affixText(a)}</div>`).join('')}
     ${it.sockets ? `<div class="sockets">Sockets: ${runes.map(r => `<span class="socket filled" title="${esc(r.name)}: ${r.bonuses.map(affixText).join(', ')}">🪨</span>`).join('')}${'<span class="socket">○</span>'.repeat(it.sockets - runes.length)}</div>` : ''}
     ${runes.flatMap(r => r.bonuses).map(b => `<div class="affix rune-affix ${cls('a_' + b.id)}">🪨 ${affixText(b)}</div>`).join('')}`;
@@ -1063,7 +1066,7 @@ UI.showItem = function (uid, context, slot) {
       actions.push(`<button class="btn btn-primary" onclick="equipItem(${it.uid},'ring2');UI.closeModal()">Equip Right</button>`);
     } else if (it.slot === 'weapon' && it.hands === 1) {
       actions.push(`<button class="btn btn-primary" onclick="equipItem(${it.uid},'weapon');UI.closeModal()">Equip Main Hand</button>`);
-      actions.push(`<button class="btn" onclick="equipItem(${it.uid},'offhand');UI.closeModal()">Equip Off Hand</button>`);
+      if (G.char.cls !== 'mage') actions.push(`<button class="btn" onclick="equipItem(${it.uid},'offhand');UI.closeModal()">Equip Off Hand</button>`);
     } else {
       actions.push(`<button class="btn btn-primary" onclick="equipItem(${it.uid});UI.closeModal()">Equip</button>`);
     }
@@ -1132,7 +1135,7 @@ UI.showShopItem = function (uid) {
       equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'ring2');UI.closeModal()">Buy & Equip Right</button>`);
     } else if (it.slot === 'weapon' && it.hands === 1) {
       equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'weapon');UI.closeModal()">Buy & Equip Main Hand</button>`);
-      equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'offhand');UI.closeModal()">Buy & Equip Off Hand</button>`);
+      if (G.char.cls !== 'mage') equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid},'offhand');UI.closeModal()">Buy & Equip Off Hand</button>`);
     } else {
       equipActions.push(`<button class="btn" ${afford ? '' : 'disabled'} onclick="buyAndEquip(${it.uid});UI.closeModal()">Buy & Equip</button>`);
     }
@@ -1331,6 +1334,16 @@ UI.doCarveRunes = function () {
   UI.toast(r.success ? `🔨 Carve succeeded! ${r.rune.icon} ${r.rune.name}` : '💥 The runes shattered on the carving bench...');
 };
 
+// Same clear-before-call ordering as UI.doCarveRunes above, for the same
+// reason — mergeAllRunes' repeated carveRunes calls each trigger their own
+// mid-loop UI.refresh(), so any stale selected uid would throw.
+UI.doMergeAllRunes = function () {
+  carverSelected = [];
+  const { merged, destroyed } = mergeAllRunes();
+  if (!merged && !destroyed) { UI.toast('Nothing to merge.'); return; }
+  UI.toast(`⚡ Merge All: ${merged} rune${merged === 1 ? '' : 's'} carved up, ${destroyed} shattered.`);
+};
+
 // Clicking the currently-selected item again deselects it; picking a new
 // one swaps the selection outright (the 5-rune payment selection is left
 // alone, since it's independent of which item it'll be spent on).
@@ -1374,6 +1387,12 @@ UI.showEnchanterHelp = function () {
     <div class="modal-actions"><button class="btn" onclick="UI.closeModal()">Close</button></div>`);
 };
 
+// Shared by all 3 Enchanter sub-panels — lists a rune's actual rolled
+// bonuses under its name/tier, same affix formatting the item modal uses.
+function runeBonusesHtml(r) {
+  return `<div class="rune-bonuses">${r.bonuses.map(b => `<div class="affix-tiny">◆ ${affixText(b)}</div>`).join('')}</div>`;
+}
+
 UI.renderEnchanter = function (el) {
   const runes = G.inventory.filter(i => i.type === 'rune');
   const tableHtml = `
@@ -1382,17 +1401,21 @@ UI.renderEnchanter = function (el) {
         <div class="inv-icon">${itemIconHtml(r)}</div>
         <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
         <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
+        ${runeBonusesHtml(r)}
       </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet — they drop from tough kills, or come out of the Rune Carver.</p>'}`;
 
   const selTiers = new Set(carverSelected.map(u => runeTier(G.inventory.find(i => i.uid === u))));
+  const mergeAllCount = runes.filter(r => runeTier(r) <= 4).length;
   const carverHtml = `
     <div class="forge-selected">Selected: ${carverSelected.length}/3${carverSelected.length === 3 && selTiers.size > 1 ? ' <span class="no">— must all be the same tier</span>' : ''}</div>
     <button class="btn btn-primary btn-small" ${carverSelected.length !== 3 || selTiers.size > 1 ? 'disabled' : ''} onclick="UI.doCarveRunes()">🔨 Carve</button>
+    <button class="btn btn-small" ${mergeAllCount < 3 ? 'disabled' : ''} onclick="UI.doMergeAllRunes()" title="Repeatedly carves every group of 3 same-tier runes it can, cascading upward until nothing below legendary can merge any further">⚡ Merge All</button>
     ${runes.length ? `<div class="inv-grid">${runes.map(r => `
       <div class="inv-item ${itemBorderClass(r)} ${carverSelected.includes(r.uid) ? 'selected' : ''}" onclick="UI.toggleCarverRune(${r.uid})">
         <div class="inv-icon">${itemIconHtml(r)}</div>
         <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
         <div class="inv-sub">${ENCHANT_TIER_LABEL[runeTier(r)]}</div>
+        ${runeBonusesHtml(r)}
       </div>`).join('')}</div>` : '<p class="hint">No runes in your inventory yet.</p>'}`;
 
   const forgeTargets = [...unsocketedForgeItems(), ...socketedForgeItems()];
@@ -1415,6 +1438,7 @@ UI.renderEnchanter = function (el) {
         <div class="inv-icon">${itemIconHtml(r)}</div>
         <div class="inv-name" style="color:${itemColor(r)}">${esc(r.name)}</div>
         <div class="inv-sub">${ENCHANT_TIER_LABEL[5]}</div>
+        ${runeBonusesHtml(r)}
       </div>`).join('')}</div>` : '<p class="hint">No Elder Rune (legendary) runes in your inventory yet.</p>'}
     <div class="forge-actions">
       <button class="btn btn-primary btn-small" ${canAdd ? '' : 'disabled'} onclick="UI.doForgeAddSockets()">🔓 Add Random Sockets</button>
