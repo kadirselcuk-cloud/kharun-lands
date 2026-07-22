@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.1';
+DATA.VERSION = '1.12.2';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.12.2', notes: [
+    'Corrected last update\'s stat bonus doubling: only Strength, Dexterity, Intelligence, and All Stats now roll double — every other stat (HP, Mana, Armor, resistances, etc.) is back to its normal range.',
+  ] },
   { v: '1.12.1', notes: [
     'Fixed the update-day gear refresh: returning after an update now re-rolls the same properties, socket count, and socketed runes your gear already had, just with fresh numbers — it no longer risks swapping out which stats an item has or how many sockets/runes it carries.',
   ] },

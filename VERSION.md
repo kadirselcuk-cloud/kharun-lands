@@ -14,6 +14,38 @@ game at runtime.
 
 ---
 
+## 1.12.2 (fix)
+
+Direct correction after user review of 1.12.0: "increase the stat bonus
+range by 100%" was meant to apply only to Str/Dex/Int, not every magnitude
+affix. My original read of "any stat" in the request was too broad and
+doubled HP/Mana/Speed/HP Regen/Mana Regen/Evasion/Weapon Damage (flat &
+%)/Armor/Damage Reduction/all three resistances/Enemy Resist Shred/+skill/
+All Skills/Pain Reflection/Gold Find/Magic Find as well.
+
+- `game.js`: `RANGE_DOUBLE_EXCLUDE` (an exclude-list approach — double
+  everything except a named few) replaced with `RANGE_DOUBLE_IDS`, an
+  include-list containing only `str`/`dex`/`int`/`allStats`. `allStats`
+  (the rare "+X to All Stats" affix, which grants all three at once) was
+  a explicit follow-up clarifying question — kept doubled since it's
+  functionally a Str/Dex/Int roll, per the user's answer. Every other
+  affix id, including the ones already excluded from doubling in 1.12.0
+  (the capped procs) and the ones that were wrongly included, now goes
+  through `rollAffixValue` unmodified. Both `rollAffixes` (fresh rolls,
+  items and runes) and `rerollAffixValues` (Enchantment Table re-enchant)
+  still share this one function, so the fix applies everywhere the 1.12.0
+  bug did.
+- User feedback for future sessions: ask before implementing anything
+  not explicitly confirmed, rather than picking a reasonable-sounding
+  default and documenting the assumption after the fact — recorded to
+  memory.
+- Verified via `node --check` and a Node `vm` sandbox sampling all 22
+  previously-affected affix ids at ilvl 50: `str`/`dex`/`int`/`allStats`
+  show roughly double their raw `roll()` output through `rollAffixValue`,
+  every other id (hp, mana, speed, hpRegen, manaRegen, evasion, dmgFlat,
+  dmgPct, armor, dr, resPhys, resMagic, resPoison, enemyResDown, skill,
+  allSkills, painReflect, goldFind, magicFind) comes back unmodified.
+
 ## 1.12.1 (fix)
 
 Reworked the version-migration item reroll (`runVersionMigration`,

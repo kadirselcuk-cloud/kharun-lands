@@ -675,19 +675,16 @@ function rollItemStatCount(min, max, ilvl) {
   while (n < max && chance(p)) n++;
   return n;
 }
-// "Increase the stat bonus range by 100%" — every plain magnitude affix
-// roll is doubled (so a stat that used to roll 1-10 now rolls 1-20).
-// Explicitly excluded: the rare, deliberately-capped combat procs (Crit/
-// Double Strike, Life/Mana Steal, Execute, Spellstrike/Blessing) and the
-// compound proc affixes (Poison/Slow Weapon) — those keep their existing
-// tuned ranges rather than blowing past their documented balance caps.
-const RANGE_DOUBLE_EXCLUDE = new Set([
-  'lifesteal', 'manasteal', 'poisonWeapon', 'slowWeapon', 'execute',
-  'critStrike', 'doubleStrike', 'procOffense', 'procSupport',
-]);
+// "Increase the stat bonus range by 100%" — scoped strictly to Str/Dex/Int
+// (and All Stats, which just grants all three at once) per direct
+// correction. An earlier pass misread "any stat" broadly and doubled every
+// magnitude affix (HP/Mana/Armor/Weapon Damage/resistances/etc. too) —
+// reverted everywhere except these four, which are the only ones actually
+// requested.
+const RANGE_DOUBLE_IDS = new Set(['str', 'dex', 'int', 'allStats']);
 function rollAffixValue(def, ilvl) {
   const v = def.roll(ilvl);
-  return (typeof v === 'number' && !RANGE_DOUBLE_EXCLUDE.has(def.id)) ? v * 2 : v;
+  return (typeof v === 'number' && RANGE_DOUBLE_IDS.has(def.id)) ? v * 2 : v;
 }
 
 // runeRarity: the rarity a rune-in-progress will end up as (its bonus-count
