@@ -14,6 +14,53 @@ game at runtime.
 
 ---
 
+## 1.13.1 (fix)
+
+Correction to 1.13.0. The user's original "make it rare" instruction for
+Critical Strike/Double Strike/Poison Weapon was misread as `minRarity`
+(the item-rarity-tier gate: Normal/Magical/Rare/Epic/Legendary) when it
+actually meant the affix's own **drop rarity** — i.e. `w`, the roll-weight
+field that governs how often an affix is picked among its eligible pool,
+a completely separate axis from item tier. Caught immediately by the user
+before this shipped further; fixed same-session.
+
+- **Reverted** `critStrike`/`doubleStrike`'s `minRarity` back to
+  `legendary` (undoing the 1.13.0 change) — both were already sitting at
+  `w: 1`, the pool's rarest weight, before any of this work started, so
+  no weight change was needed for either; they were already exactly as
+  rare (drop-frequency-wise) as this codebase's rarity system allows.
+  1.13.0's actual curve rework (chance/damage scaling with ilvl for both)
+  is untouched — only the tier-gate part of that update was wrong.
+- **`poisonWeapon`'s `w` lowered `3 -> 1`**, joining the same rarest-weight
+  tier as Vampiric/Mana Steal/Critical Strike/Double Strike/Spellstrike/
+  Blessing/All Skills. Its `minRarity: 'rare'` was untouched (it was
+  already `rare`, correctly, before 1.13.0 ever touched this file) —
+  1.12.5/1.13.0 already established the *item*-tier gate was fine; only
+  the *affix*-tier (weight) needed the "make it rare" treatment applied
+  to it, per the clarification.
+- Reverted a stale comment above `minnieWeaponSkillCount` (`game.js`) back
+  to its pre-1.13.0 wording, since it's accurate again now that
+  critStrike/doubleStrike are legendary-only.
+- Left `slowWeapon` (poisonWeapon's structural twin — same `weaponOnly`/
+  `minRarity: 'rare'`/compound-value shape) at its existing `w: 3`
+  untouched — the user's request named Critical Strike, Double Strike, and
+  Poison Weapon specifically; Weapon Slow wasn't mentioned and extrapolating
+  the same "make it rare" treatment onto it would be guessing again, the
+  exact mistake this version exists to correct.
+- Verified via a Node `vm` sandbox: confirmed `critStrike`/`doubleStrike`/
+  `poisonWeapon`'s `w`/`minRarity` fields read back as
+  `{w:1,minRarity:legendary}` / `{w:1,minRarity:legendary}` /
+  `{w:1,minRarity:rare}`; force-rolled 30,000 Rare-tier weapons (zero
+  critStrike/doubleStrike hits, confirming the revert) against 30,000
+  Legendary-tier weapons (thousands of hits, confirming they still work
+  there).
+- Process note for next time: recorded to memory (this assistant's
+  persistent cross-session notes, not part of this repo) that "rare" is
+  ambiguous in this specific codebase between `minRarity` and `w`, and
+  that ambiguous terms should be asked about before writing code rather
+  than resolved by guessing — this was a repeat of the same mistake class
+  as 1.12.2's stat-range overreach, same day, same session.
+
 ## 1.13.0 (minor)
 
 Direct request: rework Critical Strike, Double Strike, and Poison Weapon's

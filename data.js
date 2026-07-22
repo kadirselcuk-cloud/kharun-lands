@@ -5,12 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.13.0';
+DATA.VERSION = '1.13.1';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.13.1', notes: [
+    'Corrected last update: Critical Strike and Double Strike are Legendary-only again, not Rare+ (their scaling chance/damage numbers from 1.13.0 are unchanged).',
+    'Poison Weapon is now a noticeably rarer find on gear, matching how uncommon Critical Strike/Double Strike already are.',
+  ] },
   { v: '1.13.0', notes: [
     'Critical Strike and Double Strike can now roll on Rare+ gear instead of only Legendary.',
     'Critical Strike now scales with item level: 10-20% chance to deal +100% damage early on, up to 20-30% chance to deal +180-200% damage by the endgame (previously a flat +100% damage at any level).',
@@ -2120,8 +2124,13 @@ DATA.AFFIXES = [
   // a "better roll" genuinely means a stronger AND longer poison instead
   // of just a slightly bigger number.
   // Per a direct "+50% poison damage" follow-up request: the whole pct
-  // curve scaled up 50% (3%->7.5%, was 2%->5%); rounds/rarity untouched.
-  { id: 'poisonWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
+  // curve scaled up 50% (3%->7.5%, was 2%->5%). Per a further "make it
+  // rare" follow-up (drop-rarity, i.e. this affix's own `w` roll weight —
+  // NOT `minRarity`, the item-tier gate, which was already 'rare' and
+  // is a separate axis entirely): weight lowered 3 -> 1, joining the
+  // pool's rarest weight tier alongside Vampiric/Mana Steal/Critical
+  // Strike/Double Strike/Spellstrike/Blessing/All Skills.
+  { id: 'poisonWeapon', w: 1, weaponOnly: true, minRarity: 'rare',
     roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return { pct: 0.03 + t * 0.045, rounds: Math.round(2 + t * 6) }; },
     fmt: v => `30% chance to Poison for ${(v.pct * 100).toFixed(1)}% max HP/round for ${v.rounds} Rounds` },
   // Weapon Slow: weapon-only, rare+. v is a compound value {chance, pct, rounds}.
@@ -2139,9 +2148,11 @@ DATA.AFFIXES = [
   // no non-jewelry slot qualifies, but the jewelry bypass still applies).
   { id: 'goldFind', w: 3, minRarity: 'rare', slots: [], roll: i => 10 + Math.floor(i / 6) + rint(0, 10), fmt: v => `+${v}% Gold Find` },
   { id: 'magicFind', w: 3, minRarity: 'rare', slots: [], roll: i => 5 + Math.floor(i / 8) + rint(0, 5), fmt: v => `+${v}% Magic Find` },
-  // Critical Strike / Double Strike: weapon-only (+jewelry), rare+ (lowered
-  // from legendary+ per direct request — still w:1, so still the rarest
-  // *weight* in the pool even though more rarities now qualify). Both now
+  // Critical Strike / Double Strike: ultra-rare, weapon-only (+jewelry),
+  // legendary+ only — same prestige tier as Life/Mana Steal. (`minRarity`
+  // stayed legendary — an earlier pass here misread "make it rare" as this
+  // item-tier gate instead of the affix's own `w` roll-weight, which is
+  // what was actually meant; corrected back, see VERSION.md.) Both now
   // scale their whole roll range with ilvl instead of a near-flat curve:
   // Critical Strike's bonus-damage side goes from a fixed +100% at ilvl 1
   // (chance 10-20%) to a rolled +180-200% by ilvl 100 (chance 20-30%) — v
@@ -2151,8 +2162,10 @@ DATA.AFFIXES = [
   // precedent for stacking bonus-damage% across multiple items). Double
   // Strike has no separate damage component (it's a full extra attack, not
   // a multiplier) so only its chance range moves, 10-20% at ilvl 1 up to
-  // 40-50% by ilvl 100.
-  { id: 'critStrike', w: 1, weaponOnly: true, minRarity: 'rare',
+  // 40-50% by ilvl 100. Both were already at w:1, the pool's rarest weight
+  // tier, before any of this — already exactly as "rare" (drop-frequency)
+  // as they could be, so no weight change was needed for either.
+  { id: 'critStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
     roll: i => {
       const t = Math.max(0, Math.min(1, (i - 1) / 99));
       const chance = rint(Math.round(10 + t * 10), Math.round(20 + t * 10));
@@ -2160,7 +2173,7 @@ DATA.AFFIXES = [
       return { chance, bonus };
     },
     fmt: v => `${v.chance}% chance to deal +${v.bonus}% damage` },
-  { id: 'doubleStrike', w: 1, weaponOnly: true, minRarity: 'rare',
+  { id: 'doubleStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
     roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return rint(Math.round(10 + t * 30), Math.round(20 + t * 30)); },
     fmt: v => `${v}% chance to strike again immediately` },
   // Spellstrike / Blessing: ultra-rare, weapon-only (+jewelry),

@@ -754,9 +754,8 @@ function rollAffixes(count, ilvl, clsId, item, runeRarity) {
 // Staff/Wand/Scepter/Orb/Tome additionally guarantee 1-3 DISTINCT +skill
 // affixes (each +1..+3, same shape/behavior as the generic 'skill' affix —
 // see rollAffixes above) on top of the normal roll, gated to legendary
-// rarity to match the game's existing "ultra rare" convention (Spellstrike/
-// Blessing are also legendary-only — critStrike/doubleStrike were too until
-// a later balance pass dropped them to rare+, see VERSION.md). The skill count scales
+// rarity to match the game's existing "ultra rare" convention (critStrike/
+// doubleStrike/spellstrike are also legendary-only). The skill count scales
 // with ilvl (1-100, i.e. chapter 1 through the end of chapter 10):
 // 90/9/1% chance of 1/2/3 skills at ilvl 1, sliding to 50/30/20% at ilvl 100.
 function minnieWeaponSkillCount(ilvl) {
