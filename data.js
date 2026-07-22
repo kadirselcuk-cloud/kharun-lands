@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.3';
+DATA.VERSION = '1.12.4';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.12.4', notes: [
+    'Your Adventure Speed and Enemies-at-once (monster count) settings are now kept every time you start a new adventure, instead of resetting back to 1x speed / 1 enemy whenever you move to a different level.',
+  ] },
   { v: '1.12.3', notes: [
     'Shield tooltips now show the actual Block Chance percentage instead of a vague description.',
   ] },

@@ -32,7 +32,7 @@ function emptyTierSet(v) { const o = {}; for (const t of AUTO_USE_TIERS) o[t] = 
 
 function defaultSettings() {
   return {
-    packSize: 1, advSpeed: 1200, lastAdvLevel: null,
+    packSize: 1, advSpeed: 1200,
     autoSell: { normal: false, magical: false, rare: false, epic: false, legendary: false, unusable: false, all: false },
     // per-encounter-tier behavior when a new pack of that tier spawns
     encounterMode: { legendary: 'speed1x', epic: 'speed1x', rare: 'continue', miniboss: 'continue', abnormal: 'continue' },
@@ -51,7 +51,7 @@ function defaultSettings() {
 function ensureSettings() {
   if (!G.settings) G.settings = {};
   const def = defaultSettings();
-  for (const k of ['packSize', 'advSpeed', 'lastAdvLevel']) if (G.settings[k] === undefined) G.settings[k] = def[k];
+  for (const k of ['packSize', 'advSpeed']) if (G.settings[k] === undefined) G.settings[k] = def[k];
   if (!G.settings.autoSell) G.settings.autoSell = def.autoSell;
   if (!G.settings.encounterMode) G.settings.encounterMode = def.encounterMode;
   else for (const k of Object.keys(def.encounterMode)) if (G.settings.encounterMode[k] === undefined) G.settings.encounterMode[k] = def.encounterMode[k];
@@ -2528,13 +2528,10 @@ function handleKill(e, run) {
 function startAdventure() {
   if (ADV) return;
   const level = G.area;
-  // Speed and pack-size choices persist for repeat runs of the same
-  // level, but reset to defaults when adventuring in a new level.
-  if (G.settings.lastAdvLevel !== level) {
-    G.settings.packSize = 1;
-    G.settings.advSpeed = 1200;
-    G.settings.lastAdvLevel = level;
-  }
+  // Speed and pack-size (monster count) choices persist across every
+  // adventure, not just repeat runs of the same level — per direct
+  // request, clicking Adventure should never silently reset them back to
+  // 1x speed / 1 monster at a time just because the level changed.
   // areas cleared before re-runnability landed sit at 1111 — reset them
   if ((G.progress[level] || 0) >= CREATURES_PER_LEVEL) G.progress[level] = 0;
   const d = derive();

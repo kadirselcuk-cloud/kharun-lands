@@ -14,6 +14,26 @@ game at runtime.
 
 ---
 
+## 1.12.4 (fix)
+
+Direct request: "keep speed and monster count settings" when starting an
+adventure. `startAdventure()` (`game.js`) previously reset
+`G.settings.packSize`/`G.settings.advSpeed` back to their defaults (1
+enemy / 1200ms) whenever `G.settings.lastAdvLevel !== G.area` — i.e. every
+time you adventured on a level you hadn't just come from, your Speed and
+Enemies-at-once choices silently reverted, even though the settings
+persisted fine for repeat runs of the *same* level.
+
+- Removed the level-based reset block entirely, along with the
+  now-unused `lastAdvLevel` field it depended on (`defaultSettings()`,
+  `ensureSettings()`'s backfill list, and the reset block itself) — Speed
+  and Enemies-at-once now simply carry over from whatever they were last
+  set to, regardless of which level you start on next.
+- Verified in a Node `vm` sandbox: set pack size to 4 and speed to 400ms
+  mid-adventure, left that adventure, started a new one on a completely
+  different level, and confirmed both settings (and `ADV.speedMs` itself)
+  carried over instead of resetting to the 1/1200ms defaults.
+
 ## 1.12.3 (fix)
 
 Direct request: the shield item-tooltip line added in 1.12.0
