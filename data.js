@@ -5,12 +5,18 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.5';
+DATA.VERSION = '1.13.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.13.0', notes: [
+    'Critical Strike and Double Strike can now roll on Rare+ gear instead of only Legendary.',
+    'Critical Strike now scales with item level: 10-20% chance to deal +100% damage early on, up to 20-30% chance to deal +180-200% damage by the endgame (previously a flat +100% damage at any level).',
+    'Double Strike now scales with item level: 10-20% chance to strike again early on, up to 40-50% chance by the endgame (previously topped out around 15%).',
+    'Poison Weapon\'s damage-per-round is now 50% stronger at every item level (3-7.5% of the target\'s max HP per round, up from 2-5%).',
+  ] },
   { v: '1.12.5', notes: [
     'Fixed a long-standing bug that silently kept a large group of item properties off the gear they were meant for: +Skill, +All Skills, Damage Reduction, resistances, Pain Reflection, Speed, Evasion, Enemy Resist Shred, and flat/percent Weapon Damage could only ever appear on rings/amulets/cloaks/belts, never on the weapons, armor, or shields they were actually designed for.',
     'Fixed the same bug for weapon-exclusive properties: Life Steal, Mana Steal, Poison Weapon, Weapon Slow, Execute, Critical Strike, Double Strike, Spellstrike, and Blessing could only ever appear on jewelry and had never once rolled on an actual weapon.',
@@ -2113,8 +2119,10 @@ DATA.AFFIXES = [
   // rounds at ilvl 1, up to 5% max HP/round for 8 rounds at ilvl 100, so
   // a "better roll" genuinely means a stronger AND longer poison instead
   // of just a slightly bigger number.
+  // Per a direct "+50% poison damage" follow-up request: the whole pct
+  // curve scaled up 50% (3%->7.5%, was 2%->5%); rounds/rarity untouched.
   { id: 'poisonWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
-    roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return { pct: 0.02 + t * 0.03, rounds: Math.round(2 + t * 6) }; },
+    roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return { pct: 0.03 + t * 0.045, rounds: Math.round(2 + t * 6) }; },
     fmt: v => `30% chance to Poison for ${(v.pct * 100).toFixed(1)}% max HP/round for ${v.rounds} Rounds` },
   // Weapon Slow: weapon-only, rare+. v is a compound value {chance, pct, rounds}.
   { id: 'slowWeapon', w: 3, weaponOnly: true, minRarity: 'rare',
@@ -2131,12 +2139,30 @@ DATA.AFFIXES = [
   // no non-jewelry slot qualifies, but the jewelry bypass still applies).
   { id: 'goldFind', w: 3, minRarity: 'rare', slots: [], roll: i => 10 + Math.floor(i / 6) + rint(0, 10), fmt: v => `+${v}% Gold Find` },
   { id: 'magicFind', w: 3, minRarity: 'rare', slots: [], roll: i => 5 + Math.floor(i / 8) + rint(0, 5), fmt: v => `+${v}% Magic Find` },
-  // Critical Strike / Double Strike: ultra-rare, weapon-only (+jewelry),
-  // legendary+ only — same prestige tier as Life/Mana Steal.
-  { id: 'critStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
-    roll: i => Math.min(30, 5 + Math.floor(i / 10) + rint(0, 5)), fmt: v => `${v}% chance to deal +100% damage` },
-  { id: 'doubleStrike', w: 1, weaponOnly: true, minRarity: 'legendary',
-    roll: i => Math.min(20, 3 + Math.floor(i / 12) + rint(0, 4)), fmt: v => `${v}% chance to strike again immediately` },
+  // Critical Strike / Double Strike: weapon-only (+jewelry), rare+ (lowered
+  // from legendary+ per direct request — still w:1, so still the rarest
+  // *weight* in the pool even though more rarities now qualify). Both now
+  // scale their whole roll range with ilvl instead of a near-flat curve:
+  // Critical Strike's bonus-damage side goes from a fixed +100% at ilvl 1
+  // (chance 10-20%) to a rolled +180-200% by ilvl 100 (chance 20-30%) — v
+  // is a compound {chance, bonus} value (see derive()'s critStrike case in
+  // game.js: chance sums across every crit-chance source same as before,
+  // bonus is tracked as its own separate stat since there's no dmgPct-style
+  // precedent for stacking bonus-damage% across multiple items). Double
+  // Strike has no separate damage component (it's a full extra attack, not
+  // a multiplier) so only its chance range moves, 10-20% at ilvl 1 up to
+  // 40-50% by ilvl 100.
+  { id: 'critStrike', w: 1, weaponOnly: true, minRarity: 'rare',
+    roll: i => {
+      const t = Math.max(0, Math.min(1, (i - 1) / 99));
+      const chance = rint(Math.round(10 + t * 10), Math.round(20 + t * 10));
+      const bonus = rint(Math.round(100 + t * 80), Math.round(100 + t * 100));
+      return { chance, bonus };
+    },
+    fmt: v => `${v.chance}% chance to deal +${v.bonus}% damage` },
+  { id: 'doubleStrike', w: 1, weaponOnly: true, minRarity: 'rare',
+    roll: i => { const t = Math.max(0, Math.min(1, (i - 1) / 99)); return rint(Math.round(10 + t * 30), Math.round(20 + t * 30)); },
+    fmt: v => `${v}% chance to strike again immediately` },
   // Spellstrike / Blessing: ultra-rare, weapon-only (+jewelry),
   // legendary+. On landing a hit, a chance to also cast a random skill
   // from the player's own class — independent of learned rank, mana, or

@@ -14,6 +14,79 @@ game at runtime.
 
 ---
 
+## 1.13.0 (minor)
+
+Direct request: rework Critical Strike, Double Strike, and Poison Weapon's
+curves and drop Critical/Double Strike's rarity floor.
+
+- **`minRarity` lowered `legendary` -> `rare`** for `critStrike`/
+  `doubleStrike` (`DATA.AFFIXES`, `data.js`) — still `w: 1` (rarest weight
+  in the pool), so the affix itself is just as hard to roll as before, only
+  now reachable on Rare/Epic gear too instead of exclusively Legendary.
+  This lands right on top of 1.12.5's fix, which is what makes it actually
+  matter: before that fix these two couldn't roll on a real weapon at all
+  (jewelry-only), so lowering the floor here would have been silently
+  inert had it landed first.
+- **Critical Strike's `roll()` now returns a compound `{chance, bonus}`**
+  (previously a bare chance number with the +100% damage hardcoded at the
+  consumer). Both sides scale with ilvl from `t = (ilvl-1)/99`: chance
+  `rint(10+10t, 20+10t)` (10-20% at ilvl 1 -> 20-30% at ilvl 100), bonus
+  `rint(100+80t, 100+100t)` (fixed exactly 100% at ilvl 1, since lo=hi
+  there -> 180-200% at ilvl 100).
+- **Double Strike's `roll()`** — same shape, chance only (no damage
+  component; a double strike is a full extra attack, not a multiplier, so
+  there's nothing else to scale): `rint(10+30t, 20+30t)` (10-20% at ilvl 1
+  -> 40-50% at ilvl 100, replacing the old `Math.min(20, 3 +
+  floor(ilvl/12) + rint(0,4))` curve, which only ever reached ~15% in
+  practice despite its nominal 20 cap).
+- **`derive()` (`game.js`)** — `d.critStrike`'s gear-loop case now reads
+  `a.v.chance`/`a.v.bonus` instead of a bare number, still summing chance
+  across every source (gear affixes AND the pre-existing class passives
+  that grant flat `critStrike` — Rogue/Warrior/Mage passives at
+  `data.js` ~1756/1808/1822/1880 — untouched, they only ever defined a
+  chance number, never a damage component) exactly as before. The new
+  `d.critBonus` field (default `100`, so passive-only crit sources still
+  deal the old flat +100% if no gear affix is present) takes **the last
+  qualifying item's bonus value, not a sum** — there's no existing
+  precedent anywhere in this codebase for stacking a bonus-damage%
+  multiplicatively or additively across multiple items (the closest
+  analogues, `weaponPoison`/`weaponSlow`, already use last-wins overwrite
+  for their compound values), so this follows that same convention rather
+  than inventing a new stacking rule. Flagged as an assumption, not
+  confirmed with the user — worth revisiting if a player ends up
+  double-dipping two `critStrike`-rolled items and finds the result
+  surprising.
+- `d.doubleStrike`'s cap raised `40 -> 50` (`derive()`'s caps block) to
+  match the new roll ceiling — the old cap would have silently clipped the
+  requested 50% endgame value down to 40%. Added a matching `d.critBonus =
+  Math.min(200, ...)` cap alongside it (not strictly load-bearing since the
+  roll formula already tops out at 200, but every sibling stat in that
+  block has an explicit ceiling, so added one here too for consistency and
+  as insurance against a future curve change quietly exceeding it).
+- The actual damage consumer (`enemyHit`-adjacent code in `game.js`, the
+  crit branch right after the execute-bonus line) changed from a hardcoded
+  `dmg *= 2` to `dmg = Math.round(dmg * (1 + d.critBonus / 100))`.
+- **Poison Weapon**: direct "+50% poison damage" follow-up. `pct`'s curve
+  scaled up 50% end-to-end — `0.02 + t*0.03` (2%->5%) became `0.03 +
+  t*0.045` (3%->7.5%). `rounds` and the affix's own `minRarity: 'rare'`
+  were already correct/unchanged and untouched by this request.
+- A stale comment in `game.js` (above `minnieWeaponSkillCount`) cited
+  critStrike/doubleStrike alongside Spellstrike/Blessing as precedent for
+  "legendary-only ultra-rare" gating on Minnie's weapon-exclusive skills —
+  updated to note they moved to rare+ in this version, since that
+  precedent no longer holds for those two (Minnie's own gate is a separate,
+  hardcoded `it.rarity === 'legendary'` check unaffected by this change).
+- Verified via a Node `vm` sandbox: sampled `critStrike`/`doubleStrike`/
+  `poisonWeapon`'s `roll()` 5,000x each at ilvl 1 and ilvl 100 and confirmed
+  the exact requested endpoints (chance/bonus/pct all landed precisely on
+  the specified ranges, including poisonWeapon's now-deterministic 3%/7.5%
+  since its formula has no jitter); force-rolled 30,000 Rare weapons and
+  confirmed critStrike/doubleStrike now actually appear on them (impossible
+  before this version); constructed a synthetic character equipping a
+  weapon with a `{chance:30, bonus:200}` critStrike affix and confirmed
+  `derive()` produces exactly `d.critStrike=30, d.critBonus=200`, correctly
+  respecting both new caps.
+
 ## 1.12.5 (fix)
 
 Found while answering a question about why the "+All Skills" affix hadn't

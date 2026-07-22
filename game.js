@@ -345,7 +345,7 @@ function derive(buffBonus) {
     weaponMin: 1, weaponMax: 2, weaponMagic: false, weaponSpd: 0,
     weaponPoison: null, weaponSlow: null,
     painReflect: 0, execute: 0, goldFind: 0, magicFind: 0,
-    critStrike: 0, doubleStrike: 0, procOffense: 0, procSupport: 0,
+    critStrike: 0, critBonus: 100, doubleStrike: 0, procOffense: 0, procSupport: 0,
     blockChance: 0, immuneSlow: false, immuneCharm: false, immuneNecrotic: false,
   };
   // gear
@@ -380,7 +380,15 @@ function derive(buffBonus) {
         case 'execute': d.execute += a.v; break;
         case 'goldFind': d.goldFind += a.v; break;
         case 'magicFind': d.magicFind += a.v; break;
-        case 'critStrike': d.critStrike += a.v; break;
+        // v is a compound {chance, bonus} value (see DATA.AFFIXES.critStrike)
+        // — chance sums with every other crit-chance source (gear + class
+        // passives) same as before, but the bonus-damage% doesn't have an
+        // established multi-source stacking rule anywhere else in the
+        // codebase, so the strongest single item's bonus wins rather than
+        // summing (last one applied in the gear loop, in practice whichever
+        // qualifying item is iterated last) — an assumption, not confirmed
+        // with the user.
+        case 'critStrike': d.critStrike += a.v.chance; d.critBonus = a.v.bonus; break;
         case 'doubleStrike': d.doubleStrike += a.v; break;
         case 'procOffense': d.procOffense += a.v; break;
         case 'procSupport': d.procSupport += a.v; break;
@@ -458,7 +466,8 @@ function derive(buffBonus) {
   d.manasteal = Math.min(10, d.manasteal);
   d.painReflect = Math.min(50, d.painReflect);
   d.critStrike = Math.min(50, d.critStrike);
-  d.doubleStrike = Math.min(40, d.doubleStrike);
+  d.critBonus = Math.min(200, d.critBonus);
+  d.doubleStrike = Math.min(50, d.doubleStrike);
   d.procOffense = Math.min(30, d.procOffense);
   d.procSupport = Math.min(30, d.procSupport);
   // dmgPct/execute were the only two combat-relevant percentage stats
@@ -745,8 +754,9 @@ function rollAffixes(count, ilvl, clsId, item, runeRarity) {
 // Staff/Wand/Scepter/Orb/Tome additionally guarantee 1-3 DISTINCT +skill
 // affixes (each +1..+3, same shape/behavior as the generic 'skill' affix —
 // see rollAffixes above) on top of the normal roll, gated to legendary
-// rarity to match the game's existing "ultra rare" convention (critStrike/
-// doubleStrike/spellstrike are also legendary-only). The skill count scales
+// rarity to match the game's existing "ultra rare" convention (Spellstrike/
+// Blessing are also legendary-only — critStrike/doubleStrike were too until
+// a later balance pass dropped them to rare+, see VERSION.md). The skill count scales
 // with ilvl (1-100, i.e. chapter 1 through the end of chapter 10):
 // 90/9/1% chance of 1/2/3 skills at ilvl 1, sliding to 50/30/20% at ilvl 100.
 function minnieWeaponSkillCount(ilvl) {
@@ -2296,7 +2306,7 @@ function playerHit(fight, enemy, skill, r) {
   if (enemy.dr) dmg = Math.max(1, Math.round(dmg * (1 - enemy.dr)));
   dmg = Math.max(1, Math.round(dmg * incomingDmgMult(enemy)));
   if (d.execute && enemy.hp / enemy.maxHp < 0.25) dmg = Math.round(dmg * (1 + d.execute / 100));
-  if (d.critStrike && chance(d.critStrike / 100)) dmg *= 2;
+  if (d.critStrike && chance(d.critStrike / 100)) dmg = Math.round(dmg * (1 + d.critBonus / 100));
   enemy.hp -= dmg;
   ADV.run.dmgDealt += dmg;
   if (d.lifesteal) G.char.hp = Math.min(d.maxHp, G.char.hp + Math.max(1, Math.round(dmg * (d.lifesteal / 100))));
