@@ -963,7 +963,7 @@ UI.itemStatsHtml = function (it, baseline) {
     ${it.atkSpd ? `<div class="istat">Attack Speed: <b>${it.atkSpd < 0.8 ? 'Very Fast' : it.atkSpd < 1 ? 'Fast' : it.atkSpd === 1 ? 'Normal' : it.atkSpd <= 1.2 ? 'Slow' : 'Very Slow'}</b> (×${it.atkSpd})</div>` : ''}
     ${it.hands ? `<div class="istat">${it.hands === 2 ? 'Two-Handed' : 'One-Handed'}</div>` : ''}
     ${it.weight ? `<div class="istat">${cap(it.weight)} armor</div>` : ''}
-    ${isShieldItem(it) ? '<div class="istat">🛡️ Grants a chance to block incoming damage entirely (scales with your progress, 20%–40%)</div>' : ''}
+    ${isShieldItem(it) ? `<div class="istat">🛡️ ${Math.round(shieldBlockChance(G.area) * 100)}% Block Chance</div>` : ''}
     ${(it.protections || []).map(id => `<div class="affix protection">🛡️ ${DATA.SHIELD_PROTECTIONS.find(p => p.id === id).fmt()}</div>`).join('')}
     ${(it.affixes || []).map(a => `<div class="affix ${cls('a_' + a.id)}">◆ ${affixText(a)}</div>`).join('')}
     ${it.sockets ? `<div class="sockets">Sockets: ${runes.map(r => `<span class="socket filled" title="${esc(r.name)}: ${r.bonuses.map(affixText).join(', ')}">🪨</span>`).join('')}${'<span class="socket">○</span>'.repeat(it.sockets - runes.length)}</div>` : ''}

@@ -14,6 +14,19 @@ game at runtime.
 
 ---
 
+## 1.12.3 (fix)
+
+Direct request: the shield item-tooltip line added in 1.12.0
+("Grants a chance to block incoming damage entirely (scales with your
+progress, 20%–40%)") should just state the actual percentage.
+
+- `ui.js` (`UI.itemStatsHtml`): replaced the static description with
+  `🛡️ ${Math.round(shieldBlockChance(G.area) * 100)}% Block Chance`,
+  computed live from the player's current `G.area` — same source the
+  Character tab's own Block Chance stat row already uses, so the two
+  numbers always agree instead of the tooltip citing a vague 20-40% range.
+- Verified via `node --check`.
+
 ## 1.12.2 (fix)
 
 Direct correction after user review of 1.12.0: "increase the stat bonus

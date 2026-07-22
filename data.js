@@ -5,12 +5,15 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.2';
+DATA.VERSION = '1.12.3';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.12.3', notes: [
+    'Shield tooltips now show the actual Block Chance percentage instead of a vague description.',
+  ] },
   { v: '1.12.2', notes: [
     'Corrected last update\'s stat bonus doubling: only Strength, Dexterity, Intelligence, and All Stats now roll double — every other stat (HP, Mana, Armor, resistances, etc.) is back to its normal range.',
   ] },
