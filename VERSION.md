@@ -14,6 +14,53 @@ game at runtime.
 
 ---
 
+## 1.12.5 (fix)
+
+Found while answering a question about why the "+All Skills" affix hadn't
+been seen in a long time — turned out its true chance on the slots it was
+meant for was exactly 0%, not just low.
+
+- **Root cause**: `rollAffixes`'s pool filter (`game.js`) gated `weaponOnly`
+  and `slots`-restricted affixes with `if (a.weaponOnly && !bypassSlot)
+  return false;` / `if (a.slots && !bypassSlot) return false;` — neither
+  condition ever checked whether the item's own slot actually matched.
+  `bypassSlot` is only ever true for jewelry/runes ("jewelry can get
+  everything"), so in practice this excluded every `weaponOnly` or
+  `slots`-restricted affix from **every non-jewelry, non-rune item,
+  including the exact slot(s) each one was written for** — the only place
+  they could ever land was jewelry, via the bypass path.
+- Confirmed empirically before touching anything: 20,000 forced-legendary
+  weapons and 20,000 forced-legendary armor pieces in a Node `vm` sandbox
+  produced zero instances of any `slots`-gated affix (Speed, Evasion,
+  +Weapon Damage flat/%, +Armor, Damage Reduction, all 3 Resistances,
+  Enemy Resist Shred, +Skill, +All Skills, Pain Reflection, Gold/Magic
+  Find) and zero instances of any `weaponOnly` affix (Vampiric/Life Steal,
+  Mana Steal, Poison Weapon, Weapon Slow, Execute, Critical Strike, Double
+  Strike, Spellstrike, Blessing) on weapons/armor — all of them showed up
+  fine on rings in the same run.
+- **Fix**: both checks now also require the item's slot to actually match —
+  `item.slot !== 'weapon'` for `weaponOnly`, `!a.slots.includes(item.slot)`
+  for `slots` — while still leaving the jewelry/rune bypass (`bypassSlot`)
+  untouched, so jewelry keeps being able to roll anything, exactly as the
+  surrounding comments already documented as intended. `minRarity` gating
+  was never affected by this bug and is untouched.
+- Re-ran the same 20k-sample sweep post-fix: weapons now correctly roll
+  dmgFlat/dmgPct/enemyResDown/skill/allSkills/all 9 weaponOnly affixes (and
+  correctly never roll Speed/Evasion/Armor/DR/Resistances/PainReflect/
+  Gold-Magic Find, none of which list `weapon` in their `slots`); armor
+  pieces correctly roll dmgFlat/dmgPct/armor/dr/resistances/skill/
+  allSkills/painReflect; a targeted 20k-shield sweep (forced offhand,
+  filtered to `isShieldItem`) confirmed shields now roll Armor,
+  Physical/Magic/Poison Resistance, and Pain Reflection (all list
+  `offhand`) and correctly never roll dmgFlat/dmgPct/skill/allSkills
+  (none list `offhand`). Rings were re-checked to confirm they still get
+  every affix as before — this fix only added eligibility, it didn't
+  remove any.
+- Scope check: only `rollAffixes`'s pool filter changed. `RANGE_DOUBLE_IDS`,
+  rarity's `[min,max]` affix-count roll, rune generation (`isRune` already
+  bypassed correctly before and after), and Minnie's weapon-skill roll are
+  all untouched by this fix.
+
 ## 1.12.4 (fix)
 
 Direct request: "keep speed and monster count settings" when starting an

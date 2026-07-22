@@ -5,12 +5,16 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.12.4';
+DATA.VERSION = '1.12.5';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.12.5', notes: [
+    'Fixed a long-standing bug that silently kept a large group of item properties off the gear they were meant for: +Skill, +All Skills, Damage Reduction, resistances, Pain Reflection, Speed, Evasion, Enemy Resist Shred, and flat/percent Weapon Damage could only ever appear on rings/amulets/cloaks/belts, never on the weapons, armor, or shields they were actually designed for.',
+    'Fixed the same bug for weapon-exclusive properties: Life Steal, Mana Steal, Poison Weapon, Weapon Slow, Execute, Critical Strike, Double Strike, Spellstrike, and Blessing could only ever appear on jewelry and had never once rolled on an actual weapon.',
+  ] },
   { v: '1.12.4', notes: [
     'Your Adventure Speed and Enemies-at-once (monster count) settings are now kept every time you start a new adventure, instead of resetting back to 1x speed / 1 enemy whenever you move to a different level.',
   ] },

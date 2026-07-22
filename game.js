@@ -698,17 +698,29 @@ function rollAffixes(count, ilvl, clsId, item, runeRarity) {
   // the item/rune actually qualifies. Jewelry ("can get everything") and
   // runes (not tied to any one slot until socketed — see rollShieldSockets'
   // neighboring comment history for why they used to be excluded outright)
-  // both bypass the weaponOnly/slots gates; minRarity is still enforced
-  // against whichever rarity applies (the item's own, or the rune's).
+  // both bypass the weaponOnly/slots gates entirely (any weaponOnly/slotted
+  // affix is fair game on them); everything else is only eligible on its
+  // own actually-matching slot(s); minRarity is enforced regardless, against
+  // whichever rarity applies (the item's own, or the rune's).
+  // Bug fix (see VERSION.md): this used to read `a.weaponOnly && !bypassSlot`
+  // / `a.slots && !bypassSlot` with no check that the item's own slot
+  // actually matched — so a weaponOnly or slotted affix was excluded from
+  // EVERY non-jewelry/non-rune item, including the very slot(s) it was
+  // designed for, and reachable only via jewelry's bypass. That silently
+  // zeroed out 20 affixes (Vampiric, Mana Steal, Poison/Slow Weapon,
+  // Execute, Critical/Double Strike, Spellstrike, Blessing, Speed,
+  // Evasion, +Weapon Damage flat/%, +Armor, Damage Reduction, all 3
+  // Resistances, Enemy Resist Shred, +Skill, +All Skills, Pain Reflection,
+  // Gold/Magic Find) on every weapon/armor/offhand item ever generated.
   const pool = DATA.AFFIXES.filter(a => {
     const jewelry = !!item && isJewelrySlot(item.slot);
     const bypassSlot = jewelry || isRune;
-    if (a.weaponOnly && !bypassSlot) return false;
+    if (a.weaponOnly && !bypassSlot && item.slot !== 'weapon') return false;
     if (a.minRarity) {
       const rarity = item ? item.rarity : runeRarity;
       if (!rarity || RARITY_ORDER[rarity] < RARITY_ORDER[a.minRarity]) return false;
     }
-    if (a.slots && !bypassSlot) return false;
+    if (a.slots && !bypassSlot && !a.slots.includes(item.slot)) return false;
     return true;
   });
   const totalW = pool.reduce((s, a) => s + a.w, 0);
