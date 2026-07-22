@@ -5,12 +5,18 @@
 
 const DATA = {};
 
-DATA.VERSION = '1.13.1';
+DATA.VERSION = '1.14.0';
 
 // Changelog — newest first. FIX versions = bug fixes/design-only changes,
 // MINOR versions = gameplay changes, MAJOR only bumped on explicit request.
 // See VERSION.md for the full dev-facing record.
 DATA.CHANGELOG = [
+  { v: '1.14.0', notes: [
+    'Your maximum resistance to Physical/Magic/Poison damage is now 96% (was 75%).',
+    'Creatures now grow far more resistant as you push deeper into the story: their resistance to their own attack type rises up to 95%, and to other damage types up to 90%, by Chapter 10 Area 10.',
+    'Creatures also attack up to 5x faster by Chapter 10, ramping up gradually with each chapter.',
+    'Shield "Half Damage" protections are now described plainly ("Reduces physical/magic/poison damage by 50%") and work as a straight 50% cut to that damage after all other reductions, instead of quietly acting as extra resistance.',
+  ] },
   { v: '1.13.1', notes: [
     'Corrected last update: Critical Strike and Double Strike are Legendary-only again, not Rare+ (their scaling chance/damage numbers from 1.13.0 are unchanged).',
     'Poison Weapon is now a noticeably rarer find on gear, matching how uncommon Critical Strike/Double Strike already are.',
@@ -2027,9 +2033,9 @@ DATA.SHIELD_PROTECTIONS = [
   { id: 'immuneSlow', name: 'Immune to Slow', icon: '❄️', fmt: () => 'Immune to Slow effects' },
   { id: 'immuneCharm', name: 'Immune to Charm', icon: '💘', fmt: () => 'Immune to Charm effects' },
   { id: 'immuneNecrotic', name: 'Immune to Necrotic', icon: '💀', fmt: () => 'Immune to Necrotic healing reduction' },
-  { id: 'resPhysHalf', name: 'Half Damage from Physical', icon: '⚔️', fmt: () => '+50% Physical Resistance' },
-  { id: 'resMagicHalf', name: 'Half Damage from Magic', icon: '✨', fmt: () => '+50% Magic Resistance' },
-  { id: 'resPoisonHalf', name: 'Half Damage from Poison', icon: '☠️', fmt: () => '+50% Poison Resistance' },
+  { id: 'resPhysHalf', name: 'Half Damage from Physical', icon: '⚔️', fmt: () => 'Reduces physical damage by 50%' },
+  { id: 'resMagicHalf', name: 'Half Damage from Magic', icon: '✨', fmt: () => 'Reduces magic damage by 50%' },
+  { id: 'resPoisonHalf', name: 'Half Damage from Poison', icon: '☠️', fmt: () => 'Reduces poison damage by 50%' },
 ];
 
 // Armor bases per slot & weight class.

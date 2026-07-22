@@ -947,3 +947,80 @@ allied monster for 20% of its HP, maximum of 10 healings."
   (the old Explosive branch is gone); confirmed `handleKill`'s
   `kill_healing` quest-progress event still fires off the creature's
   `affixes` loop like every other specialty.
+
+## Resistance/attack-speed progression rework + Shield fix (v1.14.0)
+
+Request: raise the player's resistance cap, make creatures grow more
+resistant and attack faster as the story progresses, and fix Shield's
+"half damage" protections. Resolved via 4 clarifying-question answers,
+since the codebase had no existing per-type "resistant/not-resistant/
+vulnerable" tagging on creatures to build the area-scaling from.
+
+- **Player resistance cap 75% -> 96%** — the 3 `d.res.<type> =
+  Math.min(...)` clamps at the end of `derive()` (game.js).
+- **Creature resistance category is derived from the creature's own
+  `atkType`**, per explicit answer (over auto-deriving from each
+  species' existing relative res values, or hand-tagging every
+  creature): a damage type matching the creature's own `atkType` is
+  "resistant" (95% cap at level 100 = Chapter 10 Area 10); the other two
+  types are "not-resistant" (90% cap). There is no third "vulnerable"/
+  80% tier in practice under this rule — every type is either the
+  creature's own atkType or one of the other two, per the user's chosen
+  resolution (a deviation from the original request's literal 3-tier
+  ask, resolved explicitly via the clarifying question rather than
+  assumed).
+- **Existing hand-authored species `res` numbers (data.js) are stretched
+  toward the cap, not discarded**, per explicit answer: new
+  `scaleResToCap(baseVal, level, cap)` (game.js, after `TIER_CONF`)
+  linearly interpolates `t = (level-1)/99` from each species' own
+  baseline number at level 1 to `resTypeCap(type, atkType)` at level
+  100 — preserves relative differences between species early on, lands
+  every creature exactly on 95/90 by the last level.
+- **The old flat 70%/85% caps on top of that curve were dropped**, per
+  explicit answer: the tier resistance bump (rare/epic/miniboss/
+  legendary +5/10/12/15) and the `resistant` specialty affix (+20%) now
+  both clamp to `resTypeCap(k, c.atkType)` (95 or 90) instead of a
+  separate fixed ceiling.
+- **`playerHit`'s enemy-resistance clamp** (used when the player deals
+  damage) was also updated from a flat `Math.min(75, res)` to
+  `resTypeCap(resKey, enemy.atkType)` — without this, a boss with 95%
+  resistance to its own type would still only ever mitigate 75% of the
+  player's damage, silently capping the whole point of the new ceiling.
+  This wasn't explicitly asked about but follows directly from making
+  the creature-side cap real everywhere it's read, not just at creation.
+- **Creature attack speed scales up to 5x by Chapter 10**, per explicit
+  answer stacked as an *added* multiplier rather than replacing the
+  existing per-level growth term: new `chapterSpdMult(level) = 1 +
+  (chapterNumOf(level)-1) * (4/9)` (1x at Chapter 1, linear per chapter,
+  5x at Chapter 10) multiplies straight into `makeCreature`'s existing
+  `spd` formula, on top of its own tier/species/level(`*0.4`) growth.
+- **Shield's "Half Damage from Physical/Magic/Poison" protections were
+  mechanically wrong** — `derive()` added a flat +50 straight into
+  `d.res.<type>`, which (a) is diminishing-returns, not "half damage"
+  (its effect shrinks as `1 - res/100` approaches 0 the more resistance
+  a player already stacks), and (b) inflated the resistance number shown
+  on the Character tab. Fixed: new `d.dmgHalf = {phys, magic, poison}`
+  boolean flags (set by the shield protection instead of touching
+  `d.res`); `enemyHit` (game.js) now multiplies final damage of the
+  matching type by 0.5 as the very last step — after resistance, armor,
+  DR, buffs, and the Magical-affix bonus — so it's a flat 50% cut on
+  whatever damage actually gets through, exactly matching the request's
+  "reduce the damage player receives after resistance and all
+  calculations by half." `DATA.SHIELD_PROTECTIONS`' `fmt()` text
+  (data.js) changed from "+50% Physical/Magic/Poison Resistance" to
+  "Reduces physical/magic/poison damage by 50%" to describe this
+  accurately — the Bestiary/Inventory/Shop/Enchanter displays that
+  render a protection via `.fmt()` picked this up automatically, no
+  separate text to hunt down.
+- Verified via a Node `vm` sandbox (shared-context load of `data.js`/
+  `game.js`, no DOM needed for these code paths, same relationship as the
+  real `<script>` tags): `makeCreature(100, 'normal')` on a magic-atkType
+  species returns exactly `{phys:90, magic:95, poison:90}`;
+  `makeCreature(1, 'normal')` on the same species returns its original
+  unscaled hand-authored numbers; `chapterSpdMult` returns exactly
+  1/1.444.../3.222.../5 at levels 1/20/55/100; a synthetic
+  `G.char.equip.offhand` with `protections: ['resPhysHalf']` produces
+  `d.res.phys === 0` (confirming no resistance inflation) and
+  `d.dmgHalf.phys === true`; stacking three `+200`-value `resPhys`/
+  `resMagic`/`resPoison` gear affixes caps `d.res` at exactly 96 for all
+  three types, confirming the new player cap.

@@ -14,6 +14,74 @@ game at runtime.
 
 ---
 
+## 1.14.0 (minor)
+
+Balance rework of resistance/attack-speed progression plus a Shield mechanic
+fix, from one request with 4 clarifying-question answers resolving the
+ambiguous parts (there was no existing "resistant/not-resistant/vulnerable"
+per-type tagging on creatures to build from).
+
+- **Player resistance cap 75% -> 96%** (`derive()` in game.js, the 3
+  `d.res.<type> = Math.min(...)` clamps at the end of the function).
+- **Creature resistance now scales with story progress, per damage type.**
+  Per explicit answer, categorization is derived from each creature's own
+  `atkType`: its own attack type is "resistant" (95% cap), the other two
+  damage types are "not-resistant" (90% cap) — there's no third
+  "vulnerable"/80% tier in practice, since a type is always either the
+  creature's own atkType or one of the other two.
+  - New `resTypeCap(type, atkType)` (game.js, right after `TIER_CONF`)
+    returns 95/90 accordingly.
+  - New `scaleResToCap(baseVal, level, cap)` linearly interpolates each
+    species' existing hand-authored `res` number (data.js) toward that cap
+    as `level` goes 1 -> 100 (`t = (level-1)/99`) — per explicit answer,
+    this *stretches* the existing numbers rather than discarding them, so
+    early-game relative differences between species are preserved and the
+    cap is hit exactly at level 100 (Chapter 10 Area 10). Applied in
+    `makeCreature` right after `c.res` is initialized from `base.res`.
+  - The old flat caps on top of the base curve — the tier resistance bump
+    (rare +5/epic +10/miniboss +12/legendary +15, previously capped at
+    70%) and the `resistant` specialty affix (+20%, previously capped at
+    85%) — now clamp to `resTypeCap(k, c.atkType)` instead of a fixed
+    70/85, per explicit answer ("drop the flat tier/affix caps").
+  - `playerHit`'s own enemy-resistance clamp (previously a flat
+    `Math.min(75, res)` when the player deals magic/phys damage) now uses
+    the same `resTypeCap(resKey, enemy.atkType)` — otherwise a boss with a
+    95%-resistant type would still only mitigate up to 75% of the
+    player's damage against it, undermining the whole point of the higher
+    ceiling.
+- **Creature attack speed scales up to 5x by Chapter 10.** New
+  `chapterSpdMult(level) = 1 + (chapterNumOf(level)-1) * (4/9)` (1x at
+  Chapter 1, 5x at Chapter 10, linear per chapter) stacks as an extra
+  multiplier on `makeCreature`'s existing `spd` formula, per explicit
+  answer — today's per-tier/species/level speed variance is untouched,
+  just uniformly scaled up as chapters progress.
+- **Shield "Half Damage" protections fixed to actually reduce damage, not
+  add resistance.** Previously `resPhysHalf`/`resMagicHalf`/
+  `resPoisonHalf` (`derive()`, game.js) added +50 straight into
+  `d.res.<type>` — inflating the displayed/capped resistance number and
+  getting *diminishing* returns the higher a player's resistance already
+  was (its value shrinks as `(1 - res/100)` approaches 0), the opposite of
+  "half damage." Replaced with a new `d.dmgHalf = {phys,magic,poison}`
+  boolean flag set per protection; `enemyHit` now multiplies the final
+  damage of that type by 0.5 as the very last step (after resistance,
+  armor, DR, buffs, and the Magical-affix bonus), so it's a flat 50% cut
+  applied post-mitigation regardless of how much resistance the player
+  already has. `DATA.SHIELD_PROTECTIONS`' `fmt()` text (data.js) updated
+  from "+50% Physical/Magic/Poison Resistance" to "Reduces
+  physical/magic/poison damage by 50%" to describe the corrected mechanic
+  accurately.
+- Verified via a Node `vm` sandbox (shared-context load of `data.js`/
+  `game.js`, no DOM needed for these code paths): `makeCreature(100, ...)`
+  produces exactly `{phys:90, magic:95, poison:90}` for a magic-atkType
+  creature (95% on its own type, 90% on the others) and `chapterSpdMult`
+  hits exactly 1/1.44/3.22/5 at levels 1/20/55/100; a synthetic
+  `G.char.equip.offhand` with `protections: ['resPhysHalf']` produces
+  `d.res.phys === 0` (no resistance inflation) and `d.dmgHalf.phys ===
+  true`; stacking three `+200` `resPhys/resMagic/resPoison` affixes caps
+  `d.res` at exactly 96 for all three types.
+
+---
+
 ## 1.13.1 (fix)
 
 Correction to 1.13.0. The user's original "make it rare" instruction for

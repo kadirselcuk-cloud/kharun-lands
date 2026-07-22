@@ -347,6 +347,7 @@ function derive(buffBonus) {
     painReflect: 0, execute: 0, goldFind: 0, magicFind: 0,
     critStrike: 0, critBonus: 100, doubleStrike: 0, procOffense: 0, procSupport: 0,
     blockChance: 0, immuneSlow: false, immuneCharm: false, immuneNecrotic: false,
+    dmgHalf: { phys: false, magic: false, poison: false },
   };
   // gear
   for (const it of equippedItems()) {
@@ -409,9 +410,13 @@ function derive(buffBonus) {
       if (p === 'immuneSlow') d.immuneSlow = true;
       else if (p === 'immuneCharm') d.immuneCharm = true;
       else if (p === 'immuneNecrotic') d.immuneNecrotic = true;
-      else if (p === 'resPhysHalf') d.res.phys += 50;
-      else if (p === 'resMagicHalf') d.res.magic += 50;
-      else if (p === 'resPoisonHalf') d.res.poison += 50;
+      // Half-damage protections are a post-mitigation multiplier, not a
+      // resistance bonus (see enemyHit) — they no longer touch d.res at
+      // all, so they can't inflate the resistance number shown/capped
+      // alongside real resPhys/resMagic/resPoison affixes.
+      else if (p === 'resPhysHalf') d.dmgHalf.phys = true;
+      else if (p === 'resMagicHalf') d.dmgHalf.magic = true;
+      else if (p === 'resPoisonHalf') d.dmgHalf.poison = true;
     }
   }
   d.weaponMin += d.dmgFlat; d.weaponMax += d.dmgFlat;
@@ -460,7 +465,7 @@ function derive(buffBonus) {
   d.evasion = Math.min(60, +(d.dex * 0.1 * statLevelMult + d.evasion).toFixed(1));
   d.manaRegen = +((1 + d.int * 0.4 * statLevelMult + d.manaRegen) * 0.5).toFixed(1);
   // caps
-  d.res.phys = Math.min(75, d.res.phys); d.res.magic = Math.min(75, d.res.magic); d.res.poison = Math.min(75, d.res.poison);
+  d.res.phys = Math.min(96, d.res.phys); d.res.magic = Math.min(96, d.res.magic); d.res.poison = Math.min(96, d.res.poison);
   d.dr = Math.min(0.6, d.dr);
   d.lifesteal = Math.min(10, d.lifesteal);
   d.manasteal = Math.min(10, d.manasteal);
@@ -1708,6 +1713,28 @@ const TIER_CONF = {
   legendary: { hp: 28, dmg: 3.8, spd: 1.35, xp: 120, gold: 20 },
 };
 
+// A creature's resistance ceiling by damage type (v1.14.0): its own
+// atkType is its "resistant" type (95% cap, hit exactly at level 100 —
+// Chapter 10 Area 10), the other two damage types are "not-resistant"
+// (90% cap). Per explicit user answer, categorization is derived from
+// atkType alone — there's no third "vulnerable" (80%) tier in practice,
+// since every type is either the creature's own attack type or one of
+// the other two.
+function resTypeCap(type, atkType) { return type === atkType ? 95 : 90; }
+// Existing hand-authored species res numbers (data.js) are stretched
+// toward that cap as the story progresses, rather than replaced — t=0 at
+// level 1 keeps a creature's original flavor/relative differences intact,
+// t=1 at level 100 lands exactly on the per-type cap, per explicit user
+// answer to "replace vs stretch".
+function scaleResToCap(baseVal, level, cap) {
+  const t = Math.max(0, Math.min(1, (level - 1) / (MAX_LEVEL_AREA - 1)));
+  return baseVal + (cap - baseVal) * t;
+}
+// Attack speed scales up to 5x by Chapter 10 (linear per chapter, 1x at
+// Chapter 1), stacked on top of the existing spd formula's own
+// tier/species/level growth, per explicit user answer.
+function chapterSpdMult(level) { return 1 + (chapterNumOf(level) - 1) * (4 / 9); }
+
 // From the 5th part of each chapter onward, a normal encounter has a
 // very small chance to be replaced by a wandering mini boss — doubled on
 // the 10th part (the chapter's boss level) to 3%.
@@ -1797,7 +1824,7 @@ function hasAffix(e, id) { return !!(e.affixes && e.affixes.includes(id)); }
 function applyAffixStatMods(c) {
   if (!c.affixes || !c.affixes.length) return;
   for (const a of c.affixes) {
-    if (a === 'resistant') { for (const k of Object.keys(c.res)) c.res[k] = Math.min(85, c.res[k] + 20); }
+    if (a === 'resistant') { for (const k of Object.keys(c.res)) c.res[k] = Math.min(resTypeCap(k, c.atkType), c.res[k] + 20); }
     else if (a === 'resilient') { c.dr = (c.dr || 0) + 0.20; }
     else if (a === 'colossal') { c.maxHp = Math.round(c.maxHp * 1.5); c.hp = c.maxHp; c.spd = Math.round(c.spd * 0.75); }
     else if (a === 'swift') { c.spd = Math.round(c.spd * 1.4); }
@@ -1826,7 +1853,7 @@ function makeCreature(level, tier, opts) {
     res: { ...base.res },
     maxHp: Math.max(5, Math.round(39 * base.hp * enemyHpScale(level) * conf.hp * (0.9 + Math.random() * 0.2) * hpMult)),
     dmg: Math.max(1, Math.round(11.7 * base.dmg * enemyDmgScale(level) * conf.dmg * (0.9 + Math.random() * 0.2))),
-    spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd),
+    spd: Math.round((16 + 9 * base.spd + level * 0.4) * conf.spd * chapterSpdMult(level)),
     xp: Math.max(1, Math.round((4 + level * 2.2) * conf.xp)),   // x10 vs previous (was /10)
     gauge: 0, stunned: 0, dead: false, regenTotal: 0, healCount: 0,
   };
@@ -1835,8 +1862,12 @@ function makeCreature(level, tier, opts) {
   else if (tier === 'rare') { c.name = rareName(info.chapter); }
   else if (isQuestBoss) { c.name = base.name; c.isChapterBoss = isChapterEndLevel(level); }
   else { c.name = bossName(info.chapter); }
+  // Stretch each species' hand-authored res numbers toward the per-type
+  // cap (95% own atkType / 90% other types) as the story progresses,
+  // landing exactly on the cap at level 100 (Chapter 10 Area 10).
+  for (const k of Object.keys(c.res)) c.res[k] = Math.round(scaleResToCap(c.res[k], level, resTypeCap(k, c.atkType)));
   if (tier !== 'normal') {
-    for (const k of Object.keys(c.res)) c.res[k] = Math.min(70, c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
+    for (const k of Object.keys(c.res)) c.res[k] = Math.min(resTypeCap(k, c.atkType), c.res[k] + { rare: 5, epic: 10, miniboss: 12, legendary: 15 }[tier]);
   }
   // Quest bosses use their story-picked specialties; everything else rolls
   // (unless forceAffixes overrides it).
@@ -2298,7 +2329,7 @@ function playerHit(fight, enemy, skill, r) {
   const resKey = isMagic ? 'magic' : 'phys';
   let res = enemy.res[resKey] - d.enemyResDown - (fight.enemyResDown || 0);
   if (skill.pierce) res *= (1 - skill.pierce);
-  res = Math.max(-50, Math.min(75, res));
+  res = Math.max(-50, Math.min(resTypeCap(resKey, enemy.atkType), res));
   let dmg = Math.max(1, Math.round(raw * dmgBoost * (1 - res / 100)));
   if (hasAffix(enemy, 'golem')) dmg = resKey === 'phys' ? dmg * 2 : Math.max(1, Math.round(dmg * 0.2));
   if (hasAffix(enemy, 'spectral')) dmg = resKey === 'phys' ? Math.max(1, Math.round(dmg * 0.2)) : dmg * 2;
@@ -2342,6 +2373,10 @@ function enemyHit(fight, enemy) {
   for (const b of fight.buffs) if (b.dr) buffDr += b.dr;
   dmg *= (1 - Math.min(0.75, d.dr + buffDr));
   if (hasAffix(enemy, 'magical')) dmg += raw * (0.15 + Math.random() * 0.15);
+  // Shield half-damage protection is the very last step — it halves
+  // whatever damage of that type made it through resistance/armor/DR/
+  // buffs, rather than acting as more resistance itself.
+  if (d.dmgHalf[resKey]) dmg *= 0.5;
   dmg = Math.max(1, Math.round(dmg));
   G.char.hp -= dmg;
   ADV.run.dmgTaken += dmg;
